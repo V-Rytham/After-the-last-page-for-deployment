@@ -2,8 +2,9 @@
   min-height: 100vh;
   padding: clamp(1.25rem, 3.5vw, 2.25rem) var(--page-gutter) var(--section-space);
   background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.18), transparent 34%),
-    linear-gradient(180deg, transparent, rgba(60, 47, 28, 0.03) 100%);
+    radial-gradient(circle at top, color-mix(in srgb, var(--surface-2) 18%, transparent), transparent 52%),
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--page-bg) 88%, var(--surface-muted) 12%) 100%),
+    var(--page-bg);
 }
 
 .thread-shell {
@@ -250,12 +251,12 @@
   background:
     repeating-linear-gradient(
       180deg,
-      rgba(120, 96, 63, 0.03) 0,
-      rgba(120, 96, 63, 0.03) 1px,
+      color-mix(in srgb, var(--accent) 8%, transparent) 0,
+      color-mix(in srgb, var(--accent) 8%, transparent) 1px,
       transparent 1px,
       transparent 2.7rem
     ),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 20%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 65%, transparent), transparent 20%),
     var(--surface-1);
   box-shadow: 0 20px 40px rgba(40, 30, 17, 0.04);
 }
@@ -287,7 +288,7 @@
   width: 100%;
   border-radius: 1.15rem;
   border: 1px solid var(--border-soft);
-  background: rgba(255, 252, 246, 0.52);
+  background: var(--surface-1);
   color: var(--text-primary);
   padding: 1rem 1.1rem;
   outline: none;
@@ -297,8 +298,8 @@
 .thread-input:focus,
 .thread-textarea:focus {
   border-color: var(--accent-border);
-  background: rgba(255, 252, 246, 0.78);
-  box-shadow: 0 0 0 3px rgba(70, 80, 107, 0.08);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .thread-input::placeholder,
@@ -343,24 +344,37 @@
 }
 
 .thread-list-surface {
-  border-top: 1px solid var(--border-soft);
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 0.75rem;
 }
 
 .thread-list-item {
-  border-bottom: 1px solid var(--border-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 70%),
+    var(--surface-1);
+  box-shadow: 0 18px 44px rgba(28, 20, 12, 0.06);
+  overflow: hidden;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.thread-list-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: 0 26px 60px rgba(28, 20, 12, 0.08);
 }
 
 .thread-list-button {
   width: 100%;
-  padding: 1.5rem 0;
+  padding: 1.05rem 1.1rem;
   text-align: left;
-  transition: background-color var(--transition-fast), padding-left var(--transition-fast), padding-right var(--transition-fast);
+  transition: background-color var(--transition-fast);
 }
 
 .thread-list-button:hover {
-  background: rgba(255, 255, 255, 0.04);
-  padding-left: 0.25rem;
-  padding-right: 0.25rem;
+  background: var(--surface-muted);
 }
 
 .thread-list-title {
@@ -398,8 +412,8 @@
   gap: 0.35rem;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
-  border: 1px solid rgba(128, 128, 128, 0.22);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-muted);
 }
 
 .resonance-pill svg {
@@ -410,13 +424,13 @@
   min-height: 2rem;
   padding: 0 0.6rem;
   border-radius: 999px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
+  border: 1px solid var(--border-soft);
   background: transparent;
   line-height: 1;
 }
 
 .like-button:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-muted);
 }
 
 .like-button.is-liked {

@@ -11,6 +11,54 @@ const getBookId = (book) => book._id || book.id;
 
 const isFinished = (book) => Boolean(book?.session?.isFinished || book?.session?.progressPercent >= 100);
 
+const useFitOneLineText = ({ text, minPx = 12 } = {}) => {
+  const ref = React.useRef(null);
+  const basePxRef = React.useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      return undefined;
+    }
+
+    const fit = () => {
+      const node = ref.current;
+      if (!node) return;
+
+      node.style.fontSize = '';
+      const computed = window.getComputedStyle(node);
+      const basePx = basePxRef.current ?? (Number.parseFloat(computed.fontSize) || null);
+      if (!basePx) return;
+      basePxRef.current = basePx;
+
+      // Force layout to measure overflow.
+      const available = node.clientWidth;
+      const required = node.scrollWidth;
+      if (!available || !required || required <= available) {
+        return;
+      }
+
+      const ratio = available / required;
+      const nextPx = Math.max(minPx, Math.floor(basePx * ratio * 100) / 100);
+      node.style.fontSize = `${nextPx}px`;
+    };
+
+    const raf = window.requestAnimationFrame(fit);
+
+    const observer = new ResizeObserver(() => {
+      window.requestAnimationFrame(fit);
+    });
+    observer.observe(el);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [minPx, text]);
+
+  return ref;
+};
+
 const getProgressLabel = (book) => {
   if (book.session?.progressPercent > 0 && book.session?.progressPercent < 100) {
     return `Continue from page ${book.session.currentPage}`;
@@ -38,6 +86,8 @@ const renderCoverArt = (book) => {
 };
 
 const FeaturedContinue = ({ book }) => {
+  const titleRef = useFitOneLineText({ text: book?.title || '', minPx: 16 });
+
   if (!book) {
     return (
       <div className="section-empty">
@@ -60,7 +110,7 @@ const FeaturedContinue = ({ book }) => {
 
       <div className="featured-continue-copy">
         <span className="featured-continue-kicker">Pick up where you left off</span>
-        <h3 className="featured-continue-title font-serif">{book.title}</h3>
+        <h3 ref={titleRef} className="featured-continue-title font-serif" title={book.title}>{book.title}</h3>
         <p className="featured-continue-author">{book.author}</p>
         <p className="featured-continue-progress">{getProgressLabel(book)}</p>
         {progressPercent > 0 && progressPercent < 100 && (
@@ -84,6 +134,7 @@ const BookEntry = ({ book, compact = false, onToggleShelf, isSaved }) => {
   const progressPercent = book.session?.progressPercent || 0;
   const displayTitle = (book.title || '').split(';')[0].trim();
   const finished = isFinished(book);
+  const titleRef = useFitOneLineText({ text: displayTitle, minPx: compact ? 12 : 13 });
 
   const handleToggleShelf = (e) => {
     e.preventDefault();
@@ -116,7 +167,7 @@ const BookEntry = ({ book, compact = false, onToggleShelf, isSaved }) => {
         )}
 
         <div className="book-copy">
-          <h3 className="book-title font-serif" title={book.title}>{displayTitle}</h3>
+          <h3 ref={titleRef} className="book-title font-serif" title={book.title}>{displayTitle}</h3>
           <p className="book-author">{book.author}</p>
           <div className="book-meta">
             <span>{getProgressLabel(book)}</span>
@@ -343,6 +394,10 @@ const BooksLibrary = () => {
   }, [libraryState.continueReading, libraryState.recentlyOpened]);
 
   const hasActiveFiltering = Boolean(searchTerm.trim()) || selectedTag !== 'All';
+  const shelfCount = libraryState?.savedBooks?.length || 0;
+  const hasShelf = shelfCount > 0;
+  const hasRecentActivity = recentActivity.length > 0;
+  const continueBook = libraryState.continueReading[0] || libraryState.recentlyOpened[0] || null;
 
   if (loading) {
     return (
@@ -437,89 +492,109 @@ const BooksLibrary = () => {
         </section>
       ) : (
         <>
-          <section className="library-section">
-            <div className="section-heading">
-              <h2 className="font-serif">Continue Reading</h2>
-            </div>
-            <FeaturedContinue book={libraryState.continueReading[0] || libraryState.recentlyOpened[0] || null} />
-          </section>
+          {(() => {
+            const sections = {
+              recommendations: recommendationShelves ? (() => {
+                const baseBook = books.find((book) => getBookId(book) === recommendationState.currentBookId) || null;
+                const baseTitle = baseBook?.title || 'a book you opened';
+                const baseAuthor = baseBook?.author || 'this author';
+                return (
+                  <>
+                    <Section
+                      title="Continue Series"
+                      subtitle="The next unread volume in your current saga."
+                      books={recommendationShelves.seriesContinuation}
+                      compact
+                      onToggleShelf={handleToggleShelf}
+                      userShelfIds={userShelfIds}
+                    />
+                    <Section
+                      title={`Because you read ${baseTitle}`}
+                      subtitle="Stories with similar tags and themes."
+                      books={recommendationShelves.basedOnBook}
+                      compact
+                      onToggleShelf={handleToggleShelf}
+                      userShelfIds={userShelfIds}
+                    />
+                    <Section
+                      title={`More from ${baseAuthor}`}
+                      subtitle="Same author, different doors."
+                      books={recommendationShelves.sameAuthor}
+                      compact
+                      onToggleShelf={handleToggleShelf}
+                      userShelfIds={userShelfIds}
+                    />
+                    <Section
+                      title="More in this genre"
+                      subtitle="A softer fallback when tag matches are thin."
+                      books={recommendationShelves.genreBased}
+                      compact
+                      onToggleShelf={handleToggleShelf}
+                      userShelfIds={userShelfIds}
+                    />
+                  </>
+                );
+              })() : null,
 
-          <section className="library-section">
-            <div className="section-heading">
-              <h2 className="font-serif">Your Shelf</h2>
-              <p>Your books, arranged as a calm cover grid.</p>
-            </div>
+              activity: (continueBook || hasRecentActivity) ? (
+                <>
+                  {continueBook ? (
+                    <section className="library-section">
+                      <div className="section-heading">
+                        <h2 className="font-serif">Continue Reading</h2>
+                      </div>
+                      <FeaturedContinue book={continueBook} />
+                    </section>
+                  ) : null}
 
-            {libraryState.savedBooks && libraryState.savedBooks.length > 0 ? (
-              <div className="books-shelf">
-                {libraryState.savedBooks.map((book) => (
-                  <BookEntry
-                    key={getBookId(book)}
-                    book={book}
-                    onToggleShelf={handleToggleShelf}
-                    isSaved={userShelfIds.has(getBookId(book))}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="no-results" style={{ minHeight: '12rem' }}>
-                <BookOpen size={32} className="text-muted" />
-                <h3 className="font-serif">Your shelf is empty.</h3>
-                <p>Start adding books you love.</p>
-              </div>
-            )}
-          </section>
+                  {hasRecentActivity ? (
+                    <Section
+                      title="Recent Activity"
+                      subtitle="The last covers you touched, finished, or returned to."
+                      books={recentActivity.slice(0, 8)}
+                      compact
+                      onToggleShelf={handleToggleShelf}
+                      userShelfIds={userShelfIds}
+                    />
+                  ) : null}
+                </>
+              ) : null,
 
-          {recommendationShelves && (() => {
-            const baseBook = books.find((book) => getBookId(book) === recommendationState.currentBookId) || null;
-            const baseTitle = baseBook?.title || 'a book you opened';
-            const baseAuthor = baseBook?.author || 'this author';
-            return (
-              <>
-                <Section
-                  title="Continue Series"
-                  subtitle="The next unread volume in your current saga."
-                  books={recommendationShelves.seriesContinuation}
-                  compact
-                  onToggleShelf={handleToggleShelf}
-                  userShelfIds={userShelfIds}
-                />
-                <Section
-                  title={`Because you read ${baseTitle}`}
-                  subtitle="Stories with similar tags and themes."
-                  books={recommendationShelves.basedOnBook}
-                  compact
-                  onToggleShelf={handleToggleShelf}
-                  userShelfIds={userShelfIds}
-                />
-                <Section
-                  title={`More from ${baseAuthor}`}
-                  subtitle="Same author, different doors."
-                  books={recommendationShelves.sameAuthor}
-                  compact
-                  onToggleShelf={handleToggleShelf}
-                  userShelfIds={userShelfIds}
-                />
-                <Section
-                  title="More in this genre"
-                  subtitle="A softer fallback when tag matches are thin."
-                  books={recommendationShelves.genreBased}
-                  compact
-                  onToggleShelf={handleToggleShelf}
-                  userShelfIds={userShelfIds}
-                />
-              </>
-            );
+              shelf: (
+                <section className="library-section">
+                  <div className="section-heading">
+                    <h2 className="font-serif">Your Shelf</h2>
+                    <p>Your books, arranged as a calm cover grid.</p>
+                  </div>
+
+                  {hasShelf ? (
+                    <div className="books-shelf">
+                      {libraryState.savedBooks.map((book) => (
+                        <BookEntry
+                          key={getBookId(book)}
+                          book={book}
+                          onToggleShelf={handleToggleShelf}
+                          isSaved={userShelfIds.has(getBookId(book))}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="no-results" style={{ minHeight: '12rem' }}>
+                      <BookOpen size={32} className="text-muted" />
+                      <h3 className="font-serif">Your shelf is empty.</h3>
+                      <p>Start adding books you love.</p>
+                    </div>
+                  )}
+                </section>
+              ),
+            };
+
+            const orderedKeys = ['activity', 'shelf', 'recommendations'];
+
+            return orderedKeys.map((key) => (
+              <React.Fragment key={key}>{sections[key] || null}</React.Fragment>
+            ));
           })()}
-
-          <Section
-            title="Recent Activity"
-            subtitle="The last covers you touched, finished, or returned to."
-            books={recentActivity.slice(0, 8)}
-            compact
-            onToggleShelf={handleToggleShelf}
-            userShelfIds={userShelfIds}
-          />
         </>
       )}
     </div>

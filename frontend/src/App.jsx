@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
+import SessionNavigationGuard from './components/session/SessionNavigationGuard';
 import LandingPage from './pages/LandingPage';
 import BooksLibrary from './pages/BooksLibrary';
 import Library from './pages/Library';
@@ -16,10 +17,10 @@ import SettingsPage from './pages/SettingsPage';
 import BookQuiz from './pages/BookQuiz';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
+import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
 import './index.css';
 
-const THEME_STORAGE_KEY = 'atlp-ui-theme';
-const VALID_THEMES = ['light', 'sepia', 'dark'];
+const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
 
 const RequireMember = ({ currentUser, children }) => {
   const location = useLocation();
@@ -39,6 +40,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
 
   return (
     <div className="app-container">
+      <SessionNavigationGuard />
       {!hideNavbar && (
         <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />
       )}
@@ -69,8 +71,29 @@ const App = () => {
   const bootstrapStartedRef = useRef(false);
   const [uiTheme, setUiTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return VALID_THEMES.includes(storedTheme) ? storedTheme : 'sepia';
+    if (storedTheme === 'midnight') {
+      return 'dark';
+    }
+
+    if (storedTheme === 'dark') {
+      // Preserve the older brown-toned palette under its new id.
+      return 'mocha';
+    }
+
+    return VALID_THEMES.includes(storedTheme) ? storedTheme : DEFAULT_UI_THEME;
   });
+
+  useEffect(() => {
+    // HashRouter should ignore pathname, but stray prefixes (e.g. "/$#/desk") confuse users and break
+    // any code that reads `window.location.pathname`. Normalize once at startup.
+    try {
+      if (typeof window !== 'undefined' && window.location.hash.startsWith('#/') && window.location.pathname !== '/') {
+        window.history.replaceState(null, '', `/${window.location.hash}`);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     if (bootstrapStartedRef.current) {

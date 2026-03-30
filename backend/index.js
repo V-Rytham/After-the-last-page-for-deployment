@@ -13,10 +13,13 @@ import { Book } from './models/Book.js';
 import { defaultBooks } from './seed/defaultBooks.js';
 import accessRoutes from './routes/accessRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
+import { buildSessionRoutes } from './routes/sessionRoutes.js';
+import { buildMatchmakingRoutes } from './routes/matchmakingRoutes.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import { isProd } from './utils/runtime.js';
+import { RealtimeSessionManager } from './services/realtimeSessionManager.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -133,8 +136,9 @@ app.use('/api/users/anonymous', rateLimit({ windowMs: 60_000, max: 40 }));
 app.use('/api/quiz', rateLimit({ windowMs: 60_000, max: 60 }));
 app.use('/api/access', rateLimit({ windowMs: 60_000, max: 90 }));
 
+const sessionManager = new RealtimeSessionManager(io);
 // Register Socket Events
-registerSocketEvents(io);
+registerSocketEvents(io, sessionManager);
 
 // Routes
 app.use('/api/users', userRoutes);
@@ -144,6 +148,8 @@ app.use('/api/recommender', recommenderRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/quiz', quizRoutes);
+app.use('/api/session', buildSessionRoutes(sessionManager));
+app.use('/api/matchmaking', buildMatchmakingRoutes(sessionManager));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Nexus Core Online' });

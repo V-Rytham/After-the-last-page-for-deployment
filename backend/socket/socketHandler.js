@@ -1,11 +1,15 @@
 import jwt from 'jsonwebtoken';
 import { checkMeetAccess } from '../services/accessService.js';
 
-export default function registerSocketEvents(io) {
-  const queues = {};
+export default function registerSocketEvents(io, sessionManager) {
+  if (!sessionManager) {
+    throw new Error('sessionManager is required');
+  }
   let onlineCount = 0;
 
-  const getSearchingCount = () => Object.values(queues).reduce((sum, queue) => sum + (queue?.length || 0), 0);
+  const getSearchingCount = () => (
+    Array.from(sessionManager.queue.values()).reduce((sum, queue) => sum + (queue?.length || 0), 0)
+  );
 
   const emitStats = () => {
     io.emit('match_stats', {
@@ -48,6 +52,7 @@ export default function registerSocketEvents(io) {
 
   io.on('connection', (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);
+    sessionManager.registerSocket({ userId: socket.userId, socketId: socket.id });
     onlineCount += 1;
     emitStats();
 
@@ -69,57 +74,27 @@ export default function registerSocketEvents(io) {
         return;
       }
 
-      const queueKey = `${bookId}_${prefType}`;
-
-      if (!queues[queueKey]) {
-        queues[queueKey] = [];
-      }
-
-      if (queues[queueKey].length > 0) {
-        const partnerSocketId = queues[queueKey].shift();
-        const partnerSocket = io.sockets.sockets.get(partnerSocketId);
-        if (partnerSocket) {
-          const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-          socket.join(roomId);
-          partnerSocket.join(roomId);
-
-          socket.emit('match_found', {
-            roomId,
-            role: 'caller',
-            message: 'You have been paired with a fellow reader.',
-          });
-
-          partnerSocket.emit('match_found', {
-            roomId,
-            role: 'callee',
-            message: 'You have been paired with a fellow reader.',
-          });
-
-          console.log(`[SOCKET] Matched ${socket.id} & ${partnerSocketId} in ${roomId}`);
-          emitStats();
-        } else {
-          queues[queueKey].push(socket.id);
-          emitStats();
-        }
-      } else {
-        queues[queueKey].push(socket.id);
-        console.log(`[SOCKET] ${socket.id} added to queue ${queueKey}`);
+      try {
+        await sessionManager.joinMatchmaking({ userId: socket.userId, bookId, prefType });
+      } catch (error) {
+        socket.emit('access_denied', { message: error.message || 'Unable to join matchmaking.' });
+      } finally {
         emitStats();
       }
     });
 
-    socket.on('leave_matchmaking', ({ bookId, prefType }) => {
-      const queueKey = `${bookId}_${prefType}`;
-      if (!queues[queueKey]?.length) {
-        return;
-      }
+    socket.on('leave_matchmaking', () => {
+      sessionManager.leaveMatchmaking({ userId: socket.userId });
+      emitStats();
+    });
 
-      const before = queues[queueKey].length;
-      queues[queueKey] = queues[queueKey].filter((id) => id !== socket.id);
-      if (queues[queueKey].length !== before) {
-        emitStats();
-      }
+    socket.on('enter_conversation', ({ roomId }) => {
+      sessionManager.enterConversation({ userId: socket.userId, roomId });
+    });
+
+    socket.on('leave_room', async ({ roomId, reason }) => {
+      await sessionManager.leaveRoom({ userId: socket.userId, roomId, reason: reason || 'left' });
+      emitStats();
     });
 
     socket.on('send_message', ({ roomId, message, senderId }) => {
@@ -141,9 +116,7 @@ export default function registerSocketEvents(io) {
     socket.on('disconnect', () => {
       console.log(`[SOCKET] User disconnected: ${socket.id}`);
       onlineCount = Math.max(0, onlineCount - 1);
-      for (const key in queues) {
-        queues[key] = queues[key].filter((id) => id !== socket.id);
-      }
+      sessionManager.unregisterSocket({ socketId: socket.id });
       emitStats();
     });
   });

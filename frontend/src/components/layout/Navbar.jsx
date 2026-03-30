@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -19,14 +19,22 @@ import {
   UserRound,
   UserPlus,
   UsersRound,
+  Sparkles,
 } from 'lucide-react';
+import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
 
-const themeOptions = [
-  { id: 'light', label: 'Light', icon: Sun },
-  { id: 'sepia', label: 'Sepia', icon: BookOpenText },
-  { id: 'dark', label: 'Dark', icon: Moon },
-];
+const THEME_ICONS = {
+  light: Sun,
+  sepia: BookOpenText,
+  mocha: Sparkles,
+  dark: Moon,
+};
+
+const themeOptions = UI_THEMES.map((theme) => ({
+  ...theme,
+  icon: THEME_ICONS[theme.id] || Sun,
+}));
 
 const useCloseOnPointerDownOutside = (isOpen, wrapperRef, onClose) => {
   useEffect(() => {
@@ -49,6 +57,23 @@ const useCloseOnPointerDownOutside = (isOpen, wrapperRef, onClose) => {
   }, [isOpen, onClose, wrapperRef]);
 };
 
+const useCloseOnEscape = (isOpen, onClose) => {
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+};
+
 const ThemeMenu = ({ uiTheme, onThemeChange, isOpen, onToggle, onClose, className = '' }) => {
   const wrapperRef = useRef(null);
   useCloseOnPointerDownOutside(isOpen, wrapperRef, onClose);
@@ -65,9 +90,10 @@ const ThemeMenu = ({ uiTheme, onThemeChange, isOpen, onToggle, onClose, classNam
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <ActiveIcon size={18} strokeWidth={2.1} aria-hidden="true" />
+        <ActiveIcon size={16} strokeWidth={2.1} aria-hidden="true" />
+        <span className="theme-trigger-label">{activeOption.label}</span>
         <span className="sr-only">Theme</span>
-        <ChevronDown size={16} aria-hidden="true" />
+        <ChevronDown size={14} aria-hidden="true" />
       </button>
 
       {isOpen && (
@@ -131,6 +157,7 @@ const MoreMenu = ({ isOpen, isActive, onToggle, onClose }) => {
 const ProfileMenu = ({ displayName, username, onLogout, isOpen, onToggle, onClose }) => {
   const wrapperRef = useRef(null);
   useCloseOnPointerDownOutside(isOpen, wrapperRef, onClose);
+  useCloseOnEscape(isOpen, onClose);
   const initials = useMemo(() => {
     const base = (displayName || username || 'Reader').trim();
     return base ? base[0].toUpperCase() : 'R';
@@ -182,18 +209,22 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const navLinksWrapperRef = useRef(null);
+  const navLinkRefs = useRef(new Map());
+  const [indicatorStyle, setIndicatorStyle] = useState({ x: 0, w: 0, o: 0 });
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
-  const navIconProps = useMemo(() => ({ size: 18, strokeWidth: 2.1 }), []);
+  const navIconProps = useMemo(() => ({ size: 16, strokeWidth: 2.1 }), []);
 
   const primaryNavLinks = useMemo(
     () => [
       ...(isMember ? [
-        { path: '/desk', icon: <LibraryBig {...navIconProps} />, label: 'The Desk' },
+        { path: '/desk', icon: <LibraryBig {...navIconProps} />, label: 'Your Desk' },
         { path: '/library', icon: <BookOpen {...navIconProps} />, label: 'Library' }
       ] : []),
       { path: '/meet', icon: <UsersRound {...navIconProps} />, label: 'Meet' },
@@ -221,53 +252,111 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
     navigate('/');
   };
 
+  useLayoutEffect(() => {
+    const wrapper = navLinksWrapperRef.current;
+    if (!wrapper) {
+      return undefined;
+    }
+
+    const compute = () => {
+      const refs = navLinkRefs.current;
+      const active = [...refs.entries()].find(([path]) => location.pathname.startsWith(path));
+      const el = active ? active[1] : null;
+
+      if (!el || !(el instanceof HTMLElement)) {
+        setIndicatorStyle((prev) => (prev.o === 0 ? prev : { ...prev, o: 0 }));
+        return;
+      }
+
+      const wrapperBox = wrapper.getBoundingClientRect();
+      const elBox = el.getBoundingClientRect();
+      const x = Math.max(0, elBox.left - wrapperBox.left);
+      const w = Math.max(0, elBox.width);
+      setIndicatorStyle({ x, w, o: 1 });
+    };
+
+    compute();
+
+    const ro = new ResizeObserver(() => {
+      compute();
+    });
+    ro.observe(wrapper);
+
+    return () => ro.disconnect();
+  }, [location.pathname]);
+
   return (
-    <nav className="navbar glass-panel">
+    <nav className="navbar navbar-capsule">
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" aria-label="After The Last Page">
-          <BookOpen className="logo-icon" size={18} strokeWidth={2.1} />
+          <BookOpen className="logo-icon" size={16} strokeWidth={2.1} />
           <div className="logo-copy">
             <span className="logo-text font-serif">After The Last Page</span>
             <span className="logo-tagline">Where books become conversations</span>
           </div>
         </Link>
 
-        <div className="navbar-links" aria-label="Primary">
-          {primaryNavLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`nav-link ${location.pathname.startsWith(link.path) ? 'active' : ''}`}
-              aria-label={link.label}
-            >
-              {link.icon}
-              <span className="nav-link-label">{link.label}</span>
-            </Link>
-          ))}
-
-          <Link
-            key={studioNavLink.path}
-            to={studioNavLink.path}
-            className={`nav-link nav-link-secondary ${location.pathname.startsWith(studioNavLink.path) ? 'active' : ''}`}
-            aria-label={studioNavLink.label}
-          >
-            {studioNavLink.icon}
-            <span className="nav-link-label">{studioNavLink.label}</span>
-          </Link>
-
-          <MoreMenu
-            isOpen={isMoreOpen}
-            isActive={location.pathname.startsWith(studioNavLink.path)}
-            onToggle={() => {
-              setIsMoreOpen((open) => !open);
-              setIsThemeOpen(false);
-              setIsProfileOpen(false);
+        <div className="nav-links-group" aria-label="Primary">
+          <div
+            className="navbar-links"
+            ref={navLinksWrapperRef}
+            style={{
+              '--indicator-x': `${indicatorStyle.x}px`,
+              '--indicator-w': `${indicatorStyle.w}px`,
+              '--indicator-o': indicatorStyle.o,
             }}
-            onClose={() => setIsMoreOpen(false)}
-          />
+          >
+            <span className="nav-indicator" aria-hidden="true" />
+            {primaryNavLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`nav-link ${location.pathname.startsWith(link.path) ? 'active' : ''}`}
+                aria-label={link.label}
+                ref={(node) => {
+                  if (node) {
+                    navLinkRefs.current.set(link.path, node);
+                  } else {
+                    navLinkRefs.current.delete(link.path);
+                  }
+                }}
+              >
+                {link.icon}
+                <span className="nav-link-label">{link.label}</span>
+              </Link>
+            ))}
+
+            <Link
+              key={studioNavLink.path}
+              to={studioNavLink.path}
+              className={`nav-link nav-link-secondary ${location.pathname.startsWith(studioNavLink.path) ? 'active' : ''}`}
+              aria-label={studioNavLink.label}
+              ref={(node) => {
+                if (node) {
+                  navLinkRefs.current.set(studioNavLink.path, node);
+                } else {
+                  navLinkRefs.current.delete(studioNavLink.path);
+                }
+              }}
+            >
+              {studioNavLink.icon}
+              <span className="nav-link-label">{studioNavLink.label}</span>
+            </Link>
+
+            <MoreMenu
+              isOpen={isMoreOpen}
+              isActive={location.pathname.startsWith(studioNavLink.path)}
+              onToggle={() => {
+                setIsMoreOpen((open) => !open);
+                setIsThemeOpen(false);
+                setIsProfileOpen(false);
+              }}
+              onClose={() => setIsMoreOpen(false)}
+            />
+          </div>
         </div>
 
-        <div className="navbar-auth">
+        <div className="navbar-user-capsule">
           <ThemeMenu
             uiTheme={uiTheme}
             onThemeChange={onThemeChange}
@@ -278,6 +367,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               setIsMoreOpen(false);
             }}
             onClose={() => setIsThemeOpen(false)}
+            className="is-primary"
           />
 
           {currentUser ? (
@@ -318,22 +408,22 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               <span>Sign in</span>
             </Link>
           )}
-
-          <button
-            type="button"
-            className="mobile-menu-btn"
-            onClick={() => {
-              setIsMenuOpen((open) => !open);
-              setIsThemeOpen(false);
-              setIsMoreOpen(false);
-              setIsProfileOpen(false);
-            }}
-            aria-expanded={isMenuOpen}
-            aria-label="Open menu"
-          >
-            <Menu size={18} strokeWidth={2.1} aria-hidden="true" />
-          </button>
         </div>
+
+        <button
+          type="button"
+          className="mobile-menu-btn"
+          onClick={() => {
+            setIsMenuOpen((open) => !open);
+            setIsThemeOpen(false);
+            setIsMoreOpen(false);
+            setIsProfileOpen(false);
+          }}
+          aria-expanded={isMenuOpen}
+          aria-label="Open menu"
+        >
+          <Menu size={18} strokeWidth={2.1} aria-hidden="true" />
+        </button>
       </div>
 
 

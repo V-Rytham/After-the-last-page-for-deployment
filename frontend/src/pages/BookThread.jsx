@@ -314,8 +314,10 @@ export default function BookThread() {
   };
 
   const updateHash = (threadId) => {
-    const nextUrl = threadId ? `${window.location.pathname}#${threadId}` : window.location.pathname;
-    window.history.replaceState(null, '', nextUrl);
+    const baseHash = `#${location.pathname}${location.search || ''}`;
+    const nextHash = threadId ? `${baseHash}#${threadId}` : baseHash;
+    // Ensure the URL never accumulates stray pathname prefixes (e.g. "/$#/desk").
+    window.history.replaceState(null, '', `/${nextHash}`);
   };
 
   const handleOpenThread = (threadId) => {

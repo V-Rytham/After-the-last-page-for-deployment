@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import api from '../utils/api';
 import { getStoredToken } from '../utils/auth';
 import { getFallbackBookById } from '../utils/bookFallback';
-import { getSocketServerUrl } from '../utils/serviceUrls';
+import { getApiBaseUrl, getSocketServerUrl } from '../utils/serviceUrls';
 import './MeetingHub.css';
 
 const socketServer = getSocketServerUrl();
@@ -28,8 +28,11 @@ const MeetingHub = () => {
   const [bookFriendLoading, setBookFriendLoading] = useState(false);
   const [matchStats, setMatchStats] = useState(null);
   const [searchSeconds, setSearchSeconds] = useState(0);
+  const [leavePromptOpen, setLeavePromptOpen] = useState(false);
+  const pendingLeaveActionRef = useRef(null);
   const socketRef = useRef(null);
   const searchIntervalRef = useRef(null);
+  const cleanupInFlightRef = useRef(false);
 
   const peerRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -45,6 +48,9 @@ const MeetingHub = () => {
 
   const [chatInput, setChatInput] = useState('');
   const [prefType, setPrefType] = useState('text');
+  const lastSafeHashRef = useRef(typeof window !== 'undefined' ? window.location.hash : '');
+  const allowHashNavigationRef = useRef(false);
+  const pendingHashNavigationRef = useRef(null);
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -99,6 +105,8 @@ const MeetingHub = () => {
       setRoomId(matchedRoomId);
       setMatchRole(role || null);
       setPhase('connected');
+      socketRef.current?.emit('enter_conversation', { roomId: matchedRoomId });
+      window.dispatchEvent(new Event('atlp-session-hint'));
     });
 
     socketRef.current.on('access_denied', () => {
@@ -117,6 +125,14 @@ const MeetingHub = () => {
 
     socketRef.current.on('receive_message', ({ message }) => {
       setMessages((prev) => [...prev, { text: message, sender: 'partner', timestamp: new Date() }]);
+    });
+
+    socketRef.current.on('partner_left', () => {
+      setMatchNotice('Your partner left the room. You can search again when ready.');
+      setRoomId(null);
+      setMessages([]);
+      setPhase('preferences');
+      window.dispatchEvent(new Event('atlp-session-hint'));
     });
 
     socketRef.current.on('webrtc_offer', async ({ offer }) => {
@@ -170,9 +186,141 @@ const MeetingHub = () => {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [bookId, navigate]);
+	  }, [bookId, navigate]);
 
-  const cleanupMedia = useCallback(() => {
+  const sessionIsSensitive = phase === 'searching' || phase === 'connected' || phase === 'bookfriend';
+
+  const closeBookFriendSession = useCallback(() => {
+    if (!bookFriendSessionId) return;
+    api.post('/agent/end', { session_id: bookFriendSessionId }).catch(() => {});
+    setBookFriendSessionId(null);
+  }, [bookFriendSessionId]);
+
+  useEffect(() => () => {
+    if (bookFriendSessionId) api.post('/agent/end', { session_id: bookFriendSessionId }).catch(() => {});
+  }, [bookFriendSessionId]);
+
+  const endSession = useCallback(async (reason = 'leave') => {
+    if (cleanupInFlightRef.current) {
+      return;
+    }
+
+    cleanupInFlightRef.current = true;
+
+    try {
+      if (phase === 'searching') {
+        await api.post('/matchmaking/leave').catch(() => {});
+      }
+
+      if (phase === 'connected' && roomId) {
+        socketRef.current?.emit('leave_room', { roomId, reason });
+      }
+
+      if (phase === 'bookfriend') {
+        closeBookFriendSession();
+      }
+
+      await api.post('/session/end', { reason }).catch(() => {});
+    } finally {
+      cleanupInFlightRef.current = false;
+    }
+  }, [closeBookFriendSession, phase, roomId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleHashNavigation = () => {
+      if (allowHashNavigationRef.current) {
+        allowHashNavigationRef.current = false;
+        lastSafeHashRef.current = window.location.hash;
+        pendingHashNavigationRef.current = null;
+        return;
+      }
+
+      const nextHash = window.location.hash;
+      const previousHash = lastSafeHashRef.current;
+
+      if (!sessionIsSensitive) {
+        lastSafeHashRef.current = nextHash;
+        return;
+      }
+
+      pendingHashNavigationRef.current = nextHash;
+
+      // Revert immediately; hashchange is not cancelable.
+      if (previousHash && previousHash !== nextHash) {
+        allowHashNavigationRef.current = true;
+        window.location.hash = previousHash;
+      }
+
+      pendingLeaveActionRef.current = () => {
+        const targetHash = pendingHashNavigationRef.current;
+        if (targetHash && targetHash !== window.location.hash) {
+          allowHashNavigationRef.current = true;
+          window.location.hash = targetHash;
+        }
+      };
+
+      setLeavePromptOpen(true);
+    };
+
+    window.addEventListener('hashchange', handleHashNavigation);
+    window.addEventListener('popstate', handleHashNavigation);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashNavigation);
+      window.removeEventListener('popstate', handleHashNavigation);
+    };
+  }, [sessionIsSensitive]);
+
+  useEffect(() => {
+    if (!socketReady) {
+      return;
+    }
+
+    api.get('/session/status')
+      .then(({ data }) => {
+        const state = data?.session?.state;
+        if (state === 'SEARCHING' || state === 'MATCHED' || state === 'IN_CONVERSATION') {
+          return api.post('/session/end', { reason: 'restore-reset' });
+        }
+        return null;
+      })
+      .catch(() => {})
+      .finally(() => {
+        api.post('/session/start', { state: 'IDLE', bookId }).catch(() => {});
+      });
+  }, [bookId, socketReady]);
+
+  useEffect(() => {
+    if (!sessionIsSensitive) {
+      return undefined;
+    }
+
+    const handleBeforeUnload = (event) => {
+      try {
+        const token = getStoredToken();
+        if (token && navigator.sendBeacon) {
+          const payload = JSON.stringify({ token, reason: 'beforeunload' });
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(`${getApiBaseUrl()}/session/end`, blob);
+        }
+      } catch {
+        // ignore
+      }
+
+      event.preventDefault();
+      event.returnValue = 'Leaving will end your current session.';
+      return event.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessionIsSensitive]);
+
+	  const cleanupMedia = useCallback(() => {
     if (peerRef.current) {
       try { peerRef.current.close(); } catch { /* ignore */ }
       peerRef.current = null;
@@ -274,35 +422,32 @@ const MeetingHub = () => {
     };
   }, [phase, prefType]);
 
-  const closeBookFriendSession = useCallback(() => {
-    if (!bookFriendSessionId) return;
-    api.post('/agent/end', { session_id: bookFriendSessionId }).catch(() => {});
-    setBookFriendSessionId(null);
-  }, [bookFriendSessionId]);
-
-  useEffect(() => () => {
-    if (bookFriendSessionId) api.post('/agent/end', { session_id: bookFriendSessionId }).catch(() => {});
-  }, [bookFriendSessionId]);
-
   if (loading) return <div className="p-10 text-center mt-20 font-serif">Deep in the archives... Seeking your book.</div>;
   if (!book) return <div className="p-10 text-center mt-20 font-serif">Book not found. Perhaps it's still being written?</div>;
 
-  const handleStartSearch = () => {
+  const handleStartSearch = async () => {
     if (!socketRef.current?.connected) {
       setMatchNotice('Live matching is unavailable right now. Please try again shortly, or enter the community thread.');
       return;
     }
     setPhase('searching');
     setMatchNotice('');
-    socketRef.current.emit('join_matchmaking', { bookId, prefType, anonymousId: `user_${Math.random().toString(36).slice(2, 11)}` });
+    await api.post('/matchmaking/join', { bookId, prefType }).then(() => {
+      window.dispatchEvent(new Event('atlp-session-hint'));
+    }).catch((error) => {
+      console.error('Failed to join matchmaking:', error);
+      setMatchNotice('Unable to start matchmaking right now. Please try again.');
+      setPhase('preferences');
+    });
   };
 
-  const handleCancelSearch = () => {
-    socketRef.current?.emit('leave_matchmaking', { bookId, prefType });
+  const handleCancelSearch = async () => {
+    await api.post('/matchmaking/leave').catch(() => {});
     setPhase('preferences');
     setSearchHint('');
     setSearchSeconds(0);
     setBookFriendOffered(false);
+    window.dispatchEvent(new Event('atlp-session-hint'));
   };
 
   const handleTalkToBookFriend = async () => {
@@ -359,16 +504,31 @@ const MeetingHub = () => {
       : 'Text';
 
   return (
-    <div className="meeting-hub animate-fade-in">
+    <div className={`meeting-hub meeting-hub--${phase} animate-fade-in`}>
       {phase === 'preferences' && (
         <div className="preferences-container animate-fade-in">
           <div className="preferences-content glass-panel">
+            <button
+              type="button"
+              className="meeting-back-btn"
+              onClick={() => {
+                try {
+                  navigate(-1);
+                } catch {
+                  navigate('/meet');
+                }
+              }}
+            >
+              <span aria-hidden="true">←</span>
+              <span>Back</span>
+            </button>
+
             <h2 className="font-serif text-center mb-2">How would you like to connect?</h2>
             <p className="text-muted text-center mb-8">Select your preferred medium to discuss <em>{book.title}</em>. Your identity remains anonymous.</p>
             <div className="pref-options">
-              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><MessageSquare size={32} /></div><h3>Text Chat</h3><p>Quiet, thoughtful discussion.</p></button>
-              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><Mic size={32} /></div><h3>Voice Call</h3><p>Vocalize your thoughts securely.</p></button>
-              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><Video size={32} /></div><h3>Video Call</h3><p>Face-to-face, masked connection.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><MessageSquare size={26} strokeWidth={2.1} /></div><h3>Text Chat</h3><p>Quiet, thoughtful discussion.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><Mic size={26} strokeWidth={2.1} /></div><h3>Voice Call</h3><p>Vocalize your thoughts securely.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><Video size={26} strokeWidth={2.1} /></div><h3>Video Call</h3><p>Face-to-face, masked connection.</p></button>
             </div>
             {matchNotice && <div className="meeting-notice" role="status">{matchNotice}</div>}
             <div className="mt-8 text-center flex-column-center gap-4">
@@ -393,9 +553,9 @@ const MeetingHub = () => {
 
             <div className="searching-header">
               <h2 className="font-serif searching-title">
-                {searchStage === 'starting' && 'Opening a room'}
-                {searchStage === 'searching' && 'Looking for a fellow reader'}
-                {searchStage === 'lingering' && 'Still searching'}
+                {searchStage === 'starting' && 'Finding a reader'}
+                {searchStage === 'searching' && 'Matching you'}
+                {searchStage === 'lingering' && 'Almost there'}
                 {searchStage === 'delayed' && 'Taking longer than usual'}
                 <span className="searching-dots" aria-hidden="true">
                   <span>.</span><span>.</span><span>.</span>
@@ -519,10 +679,11 @@ const MeetingHub = () => {
                 type="button"
                 className="btn-secondary sm"
                 onClick={() => {
-                  socketRef.current?.emit('leave_room', { roomId });
-                  setRoomId(null);
-                  setMessages([]);
-                  setPhase('preferences');
+                  endSession('leave-room').finally(() => {
+                    setRoomId(null);
+                    setMessages([]);
+                    setPhase('preferences');
+                  });
                 }}
               >
                 Leave
@@ -573,6 +734,42 @@ const MeetingHub = () => {
               </form>
             </div>
           </section>
+        </div>
+      )}
+
+      {leavePromptOpen && (
+        <div className="leave-guard-overlay" role="dialog" aria-modal="true" aria-label="Leave session confirmation">
+          <div className="leave-guard-card glass-panel">
+            <h2 className="font-serif">Leave this session?</h2>
+            <p>Leaving will end your current session and notify the other reader.</p>
+            <div className="leave-guard-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setLeavePromptOpen(false);
+                  pendingLeaveActionRef.current = null;
+                  pendingHashNavigationRef.current = null;
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  const proceed = pendingLeaveActionRef.current;
+                  setLeavePromptOpen(false);
+                  pendingLeaveActionRef.current = null;
+                  endSession('guard-leave').finally(() => {
+                    proceed?.();
+                  });
+                }}
+              >
+                Leave
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

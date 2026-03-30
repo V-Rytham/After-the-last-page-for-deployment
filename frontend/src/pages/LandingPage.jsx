@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, MessageSquare, MoveRight, Users } from 'lucide-react';
+import { BookOpen, Check, MessageSquare, MoveRight, Users } from 'lucide-react';
 import api from '../utils/api';
 import { getFallbackBooks } from '../utils/bookFallback';
 import { getLibraryState } from '../utils/readingSession';
@@ -22,10 +22,11 @@ const renderCover = (book) => (
 );
 
 const FeaturedBook = ({ book, isMember }) => (
-  <Link to={isMember ? `/read/${getBookId(book)}` : "/auth"} className="home-featured-link" aria-label={`Open ${book.title}`}>
+  <Link to={isMember ? `/read/${getBookId(book)}` : '/auth'} className="home-featured-link" aria-label={`Open ${book.title}`}>
     <article className="home-featured-book">
       <div className="home-featured-cover" style={{ '--book-accent': book.coverColor || '#6f614d' }}>
         {renderCover(book)}
+        <span className="home-featured-overlay" aria-hidden="true">Start reading →</span>
       </div>
       <div className="home-featured-copy">
         <h3 className="font-serif">{book.title}</h3>
@@ -36,24 +37,49 @@ const FeaturedBook = ({ book, isMember }) => (
 );
 
 const DiscussionEntry = ({ thread }) => (
-  <Link to={`/thread/${thread.bookId}#${thread._id}`} className="home-discussion-link">
-    <article className="home-discussion">
-      <div className="home-discussion-context">
-        <span>{thread.bookTitle}</span>
-        <span className="home-discussion-divider" aria-hidden="true">/</span>
-        <span>{thread.replyCount} replies</span>
+  <Link to={`/thread/${thread.bookId}#${thread._id}`} className="home-discussion-card-link">
+    <article className="home-discussion-card">
+      <div className="home-discussion-card-live">
+        <span className="home-live-dot" aria-hidden="true" />
+        <span>Active</span>
       </div>
       <h3 className="font-serif">{thread.title}</h3>
-      <p>{thread.chapterReference?.trim() || 'Whole book'}</p>
+      <p>{thread.bookTitle || 'Shared reading'} · {thread.replyCount} replies</p>
+      <span className="home-discussion-card-cta">Open →</span>
     </article>
   </Link>
 );
+
+const howItWorksSteps = [
+  { key: 'read', title: 'Read in silence', description: 'A quiet reading space designed for focus.', icon: BookOpen },
+  { key: 'finish', title: 'Mark the moment', description: 'Finish the book to unlock its discussion room.', icon: Check },
+  { key: 'discuss', title: 'Enter the room', description: 'Join conversations with readers who finished it too.', icon: Users },
+];
+
+const getResumeProgressLabel = (book) => {
+  if (!book) {
+    return 'Continue from where you left off.';
+  }
+
+  if (typeof book.progressPercent === 'number') {
+    return `${Math.round(book.progressPercent)}% complete`;
+  }
+
+  if (typeof book.progress === 'number') {
+    return `${Math.round(book.progress)}% complete`;
+  }
+
+  return 'Continue from where you left off.';
+};
 
 export default function LandingPage({ currentUser }) {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sampleThreads, setSampleThreads] = useState([]);
   const [threadError, setThreadError] = useState(false);
+  const [isHowVisible, setIsHowVisible] = useState(false);
+  const [isHowAnimReady, setIsHowAnimReady] = useState(false);
+  const howItWorksRef = useRef(null);
 
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
   const threadPreviewCount = isMember ? 2 : 6;
@@ -85,27 +111,39 @@ export default function LandingPage({ currentUser }) {
     return libraryState.continueReading[0] || libraryState.recentlyOpened[0] || null;
   }, [books, isMember]);
 
-  const previewThread = useMemo(() => sampleThreads[0] || null, [sampleThreads]);
-
-  const previewBook = useMemo(() => {
-    if (resumeBook) {
-      return resumeBook;
-    }
-
-    if (previewThread) {
-      const match = books.find((book) => String(getBookId(book)) === String(previewThread.bookId));
-      if (match) {
-        return match;
-      }
-    }
-
-    return featuredBooks[0] || null;
-  }, [books, featuredBooks, previewThread, resumeBook]);
-
   useEffect(() => {
     setSampleThreads([]);
     setThreadError(false);
   }, [books, threadPreviewCount]);
+
+  useEffect(() => {
+    const section = howItWorksRef.current;
+    if (!section) {
+      return undefined;
+    }
+
+    if (typeof window === 'undefined' || typeof window.IntersectionObserver !== 'function') {
+      setIsHowVisible(true);
+      setIsHowAnimReady(false);
+      return undefined;
+    }
+
+    setIsHowAnimReady(true);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsHowVisible(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.3 },
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
 
   if (loading) {
     return (
@@ -121,10 +159,10 @@ export default function LandingPage({ currentUser }) {
     <div className="home-page animate-fade-in">
       <div className="home-shell">
         <header className="home-hero" aria-label="Home">
-          <div className="home-hero-copy">
+          <div className="home-hero-copy home-hero-centered">
             <h1 className="home-title font-serif">
-              <span className="home-title-line">Close the cover.</span>
-              <span className="home-title-line">Open the conversation.</span>
+              <span className="home-title-line">Finish the book.</span>
+              <span className="home-title-line">Enter the conversation.</span>
             </h1>
 
             <p className="home-subtitle">
@@ -141,89 +179,60 @@ export default function LandingPage({ currentUser }) {
               <Link to="/threads" className="btn-secondary">Explore discussions</Link>
             </div>
 
-            <p className="home-signin-hint">
-              Rooms unlock per book after a quick 5â€‘question check{!isMember ? <> â€” <Link to="/auth">sign in</Link> to keep your place</> : null}.
-            </p>
+            <p className="home-trust-line">No noise. No spoilers. Just meaningful conversations.</p>
+
+            {!isMember && (
+              <p className="home-signin-hint">
+                Rooms unlock per book after a quick 5-question check — <Link to="/auth">sign in</Link> to keep your place across visits.
+              </p>
+            )}
           </div>
-
-          <aside className="home-hero-visual" aria-hidden="true">
-            <div className="home-visual-surface">
-              <div className="home-visual-page">
-                <div className="home-visual-kicker">Reading Room</div>
-                <div className="home-visual-lines">
-                  <span className="home-visual-line is-title">{previewBook?.title || 'Your reading desk'}</span>
-                  <span className="home-visual-line is-body">{previewBook?.author ? `by ${previewBook.author}` : 'Pick up where you left off'}</span>
-                  <span className="home-visual-line is-body">Saved note: {'\u201C'}small details, big shift\u2026{'\u201D'}</span>
-                  <span className="home-visual-line is-body">Next: turn one page</span>
-                </div>
-              </div>
-
-              <div className="home-visual-thread">
-                <div className="home-visual-kicker">Discussion</div>
-                <div className="home-visual-lines">
-                  <span className="home-visual-line is-title">{previewThread?.title || 'A thread from the room'}</span>
-                  <span className="home-visual-line is-body">{previewBook?.title ? previewBook.title : (previewThread?.bookTitle || 'Shared reading')}</span>
-                  <span className="home-visual-line is-body">{threadError ? 'Latest notes unavailable' : (previewThread ? `${previewThread.replyCount} replies so far` : 'Pulling in fresh notes\u2026')}</span>
-                </div>
-                <div className="home-visual-bubble">
-                  <span className="home-visual-bubble-text">{'\u201C'}That ending felt like a dare.{'\u201D'}</span>
-                </div>
-                <div className="home-visual-bubble is-me">
-                  <span className="home-visual-bubble-text">{'\u201C'}I went back and caught new clues.{'\u201D'}</span>
-                </div>
-                <div className="home-visual-bubble is-small">
-                  <span className="home-visual-bubble-text">{'\u201C'}Did anyone else notice the refrain?{'\u201D'}</span>
-                </div>
-              </div>
-            </div>
-          </aside>
         </header>
 
-        {isMember && resumeBook && (
-          <section className="home-resume" aria-label="Resume reading">
-            <div className="home-resume-copy">
-              <span className="home-resume-kicker">Resume</span>
-              <h2 className="font-serif">Continue with {resumeBook.title}</h2>
-              <p>Return to the page you last left open.</p>
+        <div className="home-hero-divider" aria-hidden="true" />
+
+        <section className="home-progress home-progress-priority" aria-label="Continue reading">
+          {isMember && resumeBook ? (
+            <div className="home-resume surface-card">
+              <div className="home-resume-cover" style={{ '--book-accent': resumeBook.coverColor || '#6f614d' }}>
+                {renderCover(resumeBook)}
+              </div>
+              <div className="home-resume-copy">
+                <span className="home-resume-kicker">Continue reading</span>
+                <h2 className="font-serif">{resumeBook.title}</h2>
+                <p>{resumeBook.author || 'Unknown author'}</p>
+                <span className="home-resume-progress">{getResumeProgressLabel(resumeBook)}</span>
+              </div>
+              <Link to={`/read/${getBookId(resumeBook)}`} className="btn-primary sm">
+                Resume <MoveRight size={16} />
+              </Link>
             </div>
-            <Link to={`/read/${getBookId(resumeBook)}`} className="btn-secondary sm">
-              Continue <MoveRight size={16} />
-            </Link>
-          </section>
-        )}
-
-        <section className="home-intro" aria-label="What happens here">
-          <div className="home-intro-head">
-            <h2 className="font-serif">Reading should not end when the book ends.</h2>
-            <p>The real conversation begins after the last page.</p>
-          </div>
-
-          <div className="home-intro-grid" role="list">
-            <article className="home-intro-card" role="listitem">
-              <div className="home-intro-icon"><BookOpen size={18} /></div>
-              <h3 className="font-serif">Read</h3>
-              <p>A quiet, single-column interface that keeps the book in front of you.</p>
-            </article>
-            <article className="home-intro-card" role="listitem">
-              <div className="home-intro-icon"><Users size={18} /></div>
-              <h3 className="font-serif">Meet</h3>
-              <p>Find readers who just finished the same book, with text, voice, or video.</p>
-            </article>
-            <article className="home-intro-card" role="listitem">
-              <div className="home-intro-icon"><MessageSquare size={18} /></div>
-              <h3 className="font-serif">Discuss</h3>
-              <p>Leave threads that feel like margin notes: thoughtful, slow, and spoiler-safe.</p>
-            </article>
-          </div>
+          ) : isMember ? (
+            <div className="home-callout surface-card">
+              <div className="home-callout-copy">
+                <h2 className="font-serif">Pick up a book.</h2>
+                <p>Choose a story from your desk. Discussion rooms unlock after you finish.</p>
+              </div>
+              <Link to="/desk" className="btn-primary sm">Go to desk</Link>
+            </div>
+          ) : (
+            <div className="home-callout surface-card">
+              <div className="home-callout-copy">
+                <h2 className="font-serif">Keep your place.</h2>
+                <p>Sign in to save progress and unlock reader-only conversation rooms after you finish.</p>
+              </div>
+              <Link to="/auth" className="btn-primary sm">Sign in</Link>
+            </div>
+          )}
         </section>
 
-        <section className="home-section" aria-labelledby="featured-heading">
+        <section className="home-section home-shelf-section" aria-labelledby="featured-heading">
           <div className="home-section-head">
             <div className="home-section-copy">
-              <h2 id="featured-heading" className="font-serif">A small shelf to begin</h2>
-              <p>Open a book, then return when you reach the end.</p>
+              <h2 id="featured-heading" className="font-serif">A place to begin</h2>
+              <p>Pick a book. The conversation will be waiting when you return.</p>
             </div>
-            <Link to={isMember ? "/desk" : "/auth"} className="home-section-link">Open The Desk</Link>
+            <Link to={isMember ? '/desk' : '/auth'} className="home-section-link">View all</Link>
           </div>
 
           <div className="home-featured" role="list" aria-label="Featured books">
@@ -236,10 +245,11 @@ export default function LandingPage({ currentUser }) {
         <section className="home-section home-discussion-preview" aria-labelledby="sample-discussions-heading">
           <div className="home-section-head">
             <div className="home-section-copy">
+              <p className="home-live-kicker">Conversations happening right now</p>
               <h2 id="sample-discussions-heading" className="font-serif">From the discussion rooms</h2>
-              <p>Ideas readers are carrying forward right now.</p>
+              <p>Recent threads from readers who just closed the book.</p>
             </div>
-            <Link to="/threads" className="home-section-link">Browse threads</Link>
+            <Link to="/threads" className="home-section-link">Join the conversation</Link>
           </div>
 
           {sampleThreads.length > 0 ? (
@@ -260,17 +270,34 @@ export default function LandingPage({ currentUser }) {
           )}
         </section>
 
-        {!isMember && (
-          <section className="home-callout" aria-label="Sign in">
-            <div className="home-callout-copy">
-              <h2 className="font-serif">Keep your place.</h2>
-              <p>Sign in to save progress and unlock reader-only conversation rooms after you finish.</p>
-            </div>
-            <Link to="/auth" className="btn-primary sm">Sign in</Link>
-          </section>
-        )}
+        <section className="home-how-it-works" aria-labelledby="how-it-works-heading" ref={howItWorksRef}>
+          <h2 id="how-it-works-heading" className="home-how-heading">How it works</h2>
+          <div
+            className={`home-how-grid ${isHowAnimReady ? 'animate-ready' : ''} ${isHowVisible ? 'visible' : ''}`.trim()}
+            role="list"
+            aria-label="How it works steps"
+          >
+            {howItWorksSteps.map((step, index) => {
+              const StepIcon = step.icon;
+              return (
+                <article
+                  key={step.key}
+                  className="home-how-card"
+                  role="listitem"
+                  style={{ transitionDelay: `${120 * index}ms` }}
+                >
+                  <span className="home-how-step" aria-hidden="true">{index + 1}</span>
+                  <span className="home-how-icon" aria-hidden="true">
+                    <StepIcon size={16} strokeWidth={2.1} />
+                  </span>
+                  <h3>{step.title}</h3>
+                  <p>{step.description}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </div>
   );
 }
-

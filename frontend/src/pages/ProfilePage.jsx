@@ -271,9 +271,8 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
     <div className="profile-page animate-fade-in">
       <header className="profile-head">
         <div>
-          <p className="profile-kicker">Reader identity</p>
           <h1 className="font-serif">Profile</h1>
-          <p>Make your account feel like a real presence in the room—recognizable, readable, and easy to maintain.</p>
+          <p className="profile-subline">At a glance.</p>
         </div>
 
         {!editing ? (
@@ -299,16 +298,16 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
             <h2 className="font-serif">{displayName}</h2>
             <div className="profile-meta-line">
               <span>@{username}</span>
-              <span>•</span>
-              <span>{joinedDate}</span>
+              <span aria-hidden="true">•</span>
+              <span>Joined {joinedDate}</span>
+              <span className="profile-bio-inline">{bio}</span>
             </div>
-            <p>{bio}</p>
           </div>
         </div>
 
         <div className="profile-status-chip">
           <ShieldCheck size={16} aria-hidden="true" />
-          <span>Member account</span>
+          <span>Member</span>
         </div>
       </section>
 
@@ -317,32 +316,31 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
           <section className="profile-card glass-panel" aria-label="Account details">
             <div className="profile-card-head">
               <h2 className="font-serif">Account details</h2>
-              <p>Core account information used across the platform.</p>
             </div>
 
             {!editing ? (
-              <div className="profile-details-list">
-                <div className="profile-row">
-                  <div className="profile-label"><User size={16} aria-hidden="true" /><span>Name</span></div>
-                  <div className="profile-value">{displayName}</div>
+              <dl className="profile-details-grid">
+                <div className="profile-detail">
+                  <dt>Name</dt>
+                  <dd>{displayName}</dd>
                 </div>
-                <div className="profile-row">
-                  <div className="profile-label"><UserRound size={16} aria-hidden="true" /><span>Username</span></div>
-                  <div className="profile-value">@{username}</div>
+                <div className="profile-detail">
+                  <dt>Username</dt>
+                  <dd>@{username}</dd>
                 </div>
-                <div className="profile-row">
-                  <div className="profile-label"><Mail size={16} aria-hidden="true" /><span>Email</span></div>
-                  <div className="profile-value">{email}</div>
+                <div className="profile-detail">
+                  <dt>Email</dt>
+                  <dd>{email}</dd>
                 </div>
-                <div className="profile-row profile-row-start">
-                  <div className="profile-label"><Activity size={16} aria-hidden="true" /><span>Bio</span></div>
-                  <div className="profile-value profile-value-block">{bio}</div>
+                <div className="profile-detail">
+                  <dt>Joined</dt>
+                  <dd>{joinedDate}</dd>
                 </div>
-                <div className="profile-row">
-                  <div className="profile-label"><CalendarDays size={16} aria-hidden="true" /><span>Joined</span></div>
-                  <div className="profile-value">{joinedDate}</div>
+                <div className="profile-detail profile-detail-span">
+                  <dt>Bio</dt>
+                  <dd>{bio}</dd>
                 </div>
-              </div>
+              </dl>
             ) : (
               <form className="profile-form" onSubmit={handleSave}>
                 <label className="profile-input-group">
@@ -383,17 +381,14 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
           <section className="profile-card glass-panel" aria-label="Reading stats">
             <div className="profile-card-head">
               <h2 className="font-serif">Reading stats</h2>
-              <p>Signals of presence pulled from your reading and discussion activity.</p>
             </div>
 
             <div className="profile-stats-grid">
               <article className="profile-stat-tile">
-                <div className="profile-stat-icon"><BookCheck size={18} aria-hidden="true" /></div>
                 <strong>{loading ? '…' : stats.booksCompleted}</strong>
                 <span>Books completed</span>
               </article>
               <article className="profile-stat-tile">
-                <div className="profile-stat-icon"><MessageSquareMore size={18} aria-hidden="true" /></div>
                 <strong>{loading ? '…' : stats.discussionsParticipated}</strong>
                 <span>Discussions participated</span>
               </article>
@@ -403,7 +398,6 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
           <section className="profile-card glass-panel" aria-label="Membership status">
             <div className="profile-card-head compact">
               <h2 className="font-serif">Membership</h2>
-              <p>Read-only account details you can rely on.</p>
             </div>
 
             <div className="profile-details-list compact">

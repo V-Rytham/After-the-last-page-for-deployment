@@ -1,0 +1,87 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { RealtimeSessionManager } from '../services/realtimeSessionManager.js';
+import { SESSION_STATES } from '../utils/sessionStates.js';
+
+const createFakeIo = () => ({
+  sockets: {
+    sockets: new Map(),
+  },
+});
+
+const createFakeSocket = (socketId) => {
+  const emitted = [];
+  const rooms = new Set();
+
+  return {
+    id: socketId,
+    emitted,
+    rooms,
+    join: (roomId) => rooms.add(roomId),
+    leave: (roomId) => rooms.delete(roomId),
+    emit: (event, payload) => emitted.push({ event, payload }),
+  };
+};
+
+test('RealtimeSessionManager matches two users and cleans up room', async () => {
+  const io = createFakeIo();
+  const manager = new RealtimeSessionManager(io, { disconnectGraceMs: 25 });
+
+  const aSocket = createFakeSocket('s-a');
+  const bSocket = createFakeSocket('s-b');
+  io.sockets.sockets.set('s-a', aSocket);
+  io.sockets.sockets.set('s-b', bSocket);
+
+  manager.registerSocket({ userId: 'u-a', socketId: 's-a' });
+  manager.registerSocket({ userId: 'u-b', socketId: 's-b' });
+
+  const aJoin = await manager.joinMatchmaking({ userId: 'u-a', bookId: 'book-1', prefType: 'text' });
+  assert.equal(aJoin.matched, false);
+  assert.equal(manager.getSession('u-a').state, SESSION_STATES.SEARCHING);
+
+  const bJoin = await manager.joinMatchmaking({ userId: 'u-b', bookId: 'book-1', prefType: 'text' });
+  assert.equal(bJoin.matched, true);
+
+  const aSession = manager.getSession('u-a');
+  const bSession = manager.getSession('u-b');
+  assert.equal(aSession.state, SESSION_STATES.MATCHED);
+  assert.equal(bSession.state, SESSION_STATES.MATCHED);
+  assert.ok(aSession.roomId);
+  assert.equal(aSession.roomId, bSession.roomId);
+
+  assert.ok(aSocket.rooms.has(aSession.roomId));
+  assert.ok(bSocket.rooms.has(aSession.roomId));
+  assert.ok(aSocket.emitted.some((entry) => entry.event === 'match_found'));
+  assert.ok(bSocket.emitted.some((entry) => entry.event === 'match_found'));
+
+  manager.enterConversation({ userId: 'u-a', roomId: aSession.roomId });
+  assert.equal(manager.getSession('u-a').state, SESSION_STATES.IN_CONVERSATION);
+
+  await manager.leaveRoom({ userId: 'u-a', roomId: aSession.roomId, reason: 'test-leave' });
+
+  assert.equal(manager.getSession('u-a').state, SESSION_STATES.IDLE);
+  assert.equal(manager.getSession('u-b').state, SESSION_STATES.IDLE);
+  assert.ok(bSocket.emitted.some((entry) => entry.event === 'partner_left'));
+});
+
+test('RealtimeSessionManager disconnect cleanup ends ghost matchmaking', async () => {
+  const io = createFakeIo();
+  const manager = new RealtimeSessionManager(io, { disconnectGraceMs: 20 });
+
+  const socket = createFakeSocket('s-1');
+  io.sockets.sockets.set('s-1', socket);
+  manager.registerSocket({ userId: 'u-1', socketId: 's-1' });
+
+  await manager.joinMatchmaking({ userId: 'u-1', bookId: 'book-2', prefType: 'text' });
+  assert.equal(manager.getSession('u-1').state, SESSION_STATES.SEARCHING);
+
+  manager.unregisterSocket({ socketId: 's-1' });
+  io.sockets.sockets.delete('s-1');
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+
+  assert.equal(manager.getSession('u-1').state, SESSION_STATES.IDLE);
+  const searching = Array.from(manager.queue.values()).reduce((sum, queue) => sum + (queue?.length || 0), 0);
+  assert.equal(searching, 0);
+});
+

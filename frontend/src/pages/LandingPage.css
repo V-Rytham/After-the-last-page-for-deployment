@@ -1,5 +1,7 @@
 .home-page {
-  padding: clamp(1.35rem, 3vw, 1.9rem) var(--page-gutter) var(--section-space);
+  width: min(100%, var(--page-max-width));
+  margin: 0 auto;
+  padding: clamp(0.95rem, 2.2vw, 1.35rem) var(--page-gutter) var(--section-space);
 }
 
 .home-shell {
@@ -190,6 +192,14 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
+}
+
+.home-hero-actions .btn-primary {
+  box-shadow: 0 14px 34px rgba(28, 20, 12, 0.12);
+}
+
+.home-hero-actions .btn-primary:hover {
+  transform: translateY(-1px);
 }
 
 @keyframes home-hero-enter {
@@ -905,5 +915,290 @@
   .home-callout {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* --- Sahas Home UI refresh (ported, logic preserved) --- */
+.home-shell {
+  gap: clamp(2.2rem, 5vw, 3.6rem);
+}
+
+.home-hero {
+  position: relative;
+  padding: clamp(1.2rem, 3vw, 1.8rem) 0;
+  isolation: isolate;
+  display: block;
+}
+
+.home-hero::before {
+  content: '';
+  position: absolute;
+  inset: 8% 2% 12%;
+  z-index: -1;
+  border-radius: 2rem;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--surface-2) 10%, transparent), transparent 74%);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.home-hero-copy.home-hero-centered {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  display: grid;
+  gap: 0.7rem;
+  justify-items: center;
+  text-align: center;
+  padding: clamp(2.8rem, 6vw, 5rem) clamp(1.1rem, 3vw, 1.8rem);
+  border-radius: 1rem;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface-1) 78%, var(--page-bg) 22%),
+    color-mix(in srgb, var(--surface-2) 88%, var(--surface-1) 12%)
+  );
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+}
+
+.home-title {
+  color: var(--text-primary);
+  font-size: clamp(2.35rem, 5vw, 3.85rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  max-width: 16ch;
+}
+
+.home-subtitle {
+  color: var(--text-secondary);
+  font-size: clamp(1.02rem, 0.98rem + 0.35vw, 1.22rem);
+  line-height: 1.75;
+}
+
+.home-trust-line {
+  margin: 0.3rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-1);
+  line-height: 1.6;
+}
+
+.home-hero-divider {
+  height: 1px;
+  background: var(--border-soft);
+  width: min(100%, var(--page-max-width));
+  margin: 0 auto;
+  opacity: 0.75;
+}
+
+.surface-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+}
+
+.home-progress {
+  margin-top: clamp(0.6rem, 2vw, 1rem);
+}
+
+.home-progress-priority {
+  margin-top: clamp(1.2rem, 3.2vw, 2.1rem);
+}
+
+.home-shelf-section {
+  padding-top: 3.25rem;
+}
+
+.home-resume.surface-card,
+.home-callout.surface-card {
+  padding: 1.1rem 1.15rem;
+}
+
+.home-resume.surface-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-resume-cover {
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(28, 20, 12, 0.16);
+}
+
+.home-resume-copy {
+  display: grid;
+  gap: 0.16rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.home-resume-progress {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.home-callout.surface-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-live-kicker {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.home-discussions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.home-discussion-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-1);
+  padding: 1.05rem 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.08);
+}
+
+.home-discussion-card-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.home-live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+.home-discussion-card-cta {
+  margin-top: 0.15rem;
+  color: var(--accent-ink);
+  font-weight: 500;
+}
+
+.home-how-it-works {
+  margin-top: clamp(2.6rem, 6vw, 4rem);
+}
+
+.home-how-heading {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.home-how-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.home-how-card {
+  position: relative;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-1);
+  padding: 1.25rem 1.25rem 1.1rem;
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 0.35rem;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.home-how-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.home-how-grid.animate-ready .home-how-card {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 460ms ease-out, transform 460ms ease-out;
+  will-change: opacity, transform;
+}
+
+.home-how-grid.animate-ready.visible .home-how-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.home-how-step {
+  position: absolute;
+  top: 0.9rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.home-how-icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-muted);
+  color: var(--accent-ink);
+}
+
+.home-how-card h3 {
+  margin-top: 0.2rem;
+  color: var(--text-primary);
+}
+
+.home-how-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.home-featured-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 0.75rem;
+  transform: translateX(-50%) translateY(6px);
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: rgba(15, 12, 10, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  opacity: 0;
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.home-featured-cover:hover .home-featured-overlay {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 980px) {
+  .home-discussions {
+    grid-template-columns: 1fr;
+  }
+
+  .home-how-grid {
+    grid-template-columns: 1fr;
   }
 }

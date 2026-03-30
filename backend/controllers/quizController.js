@@ -3,6 +3,7 @@ import { UserProgress } from '../models/UserProgress.js';
 import { fetchBookQuizQuestions } from '../services/quizQuestionEngine.js';
 import { resolveBookOrThrow } from '../services/accessService.js';
 import { buildSafeErrorBody } from '../utils/runtime.js';
+import { quizJobManager } from '../services/quizJobManager.js';
 
 const PASS_THRESHOLD_PERCENT = Number.isFinite(Number(process.env.QUIZ_PASS_THRESHOLD_PERCENT))
   ? Math.max(0, Math.min(100, Number(process.env.QUIZ_PASS_THRESHOLD_PERCENT)))
@@ -27,7 +28,7 @@ const validateAnswers = (answers) => {
 
 export const submitQuiz = async (req, res) => {
   try {
-    const { userId, bookId, answers } = req.body || {};
+    const { userId, bookId, answers, jobId } = req.body || {};
     const effectiveUserId = req.user?._id;
 
     if (!effectiveUserId) {
@@ -46,9 +47,16 @@ export const submitQuiz = async (req, res) => {
 
     const normalizedAnswers = validateAnswers(answers);
 
-    let questions;
+    let questions = quizJobManager.getLatestCompletedQuestions({
+      userId: effectiveUserId,
+      bookId,
+      jobId,
+    });
+
     try {
-      questions = await fetchBookQuizQuestions(bookId);
+      if (!questions) {
+        questions = await fetchBookQuizQuestions(bookId);
+      }
     } catch (error) {
       if (error?.statusCode === 202 || error?.code === 'PROCESSING') {
         return res.status(409).json(buildSafeErrorBody(
@@ -105,23 +113,40 @@ export const getQuizQuestions = async (req, res) => {
 
     await resolveBookOrThrow(bookId);
 
-    let questions;
-    try {
-      questions = await fetchBookQuizQuestions(bookId);
-    } catch (error) {
-      if (error?.statusCode === 202 || error?.code === 'PROCESSING') {
-        return res.status(202).json({
-          status: 'processing',
-          message: 'Preparing your quiz. Please retry in a moment.',
-        });
+    const existingJobId = quizJobManager.getLatestJobId({ userId: effectiveUserId, bookId });
+    const existingStatus = existingJobId
+      ? quizJobManager.getStatus({ userId: effectiveUserId, jobId: existingJobId })
+      : null;
+
+    if (!existingStatus) {
+      const started = quizJobManager.startJob({ userId: effectiveUserId, bookId });
+      return res.status(202).json({
+        status: 'processing',
+        stage: started?.stage || null,
+        jobId: started?.jobId || null,
+        message: 'Preparing your quiz. Please retry in a moment.',
+      });
+    }
+
+    if (existingStatus.status !== 'completed') {
+      if (existingStatus.status === 'failed') {
+        const status = existingStatus?.error?.statusCode || 502;
+        return res.status(status).json(buildSafeErrorBody(
+          'Quiz question engine is unavailable. Please retry.',
+          new Error(existingStatus?.error?.message || 'Quiz job failed.'),
+        ));
       }
 
-      const status = error.statusCode || 502;
-      return res.status(status).json(buildSafeErrorBody(
-        'Quiz question engine is unavailable. Please retry.',
-        error,
-      ));
+      return res.status(202).json({
+        status: 'processing',
+        stage: existingStatus.stage || null,
+        jobId: existingStatus.jobId,
+        message: 'Preparing your quiz. Please retry in a moment.',
+      });
     }
+
+    const completed = quizJobManager.getResult({ userId: effectiveUserId, jobId: existingStatus.jobId });
+    const questions = Array.isArray(completed?.questions) ? completed.questions : [];
 
     return res.json({
       questions: questions.map((q) => ({

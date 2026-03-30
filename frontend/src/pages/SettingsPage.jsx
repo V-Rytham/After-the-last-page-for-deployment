@@ -1,12 +1,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import { UI_THEMES } from '../utils/uiThemes';
 import './SettingsPage.css';
-
-const themeOptions = [
-  { id: 'light', label: 'Light' },
-  { id: 'sepia', label: 'Sepia' },
-  { id: 'dark', label: 'Dark' },
-];
 
 const SettingsPage = ({ uiTheme, onThemeChange }) => (
   <div className="settings-page animate-fade-in">
@@ -18,7 +13,7 @@ const SettingsPage = ({ uiTheme, onThemeChange }) => (
     <section className="settings-card glass-panel" aria-label="Appearance">
       <div className="settings-kicker">Appearance</div>
       <div className="settings-row" role="group" aria-label="Theme">
-        {themeOptions.map((option) => (
+        {UI_THEMES.map((option) => (
           <button
             key={option.id}
             type="button"

@@ -125,6 +125,11 @@
   border-color: rgba(229, 229, 229, 0.12);
 }
 
+.theme-midnight .settings-panel {
+  background: rgba(16, 26, 51, 0.96);
+  border-color: rgba(231, 236, 255, 0.12);
+}
+
 .theme-light .toolbar-stepper,
 .theme-light .chapter-nav-btn,
 .theme-light .settings-btn,
@@ -155,6 +160,16 @@
   background: rgba(229, 229, 229, 0.06);
 }
 
+.theme-midnight .toolbar-stepper,
+.theme-midnight .chapter-nav-btn,
+.theme-midnight .settings-btn,
+.theme-midnight .font-size-toggles,
+.theme-midnight .theme-btn,
+.theme-midnight .line-height-options button,
+.theme-midnight .settings-close {
+  background: rgba(231, 236, 255, 0.06);
+}
+
 .theme-light ::selection {
   background: rgba(63, 73, 100, 0.16);
 }
@@ -165,6 +180,10 @@
 
 .theme-dark ::selection {
   background: rgba(215, 222, 244, 0.16);
+}
+
+.theme-midnight ::selection {
+  background: rgba(121, 166, 255, 0.18);
 }
 
 .reader-toolbar,
@@ -438,6 +457,10 @@
 
 .preview-dark {
   color: #e5e5e5;
+}
+
+.preview-midnight {
+  color: #e7ecff;
 }
 
 .font-size-toggles {

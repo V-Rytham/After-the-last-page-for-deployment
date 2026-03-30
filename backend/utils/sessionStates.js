@@ -1,0 +1,7 @@
+export const SESSION_STATES = Object.freeze({
+  IDLE: 'IDLE',
+  SEARCHING: 'SEARCHING',
+  MATCHED: 'MATCHED',
+  IN_CONVERSATION: 'IN_CONVERSATION',
+});
+

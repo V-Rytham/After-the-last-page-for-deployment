@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LockKeyhole, MessageSquare } from 'lucide-react';
+import { LockKeyhole, Search } from 'lucide-react';
 import api from '../utils/api';
 import { getFallbackBooks } from '../utils/bookFallback';
 import BookCoverArt from '../components/books/BookCoverArt';
@@ -11,6 +11,7 @@ const ThreadAccessHub = ({ currentUser }) => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
 
   const getDisplayTitle = (title) => String(title || '').split(':')[0].split(';')[0].trim();
@@ -31,11 +32,17 @@ const ThreadAccessHub = ({ currentUser }) => {
     fetchBooks();
   }, []);
 
-  const bookCards = useMemo(
-    () =>
-      books.map((book) => ({ book })),
-    [books],
-  );
+  const bookCards = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const filteredBooks = query
+      ? books.filter((book) => {
+          const haystack = `${book.title || ''} ${book.author || ''}`.toLowerCase();
+          return haystack.includes(query);
+        })
+      : books;
+
+    return filteredBooks.map((book) => ({ book }));
+  }, [books, searchQuery]);
 
   const handleThreadAccess = async (book) => {
     if (!isMember) {
@@ -71,13 +78,22 @@ const ThreadAccessHub = ({ currentUser }) => {
   return (
     <div className="thread-access-page animate-fade-in">
       <section className="thread-access-hero">
-        <div className="thread-access-copy">
-          <div className="thread-access-badge glass-panel">
-            <MessageSquare size={16} />
-            <span>Reader discussion access</span>
+        <div className="thread-access-hero-row">
+          <div className="thread-access-copy">
+            <h1 className="font-serif">Step into the reader-only thread.</h1>
+            <p>Where finished books become conversations.</p>
           </div>
-          <h1 className="font-serif">Step into the reader-only thread.</h1>
-          <p>Pass a short quiz and join the calm conversation.</p>
+
+          <label className="thread-access-search" aria-label="Search discussions">
+            <Search size={16} aria-hidden="true" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search discussions…"
+              autoComplete="off"
+            />
+          </label>
         </div>
       </section>
 
@@ -101,6 +117,8 @@ const ThreadAccessHub = ({ currentUser }) => {
       <section className="thread-access-grid">
         {loading ? (
           <div className="thread-access-loading glass-panel">Loading thread rooms...</div>
+        ) : bookCards.length === 0 ? (
+          <div className="thread-access-loading glass-panel">No matching discussions found.</div>
         ) : (
           bookCards.map(({ book }) => {
             const bookId = book._id || book.id;

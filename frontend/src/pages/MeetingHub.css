@@ -6,6 +6,11 @@
   padding: clamp(1.25rem, 3.5vw, 2.25rem) var(--page-gutter) var(--section-space);
 }
 
+.meeting-hub.meeting-hub--searching {
+  align-items: center;
+  padding-top: clamp(0.9rem, 2.5vw, 1.4rem);
+}
+
 .text-accent {
   color: var(--accent-ink);
 }
@@ -177,19 +182,20 @@
 }
 
 .pref-icon-wrapper {
-  width: 3rem;
-  height: 3rem;
+  width: 2.75rem;
+  height: 2.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+  color: var(--text-muted);
   line-height: 0;
 }
 
 .pref-icon-wrapper svg {
   display: block;
+  stroke: currentColor;
 }
 
 .pref-card h3 {
@@ -278,20 +284,20 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   margin-top: 0.1rem;
 }
 
 .searching-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.7rem;
+  gap: 0.3rem;
+  padding: 0.26rem 0.55rem;
   border-radius: var(--radius-pill);
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-1) 55%, transparent);
   border: 1px solid var(--border-soft);
-  font-size: var(--font-size-0);
-  color: var(--text-secondary);
+  font-size: 0.76rem;
+  color: var(--text-muted);
 }
 
 .searching-actions {
@@ -331,8 +337,41 @@
   height: 3rem;
   padding: 0.7rem;
   border-radius: 999px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-border);
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  animation: radarPulse 1.9s ease-in-out infinite;
+}
+
+@keyframes radarPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+
+.meeting-back-btn {
+  justify-self: start;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.7rem;
+  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.meeting-back-btn:hover {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  transform: translateY(-0.5px);
 }
 
 @keyframes breathingRing {
@@ -627,4 +666,38 @@
   .room-main {
     min-height: 22rem;
   }
+}
+
+.leave-guard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.leave-guard-card {
+  width: min(100%, 28rem);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.15rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.leave-guard-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.leave-guard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
 }

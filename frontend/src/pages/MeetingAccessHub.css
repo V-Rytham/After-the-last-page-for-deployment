@@ -44,16 +44,16 @@
 .meeting-access-hero {
   display: grid;
   gap: 0.35rem;
-  max-width: 56rem;
+  max-width: 650px;
   padding: 0;
   margin: 0;
 }
 
 .meeting-access-hero h1,
 .meeting-access-gate h1 {
-  font-size: clamp(1.55rem, 3.2vw, 2.15rem);
-  line-height: 1.15;
-  max-width: 28ch;
+  font-size: clamp(28px, 3.5vw, 40px);
+  line-height: 1.2;
+  max-width: 650px;
   text-wrap: balance;
   margin: 0;
 }
@@ -154,10 +154,16 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 0.9rem;
+  gap: 0.75rem;
   padding: 0.95rem;
   border-radius: var(--radius-lg);
   box-shadow: none;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.meeting-access-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.08);
 }
 
 .meeting-access-mini-cover {
@@ -207,10 +213,11 @@
   width: fit-content;
   padding: 0.25rem 0.6rem;
   border-radius: var(--radius-pill);
-  background: var(--success-soft);
-  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--success-soft) 60%, transparent);
+  color: var(--text-muted);
   border: 1px solid var(--border-soft);
   font-size: var(--font-size-0);
+  opacity: 0.88;
 }
 
 .meeting-access-title {
@@ -231,6 +238,15 @@
 
 .meeting-access-button {
   white-space: nowrap;
+  background: color-mix(in srgb, var(--surface-muted) 65%, transparent);
+  border: 1px solid var(--border-soft);
+  color: var(--text-primary);
+  transition: transform var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.meeting-access-button:hover {
+  background: color-mix(in srgb, var(--surface-muted) 85%, transparent);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 560px) {

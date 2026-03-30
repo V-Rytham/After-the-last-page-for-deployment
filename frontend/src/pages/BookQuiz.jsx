@@ -54,6 +54,7 @@ const readStoredQuiz = (bookId) => {
     return {
       questions: parsed.questions,
       answers: Array.isArray(parsed.answers) ? parsed.answers : new Array(5).fill(null),
+      jobId: typeof parsed.jobId === 'string' ? parsed.jobId : null,
       fetchedAt: parsed.fetchedAt,
     };
   } catch {
@@ -81,17 +82,31 @@ export default function BookQuiz() {
   const [result, setResult] = useState(null);
   const [fallbackGranting, setFallbackGranting] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
+  const [quizJobId, setQuizJobId] = useState(null);
+  const [quizJobProgress, setQuizJobProgress] = useState(0);
+  const isMountedRef = useRef(true);
   const fetchInFlightRef = useRef(false);
   const processingStartRef = useRef(null);
   const retryTimerRef = useRef(null);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (retryTimerRef.current) {
         window.clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;
       }
     };
+  }, []);
+
+  const statusCopy = useCallback((stage, progress) => {
+    const normalized = String(stage || '').toLowerCase();
+    if (normalized === 'analyzing') return 'Analyzing book content\u2026';
+    if (normalized === 'generating') return 'Generating meaningful questions\u2026';
+    if (normalized === 'finalizing') return 'Finalizing your quiz\u2026';
+    if (Number.isFinite(progress) && progress > 0.5) return 'Preparing your quiz\u2026';
+    return 'Warming up your quiz\u2026';
   }, []);
 
   const checkExistingAccess = useCallback(async () => {
@@ -108,7 +123,7 @@ export default function BookQuiz() {
     return false;
   }, [bookId, navigate, nextPath]);
 
-  const fetchQuiz = useCallback(async () => {
+  const fetchQuiz = useCallback(async ({ force = false } = {}) => {
     if (!bookId || fetchInFlightRef.current) {
       return;
     }
@@ -123,12 +138,14 @@ export default function BookQuiz() {
     setError('');
     setResult(null);
     setProcessingMessage('');
+    setQuizJobProgress(0);
 
     const cached = readStoredQuiz(bookId);
     if (cached) {
       processingStartRef.current = null;
       setQuestions(cached.questions);
       setAnswers(cached.answers);
+      setQuizJobId(cached.jobId || null);
       setLoading(false);
       fetchInFlightRef.current = false;
       return;
@@ -139,43 +156,90 @@ export default function BookQuiz() {
         processingStartRef.current = Date.now();
       }
 
-      const response = await withTimeout(
-        (signal) => api.get('/quiz/questions', { params: { bookId }, signal }),
-        25000,
+      const { data: startData } = await withTimeout(
+        (signal) => api.post('/quiz/start', { bookId, force }, { signal }),
+        12000,
       );
 
-      if (response?.status === 202 || response?.data?.status === 'processing') {
+      const jobId = startData?.jobId || startData?.job_id || null;
+      if (!jobId) {
+        throw new Error('Quiz service did not return a job id.');
+      }
+
+      setQuizJobId(jobId);
+      setProcessingMessage(statusCopy(startData?.stage, startData?.progress));
+
+      const poll = async () => {
         const elapsed = Date.now() - Number(processingStartRef.current || Date.now());
-        if (elapsed > 60_000) {
+        if (elapsed > 2 * 60_000) {
           processingStartRef.current = null;
-          setLoading(false);
-          setError('Quiz is taking longer than expected. You can retry, or continue to Meet.');
+          if (isMountedRef.current) {
+            setLoading(false);
+            setError('Quiz is taking longer than expected. You can retry, or continue to Meet.');
+          }
+          fetchInFlightRef.current = false;
           return;
         }
 
-        setProcessingMessage(String(response?.data?.message || 'Preparing your quiz\u2026'));
-        fetchInFlightRef.current = false;
-        retryTimerRef.current = window.setTimeout(() => fetchQuiz(), 1800);
-        return;
-      }
+        try {
+          const { data } = await api.get(`/quiz/status/${encodeURIComponent(jobId)}`);
+          const progress = Number(data?.progress || 0);
+          if (isMountedRef.current) {
+            setQuizJobProgress(Number.isFinite(progress) ? progress : 0);
+            setProcessingMessage(statusCopy(data?.stage, progress));
+          }
 
-      processingStartRef.current = null;
+          if (data?.status === 'failed') {
+            processingStartRef.current = null;
+            if (isMountedRef.current) {
+              setLoading(false);
+              setError(data?.error?.message || 'Quiz generation failed. Please retry.');
+            }
+            fetchInFlightRef.current = false;
+            return;
+          }
 
-      const normalized = normalizeQuestions(response?.data);
-      if (!isValidQuiz(normalized)) {
-        throw new Error('Quiz service returned malformed questions.');
-      }
+          if (data?.status !== 'completed') {
+            fetchInFlightRef.current = false;
+            retryTimerRef.current = window.setTimeout(() => poll(), 1400);
+            return;
+          }
 
-      const nextState = {
-        questions: normalized,
-        answers: new Array(5).fill(null),
-        fetchedAt: Date.now(),
+          const { data: resultData } = await api.get(`/quiz/result/${encodeURIComponent(jobId)}`);
+          processingStartRef.current = null;
+
+          const normalized = normalizeQuestions(resultData);
+          if (!isValidQuiz(normalized)) {
+            throw new Error('Quiz service returned malformed questions.');
+          }
+
+          const nextState = {
+            questions: normalized,
+            answers: new Array(5).fill(null),
+            jobId,
+            fetchedAt: Date.now(),
+          };
+
+          if (isMountedRef.current) {
+            setQuestions(normalized);
+            setAnswers(nextState.answers);
+            writeStoredQuiz(bookId, nextState);
+            setLoading(false);
+          }
+        } catch (err) {
+          processingStartRef.current = null;
+          const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Failed to load quiz.';
+          if (isMountedRef.current) {
+            setLoading(false);
+            setError(message);
+          }
+        } finally {
+          fetchInFlightRef.current = false;
+        }
       };
 
-      setQuestions(normalized);
-      setAnswers(nextState.answers);
-      writeStoredQuiz(bookId, nextState);
-      setLoading(false);
+      fetchInFlightRef.current = false;
+      retryTimerRef.current = window.setTimeout(() => poll(), 650);
     } catch (err) {
       processingStartRef.current = null;
       setLoading(false);
@@ -185,7 +249,7 @@ export default function BookQuiz() {
     } finally {
       fetchInFlightRef.current = false;
     }
-  }, [bookId]);
+  }, [bookId, statusCopy]);
 
   const handleContinueToMeet = async () => {
     if (!bookId || fallbackGranting) {
@@ -231,6 +295,7 @@ export default function BookQuiz() {
       writeStoredQuiz(bookId, {
         questions,
         answers: next,
+        jobId: quizJobId,
         fetchedAt: Date.now(),
       });
       return next;
@@ -254,6 +319,7 @@ export default function BookQuiz() {
         userId: storedUser?._id,
         bookId,
         answers,
+        jobId: quizJobId,
       });
 
       setResult({ passed: Boolean(data?.passed), score: Number(data?.score || 0) });
@@ -280,7 +346,29 @@ export default function BookQuiz() {
 
       {loading && (
         <div className="quiz-state glass-panel" role="status">
-          {processingMessage || 'Loading quiz\u2026'}
+          <div style={{ display: 'grid', gap: '0.4rem' }}>
+            <div>{processingMessage || 'Loading quiz\u2026'}</div>
+            {quizJobProgress > 0 ? (
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
+                {Math.round(Math.min(1, quizJobProgress) * 100)}%
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="quiz-skeleton" aria-hidden="true">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="quiz-skeleton-card">
+              <div className="quiz-skeleton-line" style={{ width: index === 0 ? '62%' : (index === 1 ? '54%' : '58%') }} />
+              <div className="quiz-skeleton-stack">
+                <div className="quiz-skeleton-line sm" style={{ width: '92%' }} />
+                <div className="quiz-skeleton-line sm" style={{ width: '86%' }} />
+                <div className="quiz-skeleton-line sm" style={{ width: '78%' }} />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -303,7 +391,7 @@ export default function BookQuiz() {
           </div>
           <p>{error}</p>
           <div className="quiz-actions">
-            <button type="button" className="btn-primary" onClick={fetchQuiz}>
+            <button type="button" className="btn-primary" onClick={() => fetchQuiz({ force: true })}>
               <RefreshCw size={16} /> Retry
             </button>
             <button type="button" className="btn-secondary" onClick={handleContinueToMeet} disabled={fallbackGranting}>
@@ -354,7 +442,7 @@ export default function BookQuiz() {
             <button
               type="button"
               className="btn-secondary"
-              onClick={fetchQuiz}
+              onClick={() => fetchQuiz({ force: true })}
               disabled={submitting}
             >
               Reload quiz

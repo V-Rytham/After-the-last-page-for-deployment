@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -11,6 +11,7 @@ import {
 import api from '../utils/api';
 import { getFallbackBookById } from '../utils/bookFallback';
 import { trackBookOpened, updateReadingSession } from '../utils/readingSession';
+import { UI_THEMES } from '../utils/uiThemes';
 import { PaginationEngine } from '../components/reader/PaginationEngine';
 import PageRenderer from '../components/reader/PageRenderer';
 import './ReadingRoom.css';
@@ -794,30 +795,19 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
               <>
                 <div className="settings-group">
                   <span className="settings-label">Theme</span>
-              <div className="theme-toggles">
-                <button
-                  type="button"
-                  className={`theme-btn preview-light ${uiTheme === 'light' ? 'active' : ''}`}
-                  onClick={() => onThemeChange('light')}
-                >
-                  Light
-                </button>
-                <button
-                  type="button"
-                  className={`theme-btn preview-sepia ${uiTheme === 'sepia' ? 'active' : ''}`}
-                  onClick={() => onThemeChange('sepia')}
-                >
-                  Sepia
-                </button>
-                <button
-                  type="button"
-                  className={`theme-btn preview-dark ${uiTheme === 'dark' ? 'active' : ''}`}
-                  onClick={() => onThemeChange('dark')}
-                >
-                  Dark
-                </button>
-              </div>
-            </div>
+                  <div className="theme-toggles">
+                    {UI_THEMES.map((theme) => (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        className={`theme-btn preview-${theme.id} ${uiTheme === theme.id ? 'active' : ''}`}
+                        onClick={() => onThemeChange(theme.id)}
+                      >
+                        {theme.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
             <div className="settings-group">
               <span className="settings-label">Text size</span>
