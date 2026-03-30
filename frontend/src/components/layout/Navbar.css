@@ -11,7 +11,7 @@
 
 .navbar.navbar-capsule {
   width: 100%;
-  max-width: var(--page-max-width);
+  max-width: calc(var(--content-max-width) + (var(--page-gutter) * 2));
   margin: 0.35rem auto 0;
   padding: 0.4rem 0;
   border-radius: 999px;
@@ -24,7 +24,7 @@
 }
 
 .navbar-container {
-  width: min(100%, var(--page-max-width));
+  width: min(100%, calc(var(--content-max-width) + (var(--page-gutter) * 2)));
   margin: 0 auto;
   min-height: calc(var(--chrome-height) - 0.5rem);
   padding: 0 max(var(--page-gutter), 0.9rem);

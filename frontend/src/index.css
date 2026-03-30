@@ -20,7 +20,9 @@
 
   --measure-reading: 72ch;
   --measure-narrow: 56ch;
-  --page-max-width: 68rem;
+  --page-max-width: 88rem;
+  --content-max-width: 84rem;
+  --content-narrow-max-width: 72rem;
   --discussion-max-width: 68rem;
   --profile-max-width: 76rem;
   --reading-max-width: 46rem;
@@ -272,15 +274,37 @@ body.is-reading-room::before {
 
 .main-content {
   min-height: calc(100vh - var(--chrome-height));
-  padding-top: 0.25rem;
+  width: 100%;
+  padding-top: 0.4rem;
 }
 
 .content-container {
   width: 100%;
-  max-width: var(--page-max-width);
+  max-width: var(--content-max-width);
   margin: 0 auto;
   padding-left: var(--page-gutter);
   padding-right: var(--page-gutter);
+}
+
+.layout-shell {
+  width: 100%;
+  display: grid;
+  gap: var(--section-space);
+}
+
+.layout-section {
+  width: 100%;
+}
+
+.layout-content {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding-inline: var(--page-gutter);
+}
+
+.layout-content--narrow {
+  max-width: var(--content-narrow-max-width);
 }
 
 a {
