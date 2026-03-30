@@ -581,7 +581,7 @@ const BooksLibrary = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="no-results" style={{ minHeight: '12rem' }}>
+                    <div className="no-results shelf-empty">
                       <BookOpen size={32} className="text-muted" />
                       <h3 className="font-serif">Your shelf is empty.</h3>
                       <p>Start adding books you love.</p>
