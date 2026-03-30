@@ -76,14 +76,19 @@ export const getBooks = async (req, res) => {
       ? Math.min(50, Math.max(1, requestedLimit))
       : 24;
 
+    const totalBooks = await Book.countDocuments({});
+    const allBooks = await Book.find({}).select('title author gutenbergId status chapters').lean();
+    console.log('[BOOK] total documents:', totalBooks);
+    console.log('[BOOK] full books query result:', allBooks);
+
     const [books, totalCount] = await Promise.all([
-      Book.find({ status: { $ne: 'failed' } })
+      Book.find({})
         .select('-textContent -chapters')
         .sort({ title: 1, _id: 1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit)
         .lean(),
-      Book.countDocuments({ status: { $ne: 'failed' } }),
+      Book.countDocuments({}),
     ]);
 
     res.setHeader('X-Page', String(safePage));
