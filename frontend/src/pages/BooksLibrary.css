@@ -45,6 +45,16 @@
   margin-top: clamp(0.35rem, 1.2vw, 0.7rem);
 }
 
+.request-book-cta {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+.request-book-inline-link {
+  margin-top: 0.35rem;
+}
+
 .search-bar {
   display: flex;
   align-items: center;

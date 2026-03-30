@@ -1,9 +1,18 @@
 import express from 'express';
-import { getBooks, getBookById, getBookContent } from '../controllers/bookController.js';
+import {
+  getBooks,
+  getBookById,
+  getBookContent,
+  previewBookRequest,
+  requestBookIngestion,
+} from '../controllers/bookController.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
 router.get('/', getBooks);
+router.get('/preview/:gutenbergId', rateLimit({ windowMs: 60_000, max: 30 }), previewBookRequest);
+router.post('/request', rateLimit({ windowMs: 60_000, max: 10 }), requestBookIngestion);
 router.get('/:id/content', getBookContent);
 router.get('/:id', getBookById);
 

@@ -1,0 +1,102 @@
+.request-book-page {
+  width: min(100%, 920px);
+  margin: 0 auto;
+  padding: 1rem var(--page-gutter) 2rem;
+}
+
+.request-book-shell {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.request-book-header p {
+  color: var(--text-secondary);
+}
+
+.request-book-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+}
+
+.request-book-form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.request-book-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.request-book-input-row input {
+  flex: 1;
+  min-height: 2.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-0);
+  padding: 0 0.75rem;
+}
+
+.request-book-preview {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.8rem;
+}
+
+.request-book-preview img,
+.request-book-cover-fallback {
+  width: 120px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.request-book-preview-copy {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.request-book-preview-meta {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.request-book-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.request-book-feedback.error {
+  border: 1px solid rgba(220, 80, 80, 0.45);
+  color: #d64f4f;
+}
+
+.request-book-feedback.success {
+  border: 1px solid rgba(80, 170, 110, 0.5);
+  color: #3a9c5c;
+}
+
+.request-book-footer a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

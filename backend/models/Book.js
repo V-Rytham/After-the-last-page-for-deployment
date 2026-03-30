@@ -33,6 +33,19 @@ const bookSchema = new mongoose.Schema({
 
   textContent: String,
   chapters: [chapterSchema],
+  status: {
+    type: String,
+    enum: ['pending', 'ready', 'failed'],
+    default: 'ready',
+    index: true,
+  },
+  requestedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  requestedAt: Date,
+  ingestionError: String,
 });
 
 bookSchema.index({ gutenbergId: 1 }, { unique: true, sparse: true });

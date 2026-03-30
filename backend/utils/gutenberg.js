@@ -1,4 +1,5 @@
 const GUTENBERG_HOST = 'https://www.gutenberg.org';
+const GUTENDEX_HOST = 'https://gutendex.com';
 
 const escapeHtml = (value) => (
   String(value)
@@ -39,6 +40,23 @@ export const getGutenbergCoverUrl = (gutenbergId, size = 'medium') => (
 export const getGutenbergBookPageUrl = (gutenbergId) => (
   `${GUTENBERG_HOST}/ebooks/${encodeURIComponent(String(gutenbergId))}`
 );
+
+export const getGutendexBookUrl = (gutenbergId) => (
+  `${GUTENDEX_HOST}/books/${encodeURIComponent(String(gutenbergId))}`
+);
+
+export const fetchGutendexBook = async (gutenbergId) => {
+  const url = getGutendexBookUrl(gutenbergId);
+  const response = await fetch(url);
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Gutendex book (${gutenbergId}): ${response.status}`);
+  }
+
+  return await response.json();
+};
 
 export const fetchGutenbergText = async (gutenbergId) => {
   const url = getGutenbergTextUrl(gutenbergId);

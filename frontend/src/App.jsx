@@ -15,6 +15,7 @@ import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import BookQuiz from './pages/BookQuiz';
+import RequestBookPage from './pages/RequestBookPage';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
@@ -51,6 +52,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
           <Route path="/desk" element={<RequireMember currentUser={currentUser}><BooksLibrary /></RequireMember>} />
           <Route path="/library" element={<RequireMember currentUser={currentUser}><Library /></RequireMember>} />
           <Route path="/books" element={<Navigate to="/desk" replace />} />
+          <Route path="/request-book" element={<RequireMember currentUser={currentUser}><RequestBookPage /></RequireMember>} />
           <Route path="/meet" element={<MeetingAccessHub currentUser={currentUser} />} />
           <Route path="/threads" element={<ThreadAccessHub currentUser={currentUser} />} />
           <Route path="/profile" element={<RequireMember currentUser={currentUser}><ProfilePage currentUser={currentUser} onUserUpdate={onUserUpdate} /></RequireMember>} />

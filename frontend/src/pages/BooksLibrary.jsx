@@ -460,6 +460,9 @@ const BooksLibrary = () => {
               <ChevronRight size={18} />
             </button>
           </div>
+          <Link to="/request-book" className="request-book-cta">
+            Didn&apos;t find your book? Request via Gutenberg ID.
+          </Link>
         </div>
       </header>
 
@@ -489,6 +492,9 @@ const BooksLibrary = () => {
               <button className="btn-secondary" type="button" onClick={() => { setSearchTerm(''); setSelectedTag('All'); }}>
                 Clear search
               </button>
+              <Link to="/request-book" className="btn-secondary request-book-inline-link">
+                Request a Gutenberg book
+              </Link>
             </div>
           )}
         </section>
