@@ -275,6 +275,14 @@ body.is-reading-room::before {
   padding-top: 0.25rem;
 }
 
+.content-container {
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding-left: var(--page-gutter);
+  padding-right: var(--page-gutter);
+}
+
 a {
   color: inherit;
   text-decoration: none;
