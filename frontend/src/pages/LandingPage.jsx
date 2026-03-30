@@ -257,7 +257,7 @@ export default function LandingPage({ currentUser }) {
         </section>
 
         <div className="layout-content home-sections">
-          <section className="home-section home-shelf-section" aria-labelledby="recommended-heading">
+          <section className="home-section home-carousel-section" aria-labelledby="recommended-heading">
             <div className="home-section-head">
               <div className="home-section-copy">
                 <h2 id="recommended-heading" className="font-serif">Recommended</h2>
@@ -275,7 +275,7 @@ export default function LandingPage({ currentUser }) {
             </div>
           </section>
 
-          <section className="home-section" aria-labelledby="recent-activity-heading">
+          <section className="home-section home-carousel-section" aria-labelledby="recent-activity-heading">
             <div className="home-section-head">
               <div className="home-section-copy">
                 <h2 id="recent-activity-heading" className="font-serif">Recent activity</h2>
@@ -311,7 +311,10 @@ export default function LandingPage({ currentUser }) {
               </div>
             ) : (
               <div className="home-empty">
-                <MessageSquare size={18} />
+                <div className="home-empty-icon" aria-hidden="true">
+                  <MessageSquare size={18} />
+                </div>
+                <h3 className="font-serif">No active discussions yet</h3>
                 <p>
                   {threadError
                     ? 'Discussion rooms are unavailable right now.'
