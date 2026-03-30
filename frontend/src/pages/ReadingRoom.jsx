@@ -261,15 +261,8 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     if (currentPageIndex > 0) {
       setPageTurnDirection('prev');
       setCurrentPageIndex((index) => Math.max(0, index - 1));
-      return;
     }
-
-    if (clampedChapter > 1) {
-      setPageTurnDirection('prev');
-      setCurrentChapter((chapter) => Math.max(1, chapter - 1));
-      setCurrentPageIndex(0);
-    }
-  }, [clampedChapter, currentPageIndex]);
+  }, [currentPageIndex]);
 
   const handleSurfacePointerUp = (event) => {
     if (event.defaultPrevented) return;
@@ -875,7 +868,11 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
         </div>
       )}
 
-      <div className="reader-surface">
+      <div
+        className="reader-surface"
+        onPointerDown={handleSurfacePointerDown}
+        onPointerUp={handleSurfacePointerUp}
+      >
         <PageRenderer
           viewportRef={pageViewportRef}
           html={currentPageHtml}
@@ -886,8 +883,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
             '--font-reading': readerLayout.fontFamily,
             '--reader-margin-scale': marginScale,
           }}
-          onPointerDown={handleSurfacePointerDown}
-          onPointerUp={handleSurfacePointerUp}
         />
       </div>
 

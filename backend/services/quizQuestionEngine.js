@@ -1,10 +1,26 @@
 import { Book } from '../models/Book.js';
 
 const DEFAULT_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-3sd2.onrender.com';
+const LEGACY_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-1.onrender.com';
 
 const normalizeUrl = (value) => String(value || '').trim().replace(/\/+$/, '');
 
-const getEngineUrl = () => normalizeUrl(process.env.QUIZ_QUESTION_ENGINE_URL) || DEFAULT_QUESTION_ENGINE_URL;
+const getCandidateEngineUrls = () => {
+  const configured = normalizeUrl(process.env.QUIZ_QUESTION_ENGINE_URL);
+  const fallbackEnv = String(process.env.QUIZ_QUESTION_ENGINE_FALLBACK_URLS || '')
+    .split(',')
+    .map((value) => normalizeUrl(value))
+    .filter(Boolean);
+
+  const urls = [
+    configured,
+    ...fallbackEnv,
+    DEFAULT_QUESTION_ENGINE_URL,
+    LEGACY_QUESTION_ENGINE_URL,
+  ].filter(Boolean);
+
+  return [...new Set(urls)];
+};
 
 const safeJson = async (response) => {
   try {
@@ -12,6 +28,17 @@ const safeJson = async (response) => {
   } catch {
     return null;
   }
+};
+
+const extractErrorMessage = (payload, fallbackMessage) => {
+  const detail = payload?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail.trim();
+  if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message.trim();
+  if (Array.isArray(detail) && detail.length) {
+    const joined = detail.map((item) => (typeof item?.msg === 'string' ? item.msg : String(item))).join('; ').trim();
+    if (joined) return joined;
+  }
+  return fallbackMessage;
 };
 
 const normalizeText = (value) => String(value || '').trim();
@@ -57,59 +84,89 @@ const fetchWithTimeout = async (url, { timeoutMs, options }) => {
   }
 };
 
-const getMcqs = async (gutenbergId, { limit = 5, timeoutMs }) => {
-  const url = new URL(`${getEngineUrl()}/mcqs/${encodeURIComponent(gutenbergId)}`);
-  url.searchParams.set('limit', String(limit));
+const requestEngine = async ({ path, timeoutMs, options, acceptedStatuses = [200], tolerateNotFound = false }) => {
+  const candidateUrls = getCandidateEngineUrls();
+  let lastError = null;
 
-  const { response, payload } = await fetchWithTimeout(url.toString(), {
+  for (const baseUrl of candidateUrls) {
+    const requestUrl = `${baseUrl}${path}`;
+    try {
+      const { response, payload } = await fetchWithTimeout(requestUrl, { timeoutMs, options });
+      if (acceptedStatuses.includes(response.status)) {
+        return { payload, response, baseUrl };
+      }
+
+      const message = extractErrorMessage(payload, `Question engine request failed (${response.status}).`);
+      if (tolerateNotFound && response.status === 404) {
+        lastError = Object.assign(new Error(message), { statusCode: response.status });
+        console.warn(`[QUIZ_ENGINE] ${requestUrl} -> ${response.status}: ${message}`);
+        continue;
+      }
+
+      console.error(`[QUIZ_ENGINE] ${requestUrl} -> ${response.status}: ${message}`);
+      const error = new Error(message);
+      error.statusCode = response.status;
+      throw error;
+    } catch (error) {
+      if (error?.statusCode === 404 && tolerateNotFound) {
+        lastError = error;
+        continue;
+      }
+      lastError = error;
+      if (error?.name === 'AbortError' || error?.statusCode === 504) {
+        console.warn(`[QUIZ_ENGINE] ${requestUrl} timed out.`);
+      }
+    }
+  }
+
+  throw lastError || Object.assign(new Error('Question engine is unavailable.'), { statusCode: 502 });
+};
+
+const getMcqs = async (gutenbergId, { limit = 5, timeoutMs }) => {
+  const path = `/mcqs/${encodeURIComponent(gutenbergId)}?limit=${encodeURIComponent(String(limit))}`;
+  const { payload } = await requestEngine({
+    path,
     timeoutMs,
     options: { method: 'GET', headers: { Accept: 'application/json' } },
+    acceptedStatuses: [200],
+    tolerateNotFound: true,
   });
-
-  if (!response.ok) {
-    const message = payload?.message || payload?.detail || `Question engine request failed (${response.status}).`;
-    const error = new Error(typeof message === 'string' ? message : `Question engine request failed (${response.status}).`);
-    error.statusCode = response.status;
-    throw error;
-  }
 
   const mcqs = Array.isArray(payload?.mcqs) ? payload.mcqs : (Array.isArray(payload?.data?.mcqs) ? payload.data.mcqs : []);
   return mcqs;
 };
 
 const startGeneration = async (gutenbergId, { timeoutMs }) => {
-  const url = `${getEngineUrl()}/generate`;
-  const { response, payload } = await fetchWithTimeout(url, {
+  const { payload } = await requestEngine({
+    path: '/generate',
     timeoutMs,
     options: {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ book_id: gutenbergId }),
     },
+    acceptedStatuses: [200, 202],
   });
 
-  if (response.status === 202 || response.ok) {
-    return payload || { status: 'processing' };
-  }
-
-  const message = payload?.message || payload?.detail || `Question engine generate failed (${response.status}).`;
-  const error = new Error(typeof message === 'string' ? message : `Question engine generate failed (${response.status}).`);
-  error.statusCode = response.status;
-  throw error;
+  return payload || { status: 'processing' };
 };
 
 const checkStatus = async (gutenbergId, { timeoutMs }) => {
-  const url = `${getEngineUrl()}/status/${encodeURIComponent(gutenbergId)}`;
-  const { response, payload } = await fetchWithTimeout(url, {
-    timeoutMs,
-    options: { method: 'GET', headers: { Accept: 'application/json' } },
-  });
-
-  if (!response.ok) {
-    return null;
+  try {
+    const { payload } = await requestEngine({
+      path: `/status/${encodeURIComponent(gutenbergId)}`,
+      timeoutMs,
+      options: { method: 'GET', headers: { Accept: 'application/json' } },
+      acceptedStatuses: [200],
+      tolerateNotFound: true,
+    });
+    return payload;
+  } catch (error) {
+    if (error?.statusCode === 404) {
+      return null;
+    }
+    throw error;
   }
-
-  return payload;
 };
 
 const normalizeMcqs = (mcqs) => {

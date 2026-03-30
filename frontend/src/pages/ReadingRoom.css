@@ -8,6 +8,7 @@
   height: 100vh;
   width: 100%;
   overflow: hidden;
+  overflow-x: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -487,17 +488,25 @@
 .reader-content-wrapper {
   position: relative;
   overflow: hidden;
+  overflow-x: hidden;
+  max-width: 100%;
   padding: clamp(1.35rem, 3.2vh, 2.1rem) calc(clamp(1rem, 3.2vw, 2.6rem) * var(--reader-margin-scale)) clamp(4rem, 7vh, 4.9rem);
   font-family: var(--font-reading);
   letter-spacing: 0.01em;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .reading-column {
   width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  white-space: normal;
+  word-wrap: break-word;
   overflow-wrap: break-word;
   word-break: break-word;
 }

@@ -1,8 +1,7 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
-import { getStoredUser } from '../utils/auth';
 import './BookQuiz.css';
 
 const QUIZ_STORE_PREFIX = 'bookQuiz:';
@@ -70,8 +69,6 @@ export default function BookQuiz() {
   const { bookId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const storedUser = useMemo(() => getStoredUser(), []);
-
   const nextPath = location.state?.from || location.state?.next || `/meet/${bookId}`;
 
   const [loading, setLoading] = useState(true);
@@ -316,7 +313,6 @@ export default function BookQuiz() {
 
     try {
       const { data } = await api.post('/quiz/submit', {
-        userId: storedUser?._id,
         bookId,
         answers,
         jobId: quizJobId,
