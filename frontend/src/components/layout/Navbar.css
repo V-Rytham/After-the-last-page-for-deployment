@@ -311,13 +311,14 @@
   }
 
   .navbar-container {
-    grid-template-columns: auto minmax(0, auto) auto;
-    justify-content: center;
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    justify-content: stretch;
+    gap: 0.75rem;
   }
 
   .navbar-logo {
     min-width: auto;
+    justify-self: start;
   }
 
   .logo-tagline {
@@ -325,6 +326,7 @@
   }
 
   .nav-links-group {
+    justify-self: center;
     padding-inline: 0.4rem;
   }
 
@@ -344,6 +346,10 @@
 
   .more-menu {
     display: inline-flex;
+  }
+
+  .navbar-user-capsule {
+    justify-self: end;
   }
 }
 

@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, MoveRight } from 'lucide-react';
+import { BookOpen, Check, MessageSquare, MoveRight, Users } from 'lucide-react';
 import api from '../utils/api';
 import { getFallbackBooks } from '../utils/bookFallback';
 import { getLibraryState } from '../utils/readingSession';
@@ -21,21 +21,6 @@ const renderCover = (book) => (
   />
 );
 
-const FeaturedBook = ({ book, isMember }) => (
-  <Link to={isMember ? `/read/${getBookId(book)}` : '/auth'} className="home-featured-link" aria-label={`Open ${book.title}`}>
-    <article className="home-featured-book">
-      <div className="home-featured-cover" style={{ '--book-accent': book.coverColor || '#6f614d' }}>
-        {renderCover(book)}
-        <span className="home-featured-overlay" aria-hidden="true">Start reading →</span>
-      </div>
-      <div className="home-featured-copy">
-        <h3 className="font-serif">{book.title}</h3>
-        <p>{book.author}</p>
-      </div>
-    </article>
-  </Link>
-);
-
 const DiscussionEntry = ({ thread }) => (
   <Link to={`/thread/${thread.bookId}#${thread._id}`} className="home-discussion-card-link">
     <article className="home-discussion-card">
@@ -49,6 +34,12 @@ const DiscussionEntry = ({ thread }) => (
     </article>
   </Link>
 );
+
+const howItWorksSteps = [
+  { key: 'read', title: 'Read in silence', description: 'A quiet reading space designed for focus.', icon: BookOpen },
+  { key: 'finish', title: 'Mark the moment', description: 'Finish the book to unlock its discussion room.', icon: Check },
+  { key: 'discuss', title: 'Enter the room', description: 'Join conversations with readers who finished it too.', icon: Users },
+];
 
 const getResumeProgressLabel = (book) => {
   if (!book) {
@@ -71,6 +62,9 @@ export default function LandingPage({ currentUser }) {
   const [loading, setLoading] = useState(true);
   const [sampleThreads, setSampleThreads] = useState([]);
   const [threadError, setThreadError] = useState(false);
+  const [isHowVisible, setIsHowVisible] = useState(false);
+  const [isHowAnimReady, setIsHowAnimReady] = useState(false);
+  const howItWorksRef = useRef(null);
 
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
   const threadPreviewCount = isMember ? 3 : 6;
@@ -90,9 +84,6 @@ export default function LandingPage({ currentUser }) {
 
     fetchBooks();
   }, []);
-
-  const recommendedBooks = useMemo(() => books.slice(0, 10), [books]);
-  const recentActivityBooks = useMemo(() => books.slice(2, 12), [books]);
 
   const resumeBook = useMemo(() => {
     if (!isMember || books.length === 0) {
@@ -168,6 +159,35 @@ export default function LandingPage({ currentUser }) {
       isActive = false;
     };
   }, [books, isMember, threadPreviewCount]);
+
+  useEffect(() => {
+    const section = howItWorksRef.current;
+    if (!section) {
+      return undefined;
+    }
+
+    if (typeof window === 'undefined' || typeof window.IntersectionObserver !== 'function') {
+      setIsHowVisible(true);
+      setIsHowAnimReady(false);
+      return undefined;
+    }
+
+    setIsHowAnimReady(true);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsHowVisible(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.3 },
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
 
   if (loading) {
     return (
@@ -257,39 +277,31 @@ export default function LandingPage({ currentUser }) {
         </section>
 
         <div className="layout-content home-sections">
-          <section className="home-section home-carousel-section" aria-labelledby="recommended-heading">
-            <div className="home-section-head">
-              <div className="home-section-copy">
-                <h2 id="recommended-heading" className="font-serif">Recommended</h2>
-                <p>Pick a book. The conversation will be waiting when you return.</p>
-              </div>
-              <Link to={isMember ? '/desk' : '/auth'} className="home-section-link">View all</Link>
-            </div>
-
-            <div className="home-scroll-fade">
-              <div className="home-featured" role="list" aria-label="Recommended books">
-                {recommendedBooks.map((book) => (
-                  <FeaturedBook key={`recommended-${getBookId(book)}`} book={book} isMember={isMember} />
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="home-section home-carousel-section" aria-labelledby="recent-activity-heading">
-            <div className="home-section-head">
-              <div className="home-section-copy">
-                <h2 id="recent-activity-heading" className="font-serif">Recent activity</h2>
-                <p>Continue exploring titles readers recently opened and finished.</p>
-              </div>
-              <Link to={isMember ? '/library' : '/auth'} className="home-section-link">Open library</Link>
-            </div>
-
-            <div className="home-scroll-fade">
-              <div className="home-featured" role="list" aria-label="Recent activity books">
-                {recentActivityBooks.map((book) => (
-                  <FeaturedBook key={`recent-${getBookId(book)}`} book={book} isMember={isMember} />
-                ))}
-              </div>
+          <section className="home-how-it-works" aria-labelledby="how-it-works-heading" ref={howItWorksRef}>
+            <h2 id="how-it-works-heading" className="home-how-heading">How it works</h2>
+            <div
+              className={`home-how-grid ${isHowAnimReady ? 'animate-ready' : ''} ${isHowVisible ? 'visible' : ''}`.trim()}
+              role="list"
+              aria-label="How it works steps"
+            >
+              {howItWorksSteps.map((step, index) => {
+                const StepIcon = step.icon;
+                return (
+                  <article
+                    key={step.key}
+                    className="home-how-card"
+                    role="listitem"
+                    style={{ transitionDelay: `${120 * index}ms` }}
+                  >
+                    <span className="home-how-step" aria-hidden="true">{index + 1}</span>
+                    <span className="home-how-icon" aria-hidden="true">
+                      <StepIcon size={16} strokeWidth={2.1} />
+                    </span>
+                    <h3 className="font-serif">{step.title}</h3>
+                    <p>{step.description}</p>
+                  </article>
+                );
+              })}
             </div>
           </section>
 

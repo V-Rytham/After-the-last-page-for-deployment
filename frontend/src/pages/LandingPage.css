@@ -176,6 +176,15 @@
   gap: 0.8rem;
 }
 
+.home-how-it-works {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+  border-radius: 1.1rem;
+  padding: var(--home-panel-padding);
+  background:
+    linear-gradient(178deg, color-mix(in srgb, var(--surface-1) 96%, transparent), color-mix(in srgb, var(--surface-2) 85%, transparent));
+  box-shadow: 0 10px 26px rgba(17, 13, 9, 0.1);
+}
+
 .home-carousel-section,
 .home-discussion-preview {
   border: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
@@ -210,6 +219,72 @@
   font-size: 0.72rem;
   letter-spacing: 0.13em;
   text-transform: uppercase;
+}
+
+.home-how-heading {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 0.85rem;
+}
+
+.home-how-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.home-how-card {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  padding: 1rem;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 0.3rem;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.home-how-grid.animate-ready .home-how-card {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 460ms ease-out, transform 460ms ease-out;
+}
+
+.home-how-grid.animate-ready.visible .home-how-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.home-how-step {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.95rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.home-how-icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-muted);
+  color: var(--accent-ink);
+}
+
+.home-how-card h3 {
+  margin-top: 0.2rem;
+}
+
+.home-how-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
 }
 
 .home-section-link {
@@ -439,12 +514,17 @@
   }
 
   .home-carousel-section,
-  .home-discussion-preview {
+  .home-discussion-preview,
+  .home-how-it-works {
     grid-column: 1 / -1;
   }
 
   .home-discussions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-how-grid {
+    grid-template-columns: 1fr;
   }
 }
 
