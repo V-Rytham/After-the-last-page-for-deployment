@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Check, MessageSquare, MoveRight, Users } from 'lucide-react';
+import { MessageSquare, MoveRight } from 'lucide-react';
 import api from '../utils/api';
 import { getFallbackBooks } from '../utils/bookFallback';
 import { getLibraryState } from '../utils/readingSession';
@@ -50,12 +50,6 @@ const DiscussionEntry = ({ thread }) => (
   </Link>
 );
 
-const howItWorksSteps = [
-  { key: 'read', title: 'Read in silence', description: 'A quiet reading space designed for focus.', icon: BookOpen },
-  { key: 'finish', title: 'Mark the moment', description: 'Finish the book to unlock its discussion room.', icon: Check },
-  { key: 'discuss', title: 'Enter the room', description: 'Join conversations with readers who finished it too.', icon: Users },
-];
-
 const getResumeProgressLabel = (book) => {
   if (!book) {
     return 'Continue from where you left off.';
@@ -77,12 +71,9 @@ export default function LandingPage({ currentUser }) {
   const [loading, setLoading] = useState(true);
   const [sampleThreads, setSampleThreads] = useState([]);
   const [threadError, setThreadError] = useState(false);
-  const [isHowVisible, setIsHowVisible] = useState(false);
-  const [isHowAnimReady, setIsHowAnimReady] = useState(false);
-  const howItWorksRef = useRef(null);
 
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
-  const threadPreviewCount = isMember ? 2 : 6;
+  const threadPreviewCount = isMember ? 3 : 6;
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -100,7 +91,8 @@ export default function LandingPage({ currentUser }) {
     fetchBooks();
   }, []);
 
-  const featuredBooks = useMemo(() => books.slice(0, 8), [books]);
+  const recommendedBooks = useMemo(() => books.slice(0, 10), [books]);
+  const recentActivityBooks = useMemo(() => books.slice(2, 12), [books]);
 
   const resumeBook = useMemo(() => {
     if (!isMember || books.length === 0) {
@@ -177,35 +169,6 @@ export default function LandingPage({ currentUser }) {
     };
   }, [books, isMember, threadPreviewCount]);
 
-  useEffect(() => {
-    const section = howItWorksRef.current;
-    if (!section) {
-      return undefined;
-    }
-
-    if (typeof window === 'undefined' || typeof window.IntersectionObserver !== 'function') {
-      setIsHowVisible(true);
-      setIsHowAnimReady(false);
-      return undefined;
-    }
-
-    setIsHowAnimReady(true);
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsHowVisible(true);
-            observer.disconnect();
-          }
-        });
-      },
-      { threshold: 0.3 },
-    );
-
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, []);
-
   if (loading) {
     return (
       <div className="home-page animate-fade-in">
@@ -224,32 +187,32 @@ export default function LandingPage({ currentUser }) {
         <header className="layout-section home-hero" aria-label="Home">
           <div className="layout-content home-hero-inner">
             <div className="home-hero-copy home-hero-centered">
-            <h1 className="home-title font-serif">
-              <span className="home-title-line">Finish the book.</span>
-              <span className="home-title-line">Enter the conversation.</span>
-            </h1>
+              <h1 className="home-title font-serif">
+                <span className="home-title-line">Finish the book.</span>
+                <span className="home-title-line">Enter the conversation.</span>
+              </h1>
 
-            <p className="home-subtitle">
-              Read in calm focus. Then unpack the ending with readers who finished the same book.
-            </p>
-
-            <div className="home-hero-actions">
-              <Link
-                to={isMember ? (resumeBook ? `/read/${getBookId(resumeBook)}` : '/desk') : '/auth'}
-                className="btn-primary"
-              >
-                Start Reading <MoveRight size={16} />
-              </Link>
-              <Link to="/threads" className="btn-secondary">Explore discussions</Link>
-            </div>
-
-            <p className="home-trust-line">No noise. No spoilers. Just meaningful conversations.</p>
-
-            {!isMember && (
-              <p className="home-signin-hint">
-                Rooms unlock per book after a quick 5-question check — <Link to="/auth">sign in</Link> to keep your place across visits.
+              <p className="home-subtitle">
+                Read in calm focus. Then unpack the ending with readers who finished the same book.
               </p>
-            )}
+
+              <div className="home-hero-actions">
+                <Link
+                  to={isMember ? (resumeBook ? `/read/${getBookId(resumeBook)}` : '/desk') : '/auth'}
+                  className="btn-primary"
+                >
+                  Start Reading <MoveRight size={16} />
+                </Link>
+                <Link to="/threads" className="btn-secondary">Explore discussions</Link>
+              </div>
+
+              <p className="home-trust-line">No noise. No spoilers. Just meaningful conversations.</p>
+
+              {!isMember && (
+                <p className="home-signin-hint">
+                  Rooms unlock per book after a quick 5-question check — <Link to="/auth">sign in</Link> to keep your place across visits.
+                </p>
+              )}
             </div>
           </div>
         </header>
@@ -258,8 +221,8 @@ export default function LandingPage({ currentUser }) {
           <div className="home-hero-divider" aria-hidden="true" />
         </div>
 
-        <section className="layout-section home-progress home-progress-priority home-progress-full surface-card" aria-label="Continue reading">
-          <div className="layout-content home-progress-inner">
+        <section className="layout-section home-progress" aria-label="Continue reading">
+          <div className="layout-content home-progress-inner surface-card">
             {isMember && resumeBook ? (
               <div className="home-resume">
                 <div className="home-resume-cover" style={{ '--book-accent': resumeBook.coverColor || '#6f614d' }}>
@@ -294,77 +257,69 @@ export default function LandingPage({ currentUser }) {
         </section>
 
         <div className="layout-content home-sections">
-          <section className="home-section home-shelf-section" aria-labelledby="featured-heading">
+          <section className="home-section home-shelf-section" aria-labelledby="recommended-heading">
             <div className="home-section-head">
               <div className="home-section-copy">
-                <h2 id="featured-heading" className="font-serif">A place to begin</h2>
+                <h2 id="recommended-heading" className="font-serif">Recommended</h2>
                 <p>Pick a book. The conversation will be waiting when you return.</p>
               </div>
               <Link to={isMember ? '/desk' : '/auth'} className="home-section-link">View all</Link>
             </div>
 
-            <div className="home-featured" role="list" aria-label="Featured books">
-              {featuredBooks.map((book) => (
-                <FeaturedBook key={getBookId(book)} book={book} isMember={isMember} />
-              ))}
+            <div className="home-scroll-fade">
+              <div className="home-featured" role="list" aria-label="Recommended books">
+                {recommendedBooks.map((book) => (
+                  <FeaturedBook key={`recommended-${getBookId(book)}`} book={book} isMember={isMember} />
+                ))}
+              </div>
             </div>
           </section>
 
-        <section className="home-section home-discussion-preview" aria-labelledby="sample-discussions-heading">
-          <div className="home-section-head">
-            <div className="home-section-copy">
-              <p className="home-live-kicker">Conversations happening right now</p>
-              <h2 id="sample-discussions-heading" className="font-serif">From the discussion rooms</h2>
-              <p>Recent threads from readers who just closed the book.</p>
+          <section className="home-section" aria-labelledby="recent-activity-heading">
+            <div className="home-section-head">
+              <div className="home-section-copy">
+                <h2 id="recent-activity-heading" className="font-serif">Recent activity</h2>
+                <p>Continue exploring titles readers recently opened and finished.</p>
+              </div>
+              <Link to={isMember ? '/library' : '/auth'} className="home-section-link">Open library</Link>
             </div>
-            <Link to="/threads" className="home-section-link">Join the conversation</Link>
-          </div>
 
-          {sampleThreads.length > 0 ? (
-            <div className="home-discussions" role="list" aria-label="Sample discussions">
-              {sampleThreads.map((thread) => (
-                <DiscussionEntry key={thread._id} thread={thread} />
-              ))}
+            <div className="home-scroll-fade">
+              <div className="home-featured" role="list" aria-label="Recent activity books">
+                {recentActivityBooks.map((book) => (
+                  <FeaturedBook key={`recent-${getBookId(book)}`} book={book} isMember={isMember} />
+                ))}
+              </div>
             </div>
-          ) : (
-            <div className="home-empty">
-              <MessageSquare size={18} />
-              <p>
-                {threadError
-                  ? 'Discussion rooms are unavailable right now.'
-                  : 'Open a book and return after you finish to see active discussions.'}
-              </p>
-            </div>
-          )}
-        </section>
+          </section>
 
-        <section className="home-how-it-works" aria-labelledby="how-it-works-heading" ref={howItWorksRef}>
-          <h2 id="how-it-works-heading" className="home-how-heading">How it works</h2>
-          <div
-            className={`home-how-grid ${isHowAnimReady ? 'animate-ready' : ''} ${isHowVisible ? 'visible' : ''}`.trim()}
-            role="list"
-            aria-label="How it works steps"
-          >
-            {howItWorksSteps.map((step, index) => {
-              const StepIcon = step.icon;
-              return (
-                <article
-                  key={step.key}
-                  className="home-how-card"
-                  role="listitem"
-                  style={{ transitionDelay: `${120 * index}ms` }}
-                >
-                  <span className="home-how-step" aria-hidden="true">{index + 1}</span>
-                  <span className="home-how-icon" aria-hidden="true">
-                    <StepIcon size={16} strokeWidth={2.1} />
-                  </span>
-                  <h3>{step.title}</h3>
-                  <p>{step.description}</p>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+          <section className="home-section home-discussion-preview" aria-labelledby="sample-discussions-heading">
+            <div className="home-section-head">
+              <div className="home-section-copy">
+                <p className="home-live-kicker">Conversations happening right now</p>
+                <h2 id="sample-discussions-heading" className="font-serif">Discussion entry</h2>
+                <p>Recent threads from readers who just closed the book.</p>
+              </div>
+              <Link to="/threads" className="home-section-link">Join the conversation</Link>
+            </div>
+
+            {sampleThreads.length > 0 ? (
+              <div className="home-discussions" role="list" aria-label="Sample discussions">
+                {sampleThreads.map((thread) => (
+                  <DiscussionEntry key={thread._id} thread={thread} />
+                ))}
+              </div>
+            ) : (
+              <div className="home-empty">
+                <MessageSquare size={18} />
+                <p>
+                  {threadError
+                    ? 'Discussion rooms are unavailable right now.'
+                    : 'Open a book and return after you finish to see active discussions.'}
+                </p>
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </div>

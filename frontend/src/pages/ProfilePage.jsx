@@ -319,28 +319,46 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
             </div>
 
             {!editing ? (
-              <dl className="profile-details-grid">
-                <div className="profile-detail">
-                  <dt>Name</dt>
-                  <dd>{displayName}</dd>
+              <div className="profile-details-panel">
+                <div className="profile-details-group" aria-label="Identity">
+                  <h3>Identity</h3>
+                  <dl className="profile-details-grid">
+                    <div className="profile-detail">
+                      <dt>Name</dt>
+                      <dd>{displayName}</dd>
+                    </div>
+                    <div className="profile-detail">
+                      <dt>Username</dt>
+                      <dd>@{username}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <div className="profile-detail">
-                  <dt>Username</dt>
-                  <dd>@{username}</dd>
+
+                <div className="profile-details-group" aria-label="Contact">
+                  <h3>Contact</h3>
+                  <dl className="profile-details-grid">
+                    <div className="profile-detail">
+                      <dt>Email</dt>
+                      <dd>{email}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <div className="profile-detail">
-                  <dt>Email</dt>
-                  <dd>{email}</dd>
+
+                <div className="profile-details-group" aria-label="Meta">
+                  <h3>Meta</h3>
+                  <dl className="profile-details-grid">
+                    <div className="profile-detail">
+                      <dt>Joined</dt>
+                      <dd>{joinedDate}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <div className="profile-detail">
-                  <dt>Joined</dt>
-                  <dd>{joinedDate}</dd>
+
+                <div className="profile-details-group profile-details-group-bio" aria-label="Bio">
+                  <h3>Bio</h3>
+                  <p>{bio}</p>
                 </div>
-                <div className="profile-detail profile-detail-span">
-                  <dt>Bio</dt>
-                  <dd>{bio}</dd>
-                </div>
-              </dl>
+              </div>
             ) : (
               <form className="profile-form" onSubmit={handleSave}>
                 <label className="profile-input-group">
