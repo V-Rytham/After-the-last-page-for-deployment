@@ -112,9 +112,70 @@ export default function LandingPage({ currentUser }) {
   }, [books, isMember]);
 
   useEffect(() => {
-    setSampleThreads([]);
-    setThreadError(false);
-  }, [books, threadPreviewCount]);
+    let isActive = true;
+
+    const fetchSampleThreads = async () => {
+      if (!isMember || books.length === 0) {
+        if (isActive) {
+          setSampleThreads([]);
+          setThreadError(false);
+        }
+        return;
+      }
+
+      try {
+        const booksToScan = books.slice(0, 6);
+        const threadResponses = await Promise.allSettled(
+          booksToScan.map((book) => api.get(`/threads/${getBookId(book)}?sort=hot`)),
+        );
+
+        const candidateThreads = threadResponses.flatMap((result, index) => {
+          if (result.status !== 'fulfilled' || !Array.isArray(result.value?.data)) {
+            return [];
+          }
+
+          const sourceBook = booksToScan[index];
+          return result.value.data.map((thread) => {
+            const commentCount = Array.isArray(thread.comments) ? thread.comments.length : 0;
+            return {
+              ...thread,
+              bookTitle: sourceBook?.title || thread.bookTitle || 'Shared reading',
+              replyCount: Number.isFinite(thread.replyCount) ? thread.replyCount : commentCount,
+            };
+          });
+        });
+
+        const sortedPreview = candidateThreads
+          .sort((a, b) => {
+            const scoreDiff = Number(b.likes || 0) - Number(a.likes || 0);
+            if (scoreDiff !== 0) {
+              return scoreDiff;
+            }
+            return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+          })
+          .slice(0, threadPreviewCount);
+
+        if (!isActive) {
+          return;
+        }
+
+        setSampleThreads(sortedPreview);
+        setThreadError(false);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        console.error('Failed to load sample threads for home page:', error);
+        setSampleThreads([]);
+        setThreadError(true);
+      }
+    };
+
+    fetchSampleThreads();
+    return () => {
+      isActive = false;
+    };
+  }, [books, isMember, threadPreviewCount]);
 
   useEffect(() => {
     const section = howItWorksRef.current;
@@ -200,9 +261,16 @@ export default function LandingPage({ currentUser }) {
         <section className="layout-section home-progress home-progress-priority home-progress-full surface-card" aria-label="Continue reading">
           <div className="layout-content home-progress-inner">
             {isMember && resumeBook ? (
-            <div className="home-resume">
-              <div className="home-resume-cover" style={{ '--book-accent': resumeBook.coverColor || '#6f614d' }}>
-                {renderCover(resumeBook)}
+              <div className="home-resume">
+                <div className="home-resume-cover" style={{ '--book-accent': resumeBook.coverColor || '#6f614d' }}>
+                  {renderCover(resumeBook)}
+                </div>
+                <div className="home-resume-copy">
+                  <p className="home-kicker">Continue reading</p>
+                  <h2 className="font-serif">{resumeBook.title}</h2>
+                  <p>{getResumeProgressLabel(resumeBook)}</p>
+                  <Link to={`/read/${getBookId(resumeBook)}`} className="btn-primary sm">Resume</Link>
+                </div>
               </div>
             ) : isMember ? (
               <div className="home-callout">
@@ -221,26 +289,25 @@ export default function LandingPage({ currentUser }) {
                 <Link to="/auth" className="btn-primary sm">Sign in</Link>
               </div>
             )}
-            </div>
           </div>
         </section>
 
         <div className="layout-content home-sections">
-        <section className="home-section home-shelf-section" aria-labelledby="featured-heading">
-          <div className="home-section-head">
-            <div className="home-section-copy">
-              <h2 id="featured-heading" className="font-serif">A place to begin</h2>
-              <p>Pick a book. The conversation will be waiting when you return.</p>
+          <section className="home-section home-shelf-section" aria-labelledby="featured-heading">
+            <div className="home-section-head">
+              <div className="home-section-copy">
+                <h2 id="featured-heading" className="font-serif">A place to begin</h2>
+                <p>Pick a book. The conversation will be waiting when you return.</p>
+              </div>
+              <Link to={isMember ? '/desk' : '/auth'} className="home-section-link">View all</Link>
             </div>
-            <Link to={isMember ? '/desk' : '/auth'} className="home-section-link">View all</Link>
-          </div>
 
-          <div className="home-featured" role="list" aria-label="Featured books">
-            {featuredBooks.map((book) => (
-              <FeaturedBook key={getBookId(book)} book={book} isMember={isMember} />
-            ))}
-          </div>
-        </section>
+            <div className="home-featured" role="list" aria-label="Featured books">
+              {featuredBooks.map((book) => (
+                <FeaturedBook key={getBookId(book)} book={book} isMember={isMember} />
+              ))}
+            </div>
+          </section>
 
         <section className="home-section home-discussion-preview" aria-labelledby="sample-discussions-heading">
           <div className="home-section-head">
