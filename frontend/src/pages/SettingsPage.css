@@ -1,0 +1,63 @@
+.settings-page {
+  width: min(100%, var(--page-max-width));
+  margin: 0 auto;
+  padding: 1.15rem var(--page-gutter) var(--section-space);
+  display: grid;
+  gap: 1.1rem;
+}
+
+.settings-head {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 56ch;
+}
+
+.settings-head p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.settings-card {
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.7rem;
+  max-width: 42rem;
+}
+
+.settings-kicker {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.settings-row {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.settings-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.55rem;
+  padding: 0 0.9rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.settings-option:hover {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+.settings-option.is-active {
+  border-color: var(--accent-border);
+  color: var(--text-primary);
+}
+

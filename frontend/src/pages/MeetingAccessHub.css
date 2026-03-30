@@ -1,0 +1,257 @@
+.meeting-access-page {
+  min-height: 100vh;
+  width: min(100%, var(--page-max-width));
+  margin: 0 auto;
+  padding: clamp(1.15rem, 2.6vw, 1.75rem) var(--page-gutter) clamp(2.25rem, 5vw, 3.25rem);
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+}
+
+.meeting-access-page.is-gated {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100vh - var(--chrome-height));
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.meeting-access-page.is-gated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), transparent 45%),
+    radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.06), transparent 55%),
+    radial-gradient(circle at 50% 80%, rgba(70, 80, 107, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), transparent 55%);
+  opacity: 0.9;
+}
+
+.meeting-access-gate {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 44rem);
+  display: grid;
+  gap: 0.7rem;
+  padding: clamp(1.25rem, 4vw, 2rem);
+}
+
+.meeting-access-hero {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 56rem;
+  padding: 0;
+  margin: 0;
+}
+
+.meeting-access-hero h1,
+.meeting-access-gate h1 {
+  font-size: clamp(1.55rem, 3.2vw, 2.15rem);
+  line-height: 1.15;
+  max-width: 28ch;
+  text-wrap: balance;
+  margin: 0;
+}
+
+.meeting-access-hero p,
+.meeting-access-gate p {
+  margin: 0;
+  max-width: 70ch;
+  line-height: 1.65;
+  font-size: 0.98rem;
+  color: var(--text-secondary);
+}
+
+.meeting-access-page.is-gated .meeting-access-gate p {
+  margin-inline: auto;
+}
+
+.meeting-access-gate-actions {
+  margin-top: 0.35rem;
+  display: flex;
+  justify-content: center;
+}
+
+.meeting-access-gate-footnote,
+.meeting-access-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--font-size-0);
+  justify-content: center;
+}
+
+.meeting-access-gate-ornament {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+}
+
+.gate-bubble {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.04);
+  filter: blur(0.2px);
+}
+
+.gate-bubble {
+  left: -80px;
+  top: 28%;
+}
+
+.gate-bubble.is-mid {
+  width: 190px;
+  height: 190px;
+  right: -70px;
+  left: auto;
+  top: 18%;
+}
+
+.gate-bubble.is-small {
+  width: 140px;
+  height: 140px;
+  left: 60%;
+  top: 78%;
+}
+
+.meeting-access-loading,
+.meeting-access-empty {
+  max-width: 56rem;
+  justify-self: start;
+  padding: 1.05rem 1.1rem;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.meeting-access-loading {
+  text-align: left;
+}
+
+.meeting-access-empty {
+  display: grid;
+  gap: 0.6rem;
+  text-align: left;
+}
+
+.meeting-access-grid {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 0.9rem;
+}
+
+.meeting-access-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.95rem;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.meeting-access-mini-cover {
+  position: relative;
+  width: 3.2rem;
+  height: 4.6rem;
+  border-radius: 0.85rem;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(20, 16, 12, 0.1), rgba(20, 16, 12, 0.18)),
+    var(--book-accent, #6f614d);
+  box-shadow: 0 10px 18px rgba(28, 20, 12, 0.1);
+}
+
+.meeting-access-mini-image,
+.meeting-access-mini-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.meeting-access-mini-image {
+  object-fit: cover;
+}
+
+.meeting-access-mini-fallback {
+  position: relative;
+}
+
+.meeting-access-mini-spine {
+  position: absolute;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  left: 0.6rem;
+  width: 1px;
+  background: rgba(255, 248, 236, 0.28);
+}
+
+.meeting-access-body {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.meeting-access-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--success-soft);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-soft);
+  font-size: var(--font-size-0);
+}
+
+.meeting-access-title {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meeting-access-author {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-0);
+}
+
+.meeting-access-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .meeting-access-card {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "cover body"
+      "action action";
+    align-items: start;
+  }
+
+  .meeting-access-mini-cover {
+    grid-area: cover;
+  }
+
+  .meeting-access-body {
+    grid-area: body;
+  }
+
+  .meeting-access-button {
+    grid-area: action;
+    justify-self: start;
+  }
+}

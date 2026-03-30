@@ -1,0 +1,67 @@
+services:
+  # Backend API + Socket.IO
+  - type: web
+    name: alp-api
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        value: https://alp-web.onrender.com
+      - key: BOOKFRIEND_SERVER_URL
+        value: https://alp-bookfriend.onrender.com
+      - key: QUIZ_QUESTION_ENGINE_URL
+        value: https://deterministic-question-engine-3sd2.onrender.com
+      - key: QUIZ_PASS_THRESHOLD_PERCENT
+        value: 60
+
+  # BookFriend Agent (RAG) service
+  - type: web
+    name: alp-bookfriend
+    runtime: node
+    plan: starter
+    rootDir: bookfriend-server
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 5050
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        value: https://alp-web.onrender.com
+      - key: BACKEND_URL
+        value: https://alp-api.onrender.com
+      - key: BOOKFRIEND_LLM_PROVIDER
+        value: groq
+      - key: BOOKFRIEND_GROQ_MODEL
+        value: llama-3.1-8b-instant
+      - key: GROQ_API_KEY
+        sync: false
+
+  # Frontend (Vite build) as a Render Static Site
+  - type: web
+    name: alp-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci --prefix .. && npm run build --prefix ..
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SOCKET_URL
+        sync: false

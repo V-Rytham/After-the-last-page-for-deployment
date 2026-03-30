@@ -1,0 +1,241 @@
+.thread-access-page {
+  min-height: 100vh;
+  width: min(100%, var(--page-max-width));
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3.5vw, 2.25rem) var(--page-gutter) var(--section-space);
+  display: grid;
+  align-content: start;
+  gap: 0.95rem;
+}
+
+.thread-access-hero {
+  margin: 0;
+}
+
+.thread-access-copy {
+  max-width: 56rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.thread-access-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  color: var(--accent-ink);
+  box-shadow: none;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.thread-access-copy h1 {
+  max-width: 28ch;
+  font-size: clamp(1.55rem, 3.2vw, 2.15rem);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.thread-access-copy p {
+  max-width: 70ch;
+  line-height: 1.65;
+  font-size: 0.98rem;
+  color: var(--text-secondary);
+}
+
+.thread-access-notice {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--warning-soft);
+}
+
+.thread-access-notice-copy {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.thread-access-notice-copy strong {
+  color: var(--text-primary);
+}
+
+.thread-access-notice-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.thread-access-grid {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.thread-access-loading {
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  text-align: center;
+  box-shadow: none;
+}
+
+.thread-access-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  min-height: 6.1rem;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.thread-access-mini-cover {
+  position: relative;
+  width: 3.05rem;
+  height: 4.15rem;
+  border-radius: 0.85rem;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(20, 16, 12, 0.1), rgba(20, 16, 12, 0.18)),
+    var(--book-accent, #6f614d);
+  box-shadow: 0 10px 18px rgba(28, 20, 12, 0.1);
+}
+
+.thread-access-mini-image,
+.thread-access-mini-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.thread-access-mini-image {
+  object-fit: cover;
+}
+
+.thread-access-mini-fallback {
+  position: relative;
+  overflow: hidden;
+}
+
+.thread-access-mini-spine {
+  position: absolute;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  left: 0.6rem;
+  width: 1px;
+  background: rgba(255, 248, 236, 0.28);
+}
+
+.thread-access-card-body {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.thread-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  padding: 0.2rem 0.52rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  border: 1px solid rgba(255, 249, 240, 0.24);
+}
+
+.thread-status.unlocked {
+  background: rgba(223, 232, 221, 0.24);
+  color: var(--text-primary);
+}
+
+.thread-status.quiz-required {
+  background: rgba(223, 227, 237, 0.22);
+  color: var(--text-primary);
+}
+
+.thread-status.read-required {
+  background: rgba(236, 223, 190, 0.24);
+  color: var(--text-primary);
+}
+
+.thread-access-title {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.thread-access-author {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-access-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.36rem;
+}
+
+.thread-access-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+  .thread-access-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .thread-access-notice {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .thread-access-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .thread-access-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .thread-access-card {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "cover body"
+      "cover actions";
+    align-items: center;
+  }
+
+  .thread-access-mini-cover {
+    grid-area: cover;
+  }
+
+  .thread-access-card-body {
+    grid-area: body;
+  }
+
+  .thread-access-actions {
+    grid-area: actions;
+    justify-items: start;
+  }
+}
