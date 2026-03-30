@@ -69,6 +69,11 @@ class GutenbergIngestionService {
       return null;
     }
 
+    const allowedStatus = ['pending', 'ready', 'failed'];
+
+    const safeStatus = allowedStatus.includes(status)
+      ? status
+      : 'pending';
     const updateDoc = {
       $setOnInsert: {
         title: preview.title,
@@ -79,8 +84,10 @@ class GutenbergIngestionService {
         rights: 'Public domain (Project Gutenberg)',
         requestedAt: new Date(),
       },
+      
+
       $set: {
-        status,
+        status: safeStatus,
         sourceProvider: 'Project Gutenberg',
         sourceUrl: preview.sourceUrl,
         coverImage: preview.coverImage,

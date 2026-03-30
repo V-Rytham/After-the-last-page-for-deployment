@@ -36,7 +36,8 @@ const bookSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['pending', 'ready', 'failed'],
-    default: 'ready',
+    required: true,
+    default: 'pending',
     index: true,
   },
   requestedBy: {
