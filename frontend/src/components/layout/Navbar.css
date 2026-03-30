@@ -18,6 +18,7 @@
 
 .navbar-container {
   min-height: 2.2rem;
+  width: 100%;
   padding: 0 var(--page-gutter);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -305,20 +306,21 @@
 }
 
 /* Tablet-first refinement */
-@media (min-width: 720px) and (max-width: 1100px) {
+@media (min-width: 768px) and (max-width: 1024px) {
   .navbar.navbar-capsule {
-    max-width: min(56rem, calc(100% - (var(--page-gutter) * 2)));
+    max-width: min(64rem, calc(100% - (var(--page-gutter) * 2)));
   }
 
   .navbar-container {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    justify-content: stretch;
-    gap: 0.75rem;
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.85rem;
   }
 
   .navbar-logo {
+    flex: 0 0 auto;
     min-width: auto;
-    justify-self: start;
   }
 
   .logo-tagline {
@@ -326,14 +328,16 @@
   }
 
   .nav-links-group {
-    justify-self: center;
-    padding-inline: 0.4rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    padding-inline: 0.46rem;
   }
 
   .nav-link {
     gap: 0.28rem;
-    padding: 0.22rem 0.5rem;
-    font-size: 0.76rem;
+    padding: 0.2rem 0.46rem;
+    font-size: 0.74rem;
   }
 
   .theme-trigger-label {
@@ -349,7 +353,19 @@
   }
 
   .navbar-user-capsule {
-    justify-self: end;
+    flex: 0 0 auto;
+    gap: 0.38rem;
+  }
+
+  .theme-trigger,
+  .more-trigger,
+  .profile-avatar-btn,
+  .auth-link {
+    padding-inline: 0.44rem;
+  }
+
+  .auth-chip {
+    padding: 0.26rem 0.5rem;
   }
 }
 
