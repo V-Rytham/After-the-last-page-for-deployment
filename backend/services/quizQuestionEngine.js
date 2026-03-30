@@ -2,6 +2,7 @@ import { Book } from '../models/Book.js';
 
 const DEFAULT_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-3sd2.onrender.com';
 const LEGACY_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-1.onrender.com';
+const GENERATED_REQUEST_TTL_MS = 30 * 60 * 1000;
 
 const normalizeUrl = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -137,7 +138,7 @@ const getMcqs = async (gutenbergId, { limit = 5, timeoutMs }) => {
 };
 
 const startGeneration = async (gutenbergId, { timeoutMs }) => {
-  const { payload } = await requestEngine({
+  const { payload, response } = await requestEngine({
     path: '/generate',
     timeoutMs,
     options: {
@@ -148,7 +149,10 @@ const startGeneration = async (gutenbergId, { timeoutMs }) => {
     acceptedStatuses: [200, 202],
   });
 
-  return payload || { status: 'processing' };
+  return {
+    payload: payload || { status: 'processing' },
+    statusCode: Number(response?.status || 0),
+  };
 };
 
 const checkStatus = async (gutenbergId, { timeoutMs }) => {
@@ -167,6 +171,49 @@ const checkStatus = async (gutenbergId, { timeoutMs }) => {
     }
     throw error;
   }
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getBackoffMs = (attemptIndex, { baseMs = 5000, stepMs = 5000, maxMs = 15000 } = {}) => {
+  const safeAttempt = Number.isInteger(attemptIndex) && attemptIndex >= 0 ? attemptIndex : 0;
+  return Math.min(baseMs + (safeAttempt * stepMs), maxMs);
+};
+
+const generationLocks = new Map();
+
+const withBookGenerationLock = async (gutenbergId, fn) => {
+  const key = String(gutenbergId);
+  const existing = generationLocks.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = (async () => {
+    try {
+      return await fn();
+    } finally {
+      generationLocks.delete(key);
+    }
+  })();
+
+  generationLocks.set(key, pending);
+  return pending;
+};
+
+const generationTriggerCache = new Map();
+
+const hasFreshGenerationTrigger = (gutenbergId) => {
+  const key = String(gutenbergId);
+  const triggeredAt = Number(generationTriggerCache.get(key) || 0);
+  if (!triggeredAt) return false;
+  const fresh = Date.now() - triggeredAt < GENERATED_REQUEST_TTL_MS;
+  if (!fresh) generationTriggerCache.delete(key);
+  return fresh;
+};
+
+const markGenerationTriggered = (gutenbergId) => {
+  generationTriggerCache.set(String(gutenbergId), Date.now());
 };
 
 const normalizeMcqs = (mcqs) => {
@@ -202,8 +249,10 @@ export const fetchBookQuizQuestions = async (
   bookId,
   {
     timeoutMs = 45000,
-    pollIntervalMs = 2000,
-    maxPollMs = 45000,
+    maxPollRetries = 12,
+    initialPollDelayMs = 5000,
+    pollBackoffStepMs = 5000,
+    maxPollDelayMs = 15000,
   } = {},
 ) => {
   const normalizedBookId = String(bookId || '').trim();
@@ -215,51 +264,68 @@ export const fetchBookQuizQuestions = async (
 
   const gutenbergId = await resolveGutenbergId(normalizedBookId);
 
-  const startAt = Date.now();
-  let generationTriggered = false;
+  let generationImmediateMcqs = [];
+  let generationResponseStatusCode = 0;
+  if (!hasFreshGenerationTrigger(gutenbergId)) {
+    const generationResult = await withBookGenerationLock(gutenbergId, async () => {
+      if (hasFreshGenerationTrigger(gutenbergId)) return;
 
-  while (Date.now() - startAt < maxPollMs) {
-    let mcqs = [];
-    try {
-      mcqs = await getMcqs(gutenbergId, { limit: 5, timeoutMs: Math.min(timeoutMs, 12000) });
-    } catch (error) {
-      if (error?.statusCode === 404 && !generationTriggered) {
-        // Not generated yet, trigger generation below.
-      } else {
-        throw error;
+      const generationResponse = await startGeneration(gutenbergId, { timeoutMs: Math.min(timeoutMs, 15000) });
+      markGenerationTriggered(gutenbergId);
+
+      const immediateMcqs = Array.isArray(generationResponse?.payload?.mcqs)
+        ? generationResponse.payload.mcqs
+        : (Array.isArray(generationResponse?.payload?.data?.mcqs) ? generationResponse.payload.data.mcqs : []);
+      if (immediateMcqs.length >= 5) {
+        generationTriggerCache.delete(String(gutenbergId));
       }
-    }
+      return {
+        mcqs: immediateMcqs,
+        statusCode: generationResponse?.statusCode || 0,
+      };
+    });
 
+    generationImmediateMcqs = Array.isArray(generationResult?.mcqs) ? generationResult.mcqs : [];
+    generationResponseStatusCode = Number(generationResult?.statusCode || 0);
+  }
+
+  if (Array.isArray(generationImmediateMcqs) && generationImmediateMcqs.length >= 5) {
+    return normalizeMcqs(generationImmediateMcqs);
+  }
+
+  if (generationResponseStatusCode === 200) {
+    const existingMcqs = await getMcqs(gutenbergId, { limit: 5, timeoutMs: Math.min(timeoutMs, 12000) });
+    if (Array.isArray(existingMcqs) && existingMcqs.length >= 5) {
+      generationTriggerCache.delete(String(gutenbergId));
+      return normalizeMcqs(existingMcqs);
+    }
+  }
+
+  for (let attempt = 0; attempt < maxPollRetries; attempt += 1) {
+    const mcqs = await getMcqs(gutenbergId, { limit: 5, timeoutMs: Math.min(timeoutMs, 12000) });
     if (Array.isArray(mcqs) && mcqs.length >= 5) {
+      generationTriggerCache.delete(String(gutenbergId));
       return normalizeMcqs(mcqs);
     }
 
     const statusPayload = await checkStatus(gutenbergId, { timeoutMs: Math.min(timeoutMs, 8000) });
     const lastError = statusPayload?.book?.last_error || statusPayload?.last_error;
     const status = String(statusPayload?.book?.status || statusPayload?.status || '').toLowerCase();
-
-    if (lastError) {
-      const error = new Error(String(lastError));
+    if (lastError || status === 'failed' || status === 'error') {
+      generationTriggerCache.delete(String(gutenbergId));
+      const error = new Error(lastError ? String(lastError) : 'Quiz generation failed.');
       error.statusCode = 502;
       throw error;
     }
 
-    if (status === 'failed' || status === 'error') {
-      const error = new Error('Quiz generation failed.');
-      error.statusCode = 502;
-      throw error;
+    if (attempt < maxPollRetries - 1) {
+      const waitMs = getBackoffMs(attempt, {
+        baseMs: initialPollDelayMs,
+        stepMs: pollBackoffStepMs,
+        maxMs: maxPollDelayMs,
+      });
+      await delay(waitMs);
     }
-
-    if (!generationTriggered) {
-      if (status === 'processing' || status === 'complete' || status === 'completed' || status === 'ready') {
-        generationTriggered = true;
-      } else {
-        generationTriggered = true;
-        await startGeneration(gutenbergId, { timeoutMs: Math.min(timeoutMs, 15000) });
-      }
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
   const processingError = new Error('Quiz generation is taking longer than expected.');
