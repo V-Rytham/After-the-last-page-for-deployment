@@ -118,7 +118,7 @@ const MeetingAccessHub = ({ currentUser }) => {
 
               <div className="meeting-access-body">
                 <span className="meeting-access-status">
-                  <ShieldCheck size={16} />
+                  <ShieldCheck size={12} />
                   Finished book
                 </span>
                 <h2 className="font-serif meeting-access-title">{book.title}</h2>
@@ -130,7 +130,7 @@ const MeetingAccessHub = ({ currentUser }) => {
                 className="btn-primary sm meeting-access-button"
                 onClick={() => handleEnterBook(book)}
               >
-                Enter <ArrowRight size={16} />
+                Enter <ArrowRight size={14} />
               </button>
             </article>
           ))}
