@@ -1,5 +1,4 @@
 import { Book } from '../models/Book.js';
-import mongoose from 'mongoose';
 import {
   convertTextToChapters,
   fetchGutenbergText,
@@ -78,13 +77,13 @@ export const getBooks = async (req, res) => {
       : 24;
 
     const [books, totalCount] = await Promise.all([
-      Book.find({ status: mongoose.trusted({ $ne: 'failed' }) })
+      Book.find({ status: { $ne: 'failed' } })
         .select('-textContent -chapters')
         .sort({ title: 1, _id: 1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit)
         .lean(),
-      Book.countDocuments({ status: mongoose.trusted({ $ne: 'failed' }) }),
+      Book.countDocuments({ status: { $ne: 'failed' } }),
     ]);
 
     res.setHeader('X-Page', String(safePage));

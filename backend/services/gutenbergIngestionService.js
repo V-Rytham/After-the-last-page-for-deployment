@@ -1,5 +1,4 @@
 import { Book } from '../models/Book.js';
-import mongoose from 'mongoose';
 import {
   convertTextToChapters,
   fetchGutendexBook,
@@ -206,7 +205,7 @@ class GutenbergIngestionService {
   }
 
   async enqueuePendingBooks() {
-    const pendingBooks = await Book.find({ status: mongoose.trusted({ $in: ['pending', 'failed'] }) })
+    const pendingBooks = await Book.find({ status: { $in: ['pending', 'failed'] } })
       .select('gutenbergId status')
       .lean();
 
