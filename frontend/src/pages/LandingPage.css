@@ -311,19 +311,19 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: clamp(1.25rem, 2.4vw, 2rem);
+  width: clamp(0.6rem, 1.6vw, 1rem);
   z-index: 2;
   pointer-events: none;
 }
 
 .home-scroll-fade::before {
   left: 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--surface-1) 96%, transparent), transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface-1) 64%, transparent), transparent);
 }
 
 .home-scroll-fade::after {
   right: 0;
-  background: linear-gradient(270deg, color-mix(in srgb, var(--surface-1) 96%, transparent), transparent);
+  background: linear-gradient(270deg, color-mix(in srgb, var(--surface-1) 64%, transparent), transparent);
 }
 
 .home-featured {
@@ -333,7 +333,7 @@
   padding: 0.25rem 0.2rem 0.5rem;
   scroll-snap-type: x proximity;
   scroll-padding-inline: 0.8rem;
-  mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
 }
 
 .home-featured-link {
@@ -560,6 +560,6 @@
 
   .home-scroll-fade::before,
   .home-scroll-fade::after {
-    width: 1.1rem;
+    width: 0.62rem;
   }
 }
