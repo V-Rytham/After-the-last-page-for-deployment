@@ -99,15 +99,30 @@ class GutenbergIngestionService {
       updateDoc.$set.requestedAt = new Date();
     }
 
-    const book = await Book.findOneAndUpdate(
-      { gutenbergId },
-      updateDoc,
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true,
-      },
-    );
+    let book = null;
+    try {
+      book = await Book.findOneAndUpdate(
+        { gutenbergId },
+        updateDoc,
+        {
+          new: true,
+          upsert: true,
+          setDefaultsOnInsert: true,
+        },
+      );
+    } catch (error) {
+      if (Number(error?.code) !== 11000) {
+        throw error;
+      }
+
+      // Concurrent requests can race the upsert path; recover by updating/fetching the
+      // now-existing record instead of failing the request with a 500.
+      book = await Book.findOneAndUpdate(
+        { gutenbergId },
+        updateDoc,
+        { new: true },
+      );
+    }
 
     return book;
   }
