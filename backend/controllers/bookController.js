@@ -418,32 +418,6 @@ export const requestBookIngestion = async (req, res) => {
       return;
     }
 
-    const updateDoc = {
-      $setOnInsert: {
-        title: preview?.title || `Project Gutenberg #${gutenbergId}`,
-        author: preview?.author || 'Project Gutenberg',
-        coverImage: preview?.coverImage || getGutenbergCoverUrl(gutenbergId, 'medium'),
-        sourceProvider: 'Project Gutenberg',
-        sourceUrl: preview?.sourceUrl || getGutenbergBookPageUrl(gutenbergId),
-        rights: 'Public domain (Project Gutenberg)',
-        requestedAt: new Date(),
-      },
-      $set: {
-        status: 'pending',
-        ...(requestedBy ? { requestedBy, requestedAt: new Date() } : {}),
-      },
-    };
-
-    const book = await Book.findOneAndUpdate(
-      { gutenbergId },
-      updateDoc,
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true,
-      },
-    ).select('_id gutenbergId title author coverImage status');
-
     gutenbergIngestionService.enqueue(gutenbergId);
     console.info(`[BOOK_REQUEST] completed gutenbergId=${gutenbergId} status=pending`);
 

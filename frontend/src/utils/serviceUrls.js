@@ -1,5 +1,4 @@
 const asTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '');
-const DEFAULT_REMOTE_API_URL = 'https://deterministic-question-engine.onrender.com/api';
 
 const normalizeConfiguredUrl = (value, fallbackPath) => {
   const configured = asTrimmedString(value);
@@ -34,8 +33,9 @@ export const getApiBaseUrl = () => {
     return configured;
   }
 
+  // In local dev, default to Vite's proxy so API calls stay same-origin and avoid CORS issues.
   if (import.meta.env.DEV) {
-    return DEFAULT_REMOTE_API_URL;
+    return '/api';
   }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
