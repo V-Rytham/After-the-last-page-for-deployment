@@ -140,9 +140,7 @@ const RequestBookPage = () => {
       setResult(null);
 
       const metadata = getRequestMetadata('preview', targetId);
-      if (isDev) {
-        console.info('[FIND_BOOK] preview_requested', metadata.actionId, metadata.timestamp);
-      }
+      console.info('[FIND_BOOK] preview_requested', metadata);
 
       try {
         const response = await requestWithRetry(() => api.get(`/books/preview/${targetId}`, {
@@ -151,8 +149,12 @@ const RequestBookPage = () => {
         }));
 
         if (response?.data?.status === 'loading') {
-          setPreview(null);
-          setError('Preview is warming up. Please try again in a moment.');
+          await wait((Number(response.data.retryAfter || 2) || 2) * 1000);
+          const followup = await api.get(`/books/preview/${targetId}`, {
+            signal: controller.signal,
+            headers: metadata.headers,
+          });
+          setPreview(followup.data);
           return;
         }
 
@@ -171,7 +173,7 @@ const RequestBookPage = () => {
         setLoadingPreview(false);
       }
     });
-  }, [getRequestMetadata, isDev, requestWithRetry, runDedupedRequest]);
+  }, [getRequestMetadata, requestWithRetry, runDedupedRequest]);
 
   const handlePreview = async (event) => {
     event.preventDefault();
@@ -207,9 +209,7 @@ const RequestBookPage = () => {
       setResult(null);
 
       const metadata = getRequestMetadata('ingestion_request', normalizedId);
-      if (isDev) {
-        console.info('[FIND_BOOK] request_submitted', metadata.actionId, metadata.timestamp);
-      }
+      console.info('[FIND_BOOK] request_submitted', metadata);
 
       try {
         const response = await requestWithRetry(() => api.post(
@@ -222,7 +222,7 @@ const RequestBookPage = () => {
         ));
 
         if (response?.data?.status === 'loading') {
-          setResult({ message: 'Ingestion service is warming up. Please retry in a moment.' });
+          setResult({ message: 'Server warming up. Please try again in a moment.' });
           return;
         }
 

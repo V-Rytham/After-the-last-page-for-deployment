@@ -423,22 +423,21 @@ export const requestBookIngestion = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`[BOOK] Failed to request Gutenberg ${gutenbergId}:`, {
-      message: error?.message || String(error),
-      stack: error?.stack || null,
-      requestId: req.requestId,
-    });
+    console.error(`[BOOK] Failed to request Gutenberg ${gutenbergId}:`, error?.message || error, { requestId: req.requestId });
+    if (isTransientUpstreamError(error)) {
+      res.status(503).json(buildErrorResponse({
+        status: 'loading',
+        message: 'Ingestion service is warming up. Please retry shortly.',
+        code: 'INGESTION_WARMING',
+        retryAfter: 2,
+        requestId: req.requestId,
+      }));
+      return;
+    }
 
-    const warmupLikeFailure = isTransientUpstreamError(error)
-      || Number(error?.code) === 11000;
-
-    res.status(503).json(buildErrorResponse({
-      status: 'loading',
-      message: warmupLikeFailure
-        ? 'Ingestion service is warming up. Please retry shortly.'
-        : 'Book ingestion is temporarily unavailable. Please retry shortly.',
-      code: warmupLikeFailure ? 'INGESTION_WARMING' : 'INGESTION_UNAVAILABLE',
-      retryAfter: 2,
+    res.status(500).json(buildErrorResponse({
+      message: 'Failed to create request for this Gutenberg book.',
+      code: 'INGESTION_REQUEST_FAILED',
       requestId: req.requestId,
     }));
   }
