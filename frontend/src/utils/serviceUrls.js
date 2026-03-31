@@ -1,4 +1,5 @@
 const asTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '');
+const DEFAULT_REMOTE_API_URL = 'https://deterministic-question-engine.onrender.com/api';
 
 const normalizeConfiguredUrl = (value, fallbackPath) => {
   const configured = asTrimmedString(value);
@@ -34,7 +35,7 @@ export const getApiBaseUrl = () => {
   }
 
   if (import.meta.env.DEV) {
-    return 'http://127.0.0.1:5000/api';
+    return DEFAULT_REMOTE_API_URL;
   }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -70,4 +71,3 @@ export const getSocketServerUrl = () => {
 
   return 'http://127.0.0.1:5000';
 };
-

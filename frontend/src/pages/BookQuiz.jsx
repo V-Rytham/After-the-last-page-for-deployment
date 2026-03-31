@@ -33,6 +33,17 @@ const isValidQuiz = (questions) => (
   && questions.every((q) => q?.question && Array.isArray(q.options) && q.options.length >= 2)
 );
 
+const parseRetryAfterMs = (err, fallbackMs = 3000) => {
+  const retryAfterHeader = Number(err?.response?.headers?.['retry-after'] || 0);
+  const retryAfterBody = Number(err?.response?.data?.retryAfter || 0);
+  const retryAfterSeconds = Math.max(retryAfterHeader, retryAfterBody, 0);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return Math.min(30_000, retryAfterSeconds * 1000);
+  }
+
+  return fallbackMs;
+};
+
 const readStoredQuiz = (bookId) => {
   const raw = sessionStorage.getItem(`${QUIZ_STORE_PREFIX}${bookId}`);
   if (!raw) {
@@ -166,6 +177,12 @@ export default function BookQuiz() {
       setQuizJobId(jobId);
       setProcessingMessage(statusCopy(startData?.stage, startData?.progress));
 
+      let pollAttempt = 0;
+      const schedulePoll = (delayMs) => {
+        fetchInFlightRef.current = false;
+        retryTimerRef.current = window.setTimeout(() => poll(), delayMs);
+      };
+
       const poll = async () => {
         const elapsed = Date.now() - Number(processingStartRef.current || Date.now());
         if (elapsed > 2 * 60_000) {
@@ -197,8 +214,9 @@ export default function BookQuiz() {
           }
 
           if (data?.status !== 'completed') {
-            fetchInFlightRef.current = false;
-            retryTimerRef.current = window.setTimeout(() => poll(), 1400);
+            pollAttempt += 1;
+            const nextDelay = Math.min(7000, 1800 + (pollAttempt * 400));
+            schedulePoll(nextDelay);
             return;
           }
 
@@ -224,6 +242,17 @@ export default function BookQuiz() {
             setLoading(false);
           }
         } catch (err) {
+          const status = Number(err?.statusCode || err?.response?.status || 0);
+          if (status === 429) {
+            const retryAfterMs = parseRetryAfterMs(err, Math.min(12_000, 3000 + (pollAttempt * 600)));
+            if (isMountedRef.current) {
+              setProcessingMessage('Quiz engine is busy. Waiting before next status check…');
+            }
+            pollAttempt += 1;
+            schedulePoll(retryAfterMs);
+            return;
+          }
+
           processingStartRef.current = null;
           const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Failed to load quiz.';
           if (isMountedRef.current) {
@@ -235,8 +264,7 @@ export default function BookQuiz() {
         }
       };
 
-      fetchInFlightRef.current = false;
-      retryTimerRef.current = window.setTimeout(() => poll(), 650);
+      schedulePoll(1500);
     } catch (err) {
       processingStartRef.current = null;
       setLoading(false);
