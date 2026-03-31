@@ -1,4 +1,5 @@
 import { Book } from '../models/Book.js';
+import mongoose from 'mongoose';
 import {
   convertTextToChapters,
   fetchGutenbergText,
@@ -363,8 +364,42 @@ export const requestBookIngestion = async (req, res) => {
       return;
     }
 
-    const requestedBy = req.user?._id || null;
-    const book = await gutenbergIngestionService.ensureBookRecord(gutenbergId, { status: 'pending', requestedBy });
+    const maybeUserId = req.user?._id || null;
+    const requestedBy = maybeUserId && mongoose.Types.ObjectId.isValid(maybeUserId)
+      ? maybeUserId
+      : null;
+
+    let book;
+    try {
+      book = await gutenbergIngestionService.ensureBookRecord(gutenbergId, { status: 'pending', requestedBy });
+    } catch (error) {
+      if (!isTransientUpstreamError(error)) {
+        throw error;
+      }
+
+      book = await Book.findOneAndUpdate(
+        { gutenbergId },
+        {
+          $setOnInsert: {
+            title: `Project Gutenberg #${gutenbergId}`,
+            author: 'Project Gutenberg',
+            sourceProvider: 'Project Gutenberg',
+            sourceUrl: getGutenbergBookPageUrl(gutenbergId),
+            rights: 'Public domain (Project Gutenberg)',
+            requestedAt: new Date(),
+          },
+          $set: {
+            status: 'pending',
+            ...(requestedBy ? { requestedBy, requestedAt: new Date() } : {}),
+          },
+        },
+        {
+          new: true,
+          upsert: true,
+          setDefaultsOnInsert: true,
+        },
+      );
+    }
     if (!book) {
       res.status(404).json(buildErrorResponse({
         message: 'Book not found on Gutendex.',
