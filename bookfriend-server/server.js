@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import { connectDB } from './config/db.js';
+import { connectDB, getLastDbError, isDbConnected } from './config/db.js';
 import { loadBookFriendEnv, resolveLlmProvider } from './config/env.js';
 import agentRoutes from './routes/agentRoutes.js';
 
@@ -104,11 +104,17 @@ app.get('/health', (req, res) => {
     mock: 'mock',
   };
 
-  res.json({
-    status: 'ok',
+  const dbConnected = isDbConnected();
+
+  res.status(dbConnected ? 200 : 503).json({
+    status: dbConnected ? 'ok' : 'degraded',
     service: 'bookfriend-agent-server',
     llm_provider: provider,
     llm_model: modelByProvider[provider] || null,
+    database: {
+      connected: dbConnected,
+      error: dbConnected ? null : (getLastDbError()?.message || 'Database unavailable'),
+    },
   });
 });
 
@@ -137,18 +143,17 @@ app.use((err, req, res, next) => {
   res.status(safeStatus).json(body);
 });
 
-connectDB()
-  .then(() => {
-    const { provider } = resolveLlmProvider();
+try {
+  await connectDB();
+} catch (error) {
+  console.warn('[BOOKFRIEND] Starting in degraded mode without database:', error.message);
+}
 
-    app.listen(port, () => {
-      console.log(`[BOOKFRIEND] Agent server listening on ${port}`);
-      console.log(`[BOOKFRIEND] LLM provider: ${provider}`);
-    });
-  })
-  .catch((error) => {
-    console.error('[BOOKFRIEND] Failed to boot:', error.message);
-    process.exit(1);
-  });
+const { provider } = resolveLlmProvider();
+
+app.listen(port, () => {
+  console.log(`[BOOKFRIEND] Agent server listening on ${port}`);
+  console.log(`[BOOKFRIEND] LLM provider: ${provider}`);
+});
 
 

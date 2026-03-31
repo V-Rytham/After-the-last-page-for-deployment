@@ -83,32 +83,64 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   }, [bookId]);
 
   useEffect(() => {
-    const fetchContent = async () => {
+    let cancelled = false;
+    let retryTimer = null;
+
+    const fetchContent = async ({ background = false } = {}) => {
       if (!resolvedBookId) {
         setLoading(false);
         return;
       }
 
       try {
-        const { data } = await api.get(`/books/${resolvedBookId}/content`);
+        const { data, status } = await api.get(`/books/${resolvedBookId}/read`, {
+          params: background ? { background: true } : undefined,
+        });
         const nextChapters = Array.isArray(data?.chapters) ? data.chapters : [];
+        const state = data?.status?.state || data?.status;
+
+        if ((status === 202 || state === 'processing' || state === 'not_started') && !nextChapters.length) {
+          if (!cancelled) {
+            retryTimer = setTimeout(() => {
+              fetchContent();
+            }, 2500);
+          }
+          return;
+        }
 
         if (nextChapters.length === 0) {
+          if (!background) {
+            await fetchContent({ background: true });
+            return;
+          }
           throw new Error('Book content response did not include any chapters.');
         }
 
-        setChapters(nextChapters);
-        setCurrentChapter(1);
+        if (!cancelled) {
+          setChapters(nextChapters);
+          setCurrentChapter(1);
+        }
       } catch (error) {
         console.error('Failed to fetch book content:', error);
-        setChapters([]);
-        setContentError(true);
+        if (!cancelled) {
+          setChapters([]);
+          setContentError(true);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchContent();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+    };
   }, [resolvedBookId, book]);
 
   const totalChapters = Math.max(1, chapters.length);

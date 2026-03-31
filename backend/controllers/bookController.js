@@ -9,6 +9,8 @@ import {
 } from '../utils/gutenberg.js';
 import { gutenbergIngestionService } from '../services/gutenbergIngestionService.js';
 import { parsePositiveIntStrict, parseRouteGutenbergIdStrict } from '../utils/gutenbergId.js';
+import { processBook } from '../services/bookProcessingService.js';
+import { enqueueBookProcessing } from '../jobs/bookProcessingQueue.js';
 
 const inFlightIngestionRequests = new Set();
 
@@ -479,5 +481,108 @@ export const requestBookIngestion = async (req, res) => {
     console.error('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'error', requestId: req.requestId || 'n/a' });
   } finally {
     inFlightIngestionRequests.delete(gutenbergId);
+  }
+};
+
+
+const buildReadResponse = (book) => ({
+  _id: book._id,
+  title: book.title,
+  author: book.author,
+  gutenbergId: book.gutenbergId,
+  sourceProvider: book.sourceProvider,
+  sourceUrl: book.sourceUrl,
+  rights: book.rights,
+  chapters: Array.isArray(book.chapters) ? book.chapters : [],
+  status: book.processingStatus || {
+    state: book.status === 'pending' ? 'not_started' : (book.status || 'not_started'),
+    lastProcessedAt: null,
+    errorMessage: book.ingestionError || null,
+  },
+});
+
+export const readBook = async (req, res) => {
+  try {
+    const book = await fetchBookByRouteId(req.params.id, null);
+    if (!book) {
+      res.status(404).json({ message: 'Book not found.' });
+      return;
+    }
+
+    const hasChapters = Array.isArray(book.chapters) && book.chapters.length > 0;
+    if (hasChapters) {
+      res.json(buildReadResponse(book));
+      return;
+    }
+
+    const backgroundRequested = String(req.query?.background || '').toLowerCase() === 'true';
+    if (backgroundRequested) {
+      await Book.updateOne(
+        { _id: book._id },
+        {
+          $set: {
+            status: 'processing',
+            processingStatus: {
+              state: 'processing',
+              lastProcessedAt: book.processingStatus?.lastProcessedAt,
+              errorMessage: null,
+            },
+            ingestionError: null,
+          },
+        },
+      );
+      enqueueBookProcessing(book._id);
+      const pending = await Book.findById(book._id);
+      res.status(202).json(buildReadResponse(pending));
+      return;
+    }
+
+    const processed = await processBook(book._id);
+    res.json(buildReadResponse(processed));
+  } catch (error) {
+    const message = String(error?.message || error);
+    const statusCode = Number(error?.statusCode) || 500;
+
+    console.error(`[BOOK_READ] Failed to load book ${req.params.id}:`, message);
+    res.status(statusCode).json({
+      message: 'Unable to process this book for reading right now.',
+      details: message,
+    });
+  }
+};
+
+export const reprocessBook = async (req, res) => {
+  try {
+    const book = await fetchBookByRouteId(req.params.id, null);
+    if (!book) {
+      res.status(404).json({ message: 'Book not found.' });
+      return;
+    }
+
+    await Book.updateOne(
+      { _id: book._id },
+      {
+        $set: {
+          chapters: [],
+          status: 'pending',
+          ingestionError: null,
+          processingStatus: {
+            state: 'not_started',
+            errorMessage: null,
+          },
+        },
+      },
+    );
+
+    const refreshed = await Book.findById(book._id);
+    const processed = await processBook(refreshed._id);
+    res.json(buildReadResponse(processed));
+  } catch (error) {
+    const message = String(error?.message || error);
+    console.error(`[BOOK_REPROCESS] Failed for ${req.params.id}:`, message);
+    res.status(500).json({
+      message: 'Reprocessing failed.',
+      details: message,
+    });
   }
 };

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { connectDB } from './config/db.js';
+import { connectDB, getLastDbError, isDbConnected } from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
 import bookRoutes from './routes/bookRoutes.js';
 import threadRoutes from './routes/threadRoutes.js';
@@ -156,7 +156,15 @@ app.use('/api/session', buildSessionRoutes(sessionManager));
 app.use('/api/matchmaking', buildMatchmakingRoutes(sessionManager));
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Nexus Core Online' });
+  const connected = isDbConnected();
+  res.status(connected ? 200 : 503).json({
+    status: connected ? 'ok' : 'degraded',
+    message: connected ? 'Nexus Core Online' : 'Nexus Core running without database connectivity',
+    database: {
+      connected,
+      error: connected ? null : (getLastDbError()?.message || 'Database unavailable'),
+    },
+  });
 });
 
 app.get('/api/warmup', async (req, res) => {
@@ -216,9 +224,13 @@ const seedBooksIfEmpty = async () => {
   }
 };
 
-await connectDB();
-await seedBooksIfEmpty();
-await gutenbergIngestionService.enqueuePendingBooks();
+try {
+  await connectDB();
+  await seedBooksIfEmpty();
+  await gutenbergIngestionService.enqueuePendingBooks();
+} catch (error) {
+  console.warn('[SERVER] Starting in degraded mode without database:', error?.message || error);
+}
 
 httpServer.listen(PORT, () => {
   if (isProd()) {

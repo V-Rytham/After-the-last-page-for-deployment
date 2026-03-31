@@ -11,6 +11,21 @@ const chapterSchema = new mongoose.Schema(
   { _id: false },
 );
 
+
+const processingStatusSchema = new mongoose.Schema(
+  {
+    state: {
+      type: String,
+      enum: ['ready', 'processing', 'failed', 'not_started'],
+      default: 'not_started',
+      index: true,
+    },
+    lastProcessedAt: Date,
+    errorMessage: String,
+  },
+  { _id: false },
+);
+
 const bookSchema = new mongoose.Schema({
   title: { type: String, required: true },
   author: { type: String, required: true },
@@ -42,6 +57,10 @@ const bookSchema = new mongoose.Schema({
 
   textContent: String,
   chapters: [chapterSchema],
+  processingStatus: {
+    type: processingStatusSchema,
+    default: () => ({ state: 'not_started' }),
+  },
   status: {
     type: String,
     enum: ['pending', 'processing', 'ready', 'failed'],
@@ -70,6 +89,30 @@ bookSchema.index({ title: 1 });
 bookSchema.pre('save', async function () {
   if (this.isModified('tags')) {
     this.tags = normalizeTags(this.tags || []);
+  }
+
+  if (!this.processingStatus || typeof this.processingStatus !== 'object') {
+    this.processingStatus = { state: 'not_started' };
+  }
+
+  if (this.isModified('status') || !this.processingStatus?.state) {
+    const statusStateMap = {
+      pending: 'not_started',
+      processing: 'processing',
+      ready: 'ready',
+      failed: 'failed',
+    };
+
+    this.processingStatus.state = statusStateMap[this.status] || this.processingStatus.state || 'not_started';
+  }
+
+  if (this.status === 'ready') {
+    this.processingStatus.lastProcessedAt = new Date();
+    this.processingStatus.errorMessage = undefined;
+  }
+
+  if (this.status === 'failed' && this.ingestionError) {
+    this.processingStatus.errorMessage = this.ingestionError;
   }
 });
 

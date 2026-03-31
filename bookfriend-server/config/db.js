@@ -1,18 +1,32 @@
 import mongoose from 'mongoose';
 
 let connected = false;
+let lastDbError = null;
+
+export const isDbConnected = () => connected && mongoose.connection.readyState === 1;
+export const getLastDbError = () => lastDbError;
 
 export const connectDB = async () => {
-  if (connected) {
-    return;
+  if (isDbConnected()) {
+    return true;
   }
 
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    throw new Error('Missing MONGODB_URI for BookFriend server.');
+    const error = new Error('Missing MONGODB_URI for BookFriend server.');
+    lastDbError = error;
+    throw error;
   }
 
-  const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
-  connected = true;
-  console.log(`[BOOKFRIEND][DB] Connected to MongoDB: ${conn.connection.host}`);
+  try {
+    const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+    connected = true;
+    lastDbError = null;
+    console.log(`[BOOKFRIEND][DB] Connected to MongoDB: ${conn.connection.host}`);
+    return true;
+  } catch (error) {
+    connected = false;
+    lastDbError = error;
+    throw error;
+  }
 };
