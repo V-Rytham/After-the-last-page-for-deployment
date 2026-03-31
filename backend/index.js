@@ -122,7 +122,8 @@ const buildCorsOriginValidator = () => {
 app.use(cors({
   origin: buildCorsOriginValidator(),
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Book-Action-Id', 'X-Book-Action-Name'],
+  exposedHeaders: ['Retry-After', 'X-Request-Id'],
   maxAge: 600,
 }));
 app.use(securityHeaders);
@@ -156,6 +157,16 @@ app.use('/api/matchmaking', buildMatchmakingRoutes(sessionManager));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Nexus Core Online' });
+});
+
+app.get('/api/warmup', async (req, res) => {
+  try {
+    await Book.findOne({}).select('_id').lean();
+    res.json({ status: 'ok', warmed: true, retryAfter: 0 });
+  } catch (error) {
+    console.error('[WARMUP] Warmup probe failed:', error?.message || error, { requestId: req.requestId });
+    res.status(503).json({ status: 'loading', warmed: false, retryAfter: 2 });
+  }
 });
 
 app.use(notFound);
