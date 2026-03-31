@@ -1,4 +1,5 @@
 import { Book } from '../models/Book.js';
+import { parsePositiveIntStrict } from '../utils/gutenbergId.js';
 
 const DEFAULT_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-3sd2.onrender.com';
 const LEGACY_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-1.onrender.com';
@@ -56,8 +57,8 @@ const resolveGutenbergId = async (bookId) => {
     throw error;
   }
 
-  const gutenbergId = Number(book.gutenbergId);
-  if (!Number.isInteger(gutenbergId) || gutenbergId <= 0) {
+  const gutenbergId = parsePositiveIntStrict(book.gutenbergId);
+  if (!gutenbergId) {
     const error = new Error('Quiz is not available for this book yet.');
     error.statusCode = 400;
     throw error;

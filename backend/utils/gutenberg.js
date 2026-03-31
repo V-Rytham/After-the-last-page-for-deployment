@@ -47,12 +47,22 @@ export const getGutendexBookUrl = (gutenbergId) => (
 
 export const fetchGutendexBook = async (gutenbergId) => {
   const url = getGutendexBookUrl(gutenbergId);
-  const response = await fetch(url);
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    error.statusCode = 0;
+    error.errorType = 'UPSTREAM_NETWORK_ERROR';
+    throw error;
+  }
   if (response.status === 404) {
     return null;
   }
   if (!response.ok) {
-    throw new Error(`Failed to fetch Gutendex book (${gutenbergId}): ${response.status}`);
+    const error = new Error(`Failed to fetch Gutendex book (${gutenbergId}): ${response.status}`);
+    error.statusCode = response.status;
+    error.errorType = 'UPSTREAM_HTTP_ERROR';
+    throw error;
   }
 
   return await response.json();
@@ -60,9 +70,19 @@ export const fetchGutendexBook = async (gutenbergId) => {
 
 export const fetchGutenbergText = async (gutenbergId) => {
   const url = getGutenbergTextUrl(gutenbergId);
-  const response = await fetch(url);
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    error.statusCode = 0;
+    error.errorType = 'UPSTREAM_NETWORK_ERROR';
+    throw error;
+  }
   if (!response.ok) {
-    throw new Error(`Failed to fetch Gutenberg text (${gutenbergId}): ${response.status}`);
+    const error = new Error(`Failed to fetch Gutenberg text (${gutenbergId}): ${response.status}`);
+    error.statusCode = response.status;
+    error.errorType = 'UPSTREAM_HTTP_ERROR';
+    throw error;
   }
   return await response.text();
 };

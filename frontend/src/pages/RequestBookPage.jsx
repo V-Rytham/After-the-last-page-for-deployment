@@ -5,9 +5,7 @@ import api from '../utils/api';
 import './RequestBookPage.css';
 
 const RequestBookPage = () => {
-  const isDev = import.meta.env.DEV;
   const [gutenbergId, setGutenbergId] = useState('');
-  const [debouncedGutenbergId, setDebouncedGutenbergId] = useState('');
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -19,25 +17,8 @@ const RequestBookPage = () => {
   const requestAbortRef = useRef(null);
   const inFlightRef = useRef(new Map());
   const previewDebounceTimerRef = useRef(null);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedGutenbergId(gutenbergId);
-    }, 400);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [gutenbergId]);
-
-  const debouncedNormalizedId = useMemo(() => {
-    const parsed = Number.parseInt(String(debouncedGutenbergId || '').trim(), 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return null;
-    }
-
-    return parsed;
-  }, [debouncedGutenbergId]);
+  const previewRequestIdRef = useRef(0);
+  const ingestionRequestIdRef = useRef(0);
 
   useEffect(() => () => {
     if (previewDebounceTimerRef.current) {
@@ -64,12 +45,48 @@ const RequestBookPage = () => {
   }, []);
 
   const normalizedId = useMemo(() => {
-    const parsed = Number.parseInt(String(gutenbergId || '').trim(), 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    if (typeof gutenbergId === 'number') {
+      if (!Number.isSafeInteger(gutenbergId) || gutenbergId <= 0) {
+        return null;
+      }
+
+      return gutenbergId;
+    }
+
+    if (typeof gutenbergId !== 'string' || !gutenbergId || gutenbergId.trim() !== gutenbergId || !/^\d+$/.test(gutenbergId)) {
+      return null;
+    }
+
+    const parsed = Number(gutenbergId);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
       return null;
     }
 
     return parsed;
+  }, [gutenbergId]);
+
+  const inputValidationError = useMemo(() => {
+    if (gutenbergId === '') {
+      return '';
+    }
+
+    return normalizedId ? '' : 'Please enter a valid Gutenberg ID.';
+  }, [gutenbergId, normalizedId]);
+
+  useEffect(() => {
+    setPreview(null);
+    setResult(null);
+    setError('');
+
+    if (previewDebounceTimerRef.current) {
+      window.clearTimeout(previewDebounceTimerRef.current);
+      previewDebounceTimerRef.current = null;
+    }
+
+    previewAbortRef.current?.abort();
+    requestAbortRef.current?.abort();
+    setLoadingPreview(false);
+    setRequesting(false);
   }, [gutenbergId]);
 
   const getRequestMetadata = useCallback((actionName, targetId) => {
@@ -89,29 +106,108 @@ const RequestBookPage = () => {
     window.setTimeout(resolve, ms);
   });
 
-  const requestWithRetry = useCallback(async (requestFactory) => {
-    const maxRetries = 2;
+  const getRetryAfterMs = useCallback((error, fallbackSeconds = 1) => {
+    const headerRetryAfter = Number(error?.response?.headers?.['retry-after'] || 0);
+    const bodyRetryAfter = Number(error?.response?.data?.retryAfter || 0);
+    const resolvedSeconds = headerRetryAfter > 0 ? headerRetryAfter : (bodyRetryAfter > 0 ? bodyRetryAfter : fallbackSeconds);
+    return resolvedSeconds * 1000;
+  }, []);
 
-    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+  const normalizeUiError = useCallback((requestError, fallbackMessage) => {
+    const status = Number(requestError?.statusCode || requestError?.response?.status || 0);
+    const code = String(requestError?.response?.data?.code || '').trim().toUpperCase();
+    if (code === 'INVALID_GUTENBERG_ID') return 'Please enter a valid Gutenberg ID.';
+    if (code === 'BOOK_NOT_FOUND') return 'Book not found for that Gutenberg ID.';
+    if (code === 'RATE_LIMITED' || status === 429) return 'Rate limited. Please wait and retry.';
+    if (status >= 500) return 'Server error. Please try again shortly.';
+    return fallbackMessage;
+  }, []);
+
+  const requestWithRetry = useCallback(async (requestFactory, { action, gutenbergId }) => {
+    const maxRetries = 2;
+    let retryableErrorAttempts = 0;
+    let loadingRetryUsed = false;
+    let rateLimitRetryUsed = false;
+
+    while (true) {
       try {
-        return await requestFactory(attempt);
+        const response = await requestFactory(retryableErrorAttempts);
+
+        if (response?.data?.status === 'loading') {
+          if (loadingRetryUsed) {
+            return response;
+          }
+
+          loadingRetryUsed = true;
+          console.info('[FIND_BOOK]', {
+            action,
+            gutenbergId,
+            outcome: 'loading_retry_scheduled',
+            retryAfter: Number(response?.data?.retryAfter || 1) || 1,
+          });
+          await wait((Number(response?.data?.retryAfter || 1) || 1) * 1000);
+          continue;
+        }
+
+        return response;
       } catch (requestError) {
         const status = Number(requestError?.statusCode || 0);
+        const isLoading503 = status === 503 && requestError?.response?.data?.status === 'loading';
+        const isRateLimited = status === 429;
         const networkFailure = !status;
-        const isRetryableServerError = status >= 500 && status < 600;
-        const shouldRetry = attempt < maxRetries && (networkFailure || isRetryableServerError);
+        const isRetryableServerError = status >= 500 && status < 600 && status !== 503;
+        const shouldRetryForFailure = retryableErrorAttempts < maxRetries && (networkFailure || isRetryableServerError);
 
-        if (!shouldRetry || status === 403) {
+        if (isLoading503) {
+          if (loadingRetryUsed) {
+            throw requestError;
+          }
+
+          loadingRetryUsed = true;
+          console.info('[FIND_BOOK]', {
+            action,
+            gutenbergId,
+            outcome: '503_loading_retry_scheduled',
+            retryAfterMs: getRetryAfterMs(requestError, 1),
+          });
+          await wait(getRetryAfterMs(requestError, 1));
+          continue;
+        }
+
+        if (isRateLimited) {
+          if (rateLimitRetryUsed) {
+            throw requestError;
+          }
+
+          rateLimitRetryUsed = true;
+          console.info('[FIND_BOOK]', {
+            action,
+            gutenbergId,
+            outcome: '429_retry_scheduled',
+            retryAfterMs: getRetryAfterMs(requestError, 1),
+          });
+          await wait(getRetryAfterMs(requestError, 1));
+          continue;
+        }
+
+        if (!shouldRetryForFailure || status === 400 || status === 403 || status === 404) {
           throw requestError;
         }
 
-        const backoffMs = 250 * (2 ** attempt);
+        const backoffMs = 250 * (2 ** retryableErrorAttempts);
+        console.info('[FIND_BOOK]', {
+          action,
+          gutenbergId,
+          outcome: 'retryable_error_backoff',
+          attempt: retryableErrorAttempts + 1,
+          backoffMs,
+          status,
+        });
+        retryableErrorAttempts += 1;
         await wait(backoffMs);
       }
     }
-
-    return null;
-  }, []);
+  }, [getRetryAfterMs]);
 
   const runDedupedRequest = useCallback((key, factory) => {
     if (inFlightRef.current.has(key)) {
@@ -134,51 +230,69 @@ const RequestBookPage = () => {
       previewAbortRef.current?.abort();
       const controller = new AbortController();
       previewAbortRef.current = controller;
+      previewRequestIdRef.current += 1;
+      const requestId = previewRequestIdRef.current;
 
       setLoadingPreview(true);
       setError('');
       setResult(null);
+      setPreview(null);
 
       const metadata = getRequestMetadata('preview', targetId);
-      console.info('[FIND_BOOK] preview_requested', metadata);
+      console.info('[FIND_BOOK]', { ...metadata, action: 'preview', gutenbergId: targetId, outcome: 'requested' });
 
       try {
         const response = await requestWithRetry(() => api.get(`/books/preview/${targetId}`, {
           signal: controller.signal,
           headers: metadata.headers,
-        }));
+        }), { action: 'preview', gutenbergId: targetId });
+
+        if (previewRequestIdRef.current !== requestId) {
+          return;
+        }
 
         if (response?.data?.status === 'loading') {
-          await wait((Number(response.data.retryAfter || 2) || 2) * 1000);
-          const followup = await api.get(`/books/preview/${targetId}`, {
-            signal: controller.signal,
-            headers: metadata.headers,
-          });
-          setPreview(followup.data);
+          setError('Preview service is still warming up. Please try again in a moment.');
+          console.info('[FIND_BOOK]', { ...metadata, action: 'preview', gutenbergId: targetId, outcome: 'loading' });
           return;
         }
 
         setPreview(response.data);
+        setError('');
+        console.info('[FIND_BOOK]', { ...metadata, action: 'preview', gutenbergId: targetId, outcome: 'success' });
       } catch (requestError) {
         if (requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') {
+          console.info('[FIND_BOOK]', { ...metadata, action: 'preview', gutenbergId: targetId, outcome: 'aborted' });
+          return;
+        }
+
+        if (previewRequestIdRef.current !== requestId) {
           return;
         }
 
         setPreview(null);
-        setError(requestError?.uiMessage || 'Could not fetch preview for that Gutenberg ID.');
+        setError(normalizeUiError(requestError, 'Could not fetch preview for that Gutenberg ID.'));
+        console.error('[FIND_BOOK]', {
+          ...metadata,
+          action: 'preview',
+          gutenbergId: targetId,
+          outcome: 'error',
+          statusCode: requestError?.statusCode || null,
+          code: requestError?.response?.data?.code || null,
+        });
       } finally {
-        if (previewAbortRef.current === controller) {
+        if (previewAbortRef.current === controller && previewRequestIdRef.current === requestId) {
           previewAbortRef.current = null;
+          setLoadingPreview(false);
         }
-        setLoadingPreview(false);
       }
     });
-  }, [getRequestMetadata, requestWithRetry, runDedupedRequest]);
+  }, [getRequestMetadata, normalizeUiError, requestWithRetry, runDedupedRequest]);
 
   const handlePreview = async (event) => {
     event.preventDefault();
     if (!normalizedId) {
-      setError('Please enter a valid Gutenberg ID.');
+      setError(inputValidationError || 'Please enter a valid Gutenberg ID.');
       setPreview(null);
       return;
     }
@@ -188,13 +302,13 @@ const RequestBookPage = () => {
     }
 
     previewDebounceTimerRef.current = window.setTimeout(() => {
-      executePreviewRequest(debouncedNormalizedId || normalizedId);
+      executePreviewRequest(normalizedId);
     }, 400);
   };
 
-  const handleRequest = async () => {
+  const handleRequest = useCallback(async () => {
     if (!normalizedId) {
-      setError('Please enter a valid Gutenberg ID.');
+      setError(inputValidationError || 'Please enter a valid Gutenberg ID.');
       return;
     }
 
@@ -203,13 +317,15 @@ const RequestBookPage = () => {
       requestAbortRef.current?.abort();
       const controller = new AbortController();
       requestAbortRef.current = controller;
+      ingestionRequestIdRef.current += 1;
+      const requestId = ingestionRequestIdRef.current;
 
       setRequesting(true);
       setError('');
       setResult(null);
 
       const metadata = getRequestMetadata('ingestion_request', normalizedId);
-      console.info('[FIND_BOOK] request_submitted', metadata);
+      console.info('[FIND_BOOK]', { ...metadata, action: 'ingestion_request', gutenbergId: normalizedId, outcome: 'requested' });
 
       try {
         const response = await requestWithRetry(() => api.post(
@@ -219,28 +335,49 @@ const RequestBookPage = () => {
             signal: controller.signal,
             headers: metadata.headers,
           },
-        ));
+        ), { action: 'ingestion_request', gutenbergId: normalizedId });
 
-        if (response?.data?.status === 'loading') {
-          setResult({ message: 'Server warming up. Please try again in a moment.' });
+        if (ingestionRequestIdRef.current !== requestId) {
           return;
         }
 
-        setResult(response.data);
+        setResult(response?.data?.status === 'loading'
+          ? { message: 'Server warming up. Please try again in a moment.' }
+          : response.data);
+        setError('');
+        console.info('[FIND_BOOK]', {
+          ...metadata,
+          action: 'ingestion_request',
+          gutenbergId: normalizedId,
+          outcome: response?.data?.status || 'success',
+        });
       } catch (requestError) {
         if (requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') {
+          console.info('[FIND_BOOK]', { ...metadata, action: 'ingestion_request', gutenbergId: normalizedId, outcome: 'aborted' });
           return;
         }
 
-        setError(requestError?.uiMessage || 'Failed to submit request.');
-      } finally {
-        if (requestAbortRef.current === controller) {
-          requestAbortRef.current = null;
+        if (ingestionRequestIdRef.current !== requestId) {
+          return;
         }
-        setRequesting(false);
+
+        setError(normalizeUiError(requestError, 'Failed to submit request.'));
+        console.error('[FIND_BOOK]', {
+          ...metadata,
+          action: 'ingestion_request',
+          gutenbergId: normalizedId,
+          outcome: 'error',
+          statusCode: requestError?.statusCode || null,
+          code: requestError?.response?.data?.code || null,
+        });
+      } finally {
+        if (requestAbortRef.current === controller && ingestionRequestIdRef.current === requestId) {
+          requestAbortRef.current = null;
+          setRequesting(false);
+        }
       }
     });
-  };
+  }, [getRequestMetadata, inputValidationError, normalizedId, normalizeUiError, requestWithRetry, runDedupedRequest]);
 
   return (
     <div className="request-book-page">
@@ -278,10 +415,10 @@ const RequestBookPage = () => {
           </div>
         ) : null}
 
-        {error ? (
+        {(inputValidationError || error) ? (
           <div className="request-book-feedback error">
             <AlertCircle size={16} />
-            <span>{error}</span>
+            <span>{inputValidationError || error}</span>
           </div>
         ) : null}
 

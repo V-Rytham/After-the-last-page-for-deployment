@@ -26,7 +26,16 @@ const bookSchema = new mongoose.Schema({
   seriesIndex: Number,
   contentMockUrl: String, // Legacy (simulated reader text)
 
-  gutenbergId: Number,
+  gutenbergId: {
+    type: Number,
+    required: true,
+    unique: true,
+    index: true,
+    validate: {
+      validator: (value) => Number.isInteger(value) && value > 0,
+      message: 'gutenbergId must be a positive integer.',
+    },
+  },
   sourceProvider: { type: String, default: 'Project Gutenberg' },
   sourceUrl: String,
   rights: { type: String, default: 'Public domain (Project Gutenberg)' },
@@ -35,11 +44,18 @@ const bookSchema = new mongoose.Schema({
   chapters: [chapterSchema],
   status: {
     type: String,
-    enum: ['pending', 'ready', 'failed'],
+    enum: ['pending', 'processing', 'ready', 'failed'],
     required: true,
     default: 'pending',
     index: true,
   },
+  retryCount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  processingStartedAt: Date,
+  lastIngestionAttemptAt: Date,
   requestedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -49,7 +65,6 @@ const bookSchema = new mongoose.Schema({
   ingestionError: String,
 });
 
-bookSchema.index({ gutenbergId: 1 }, { unique: true, sparse: true });
 bookSchema.index({ title: 1 });
 
 bookSchema.pre('save', async function () {

@@ -7,16 +7,13 @@ import {
   getGutenbergCoverUrl,
   stripGutenbergBoilerplate,
 } from '../utils/gutenberg.js';
-import { gutenbergIngestionService, parsePositiveInt } from '../services/gutenbergIngestionService.js';
+import { gutenbergIngestionService } from '../services/gutenbergIngestionService.js';
+import { parsePositiveIntStrict, parseRouteGutenbergIdStrict } from '../utils/gutenbergId.js';
+
+const inFlightIngestionRequests = new Set();
 
 const parseGutenbergRouteId = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  const match = raw.match(/^g?(\d+)$/);
-  if (!match) {
-    return null;
-  }
-
-  return Number.parseInt(match[1], 10);
+  return parseRouteGutenbergIdStrict(String(value || ''));
 };
 
 const buildErrorResponse = ({
@@ -33,18 +30,36 @@ const buildErrorResponse = ({
   ...(Number.isFinite(retryAfter) ? { retryAfter } : {}),
 });
 
-const isTransientUpstreamError = (error) => {
-  const message = String(error?.message || '').toLowerCase();
-  return message.includes('failed to fetch')
-    || message.includes('timed out')
-    || message.includes('network')
-    || /\b50\d\b/.test(message);
+const classifyUpstreamError = (error) => {
+  const statusCode = Number(
+    error?.statusCode
+    || error?.response?.status
+    || 0,
+  );
+
+  if (!statusCode) {
+    return 'TRANSIENT';
+  }
+
+  if (statusCode === 408 || statusCode === 425 || statusCode === 429 || statusCode >= 500) {
+    return 'TRANSIENT';
+  }
+
+  if (statusCode >= 400 && statusCode < 500) {
+    return 'PERMANENT';
+  }
+
+  return 'TRANSIENT';
 };
 
 const fetchBookByRouteId = async (routeId, projection) => {
   const gutenbergId = parseGutenbergRouteId(routeId);
   if (gutenbergId != null) {
     return Book.findOne({ gutenbergId }).select(projection);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(routeId)) {
+    return null;
   }
 
   return Book.findById(routeId).select(projection);
@@ -72,7 +87,7 @@ const persistGutenbergBookIfMissing = async (gutenbergId, { enqueueIngestion = t
   const existing = await Book.findOne({ gutenbergId });
   if (existing) {
     if (enqueueIngestion && existing.status !== 'ready') {
-      gutenbergIngestionService.enqueue(gutenbergId);
+      await gutenbergIngestionService.enqueue(gutenbergId);
     }
     return existing;
   }
@@ -83,7 +98,7 @@ const persistGutenbergBookIfMissing = async (gutenbergId, { enqueueIngestion = t
   }
 
   if (enqueueIngestion) {
-    gutenbergIngestionService.enqueue(gutenbergId);
+    await gutenbergIngestionService.enqueue(gutenbergId);
   }
 
   return created;
@@ -202,11 +217,11 @@ export const getBookContent = async (req, res) => {
     const hasChapters = chapters.length > 0;
 
     if (!hasChapters && book.gutenbergId) {
-      if (book.status === 'pending') {
-        gutenbergIngestionService.enqueue(book.gutenbergId);
+      if (book.status === 'pending' || book.status === 'processing') {
+        await gutenbergIngestionService.enqueue(book.gutenbergId);
         res.status(202).json({
           chapters: [],
-          status: 'pending',
+          status: book.status,
           sourceProvider: book.sourceProvider || 'Project Gutenberg',
           sourceUrl: book.sourceUrl || getGutenbergBookPageUrl(book.gutenbergId),
           rights: book.rights || 'Public domain (Project Gutenberg)',
@@ -246,7 +261,7 @@ export const getBookContent = async (req, res) => {
     }
 
     if (!hasChapters) {
-      res.status(book.status === 'pending' ? 202 : 503).json({
+      res.status(book.status === 'pending' || book.status === 'processing' ? 202 : 503).json({
         chapters: [],
         status: book.status || 'pending',
         sourceProvider: book.sourceProvider || 'Project Gutenberg',
@@ -284,7 +299,7 @@ export const getBookContent = async (req, res) => {
 };
 
 export const previewBookRequest = async (req, res) => {
-  const gutenbergId = parsePositiveInt(req.params.gutenbergId);
+  const gutenbergId = parsePositiveIntStrict(req.params.gutenbergId);
   if (!gutenbergId) {
     res.status(400).json(buildErrorResponse({
       message: 'Invalid Gutenberg ID.',
@@ -297,6 +312,7 @@ export const previewBookRequest = async (req, res) => {
   try {
     const preview = await gutenbergIngestionService.fetchPreview(gutenbergId);
     if (!preview) {
+      console.warn('[FIND_BOOK_BACKEND]', { action: 'preview', gutenbergId, outcome: 'not_found', requestId: req.requestId });
       res.status(404).json(buildErrorResponse({
         message: 'Book not found on Gutendex.',
         code: 'BOOK_NOT_FOUND',
@@ -311,9 +327,11 @@ export const previewBookRequest = async (req, res) => {
       author: preview.author,
       cover: preview.coverImage,
     });
+    console.info('[FIND_BOOK_BACKEND]', { action: 'preview', gutenbergId, outcome: 'success', requestId: req.requestId });
   } catch (error) {
     console.error(`[BOOK] Failed to preview Gutenberg ${gutenbergId}:`, error?.message || error, { requestId: req.requestId });
-    if (isTransientUpstreamError(error)) {
+    if (classifyUpstreamError(error) === 'TRANSIENT') {
+      console.warn('[FIND_BOOK_BACKEND]', { action: 'preview', gutenbergId, outcome: 'loading', requestId: req.requestId });
       res.status(503).json(buildErrorResponse({
         status: 'loading',
         message: 'Preview data is still warming up.',
@@ -329,11 +347,12 @@ export const previewBookRequest = async (req, res) => {
       code: 'PREVIEW_FETCH_FAILED',
       requestId: req.requestId,
     }));
+    console.error('[FIND_BOOK_BACKEND]', { action: 'preview', gutenbergId, outcome: 'error', requestId: req.requestId });
   }
 };
 
 export const requestBookIngestion = async (req, res) => {
-  const gutenbergId = parsePositiveInt(req.body?.gutenbergId);
+  const gutenbergId = parsePositiveIntStrict(req.body?.gutenbergId);
   if (!gutenbergId) {
     res.status(400).json(buildErrorResponse({
       message: 'Invalid Gutenberg ID.',
@@ -348,24 +367,36 @@ export const requestBookIngestion = async (req, res) => {
     return;
   }
 
-  inFlightIngestionRequests.set(gutenbergId, Date.now());
+  inFlightIngestionRequests.add(gutenbergId);
 
   try {
+    console.info('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'received', requestId: req.requestId || 'n/a' });
     console.info(`[BOOK_REQUEST] received gutenbergId=${gutenbergId} requestId=${req.requestId || 'n/a'}`);
 
     const existing = await Book.findOne({ gutenbergId })
-      .select('status _id gutenbergId title author coverImage')
+      .select('status retryCount _id gutenbergId title author coverImage')
       .lean();
 
     if (existing) {
       console.info(`[BOOK_REQUEST] skip existing gutenbergId=${gutenbergId} status=${existing.status}`);
 
-      if (existing.status === 'pending') {
-        gutenbergIngestionService.enqueue(gutenbergId);
+      if (existing.status === 'pending' || existing.status === 'processing') {
+        await gutenbergIngestionService.enqueue(gutenbergId);
+        console.info('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'processing', requestId: req.requestId || 'n/a' });
         res.status(202).json({ status: 'processing' });
         return;
       }
 
+      if (existing.status === 'failed') {
+        const queued = await gutenbergIngestionService.enqueue(gutenbergId);
+        if (queued) {
+          console.info('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'requeued_failed', requestId: req.requestId || 'n/a' });
+          res.status(202).json({ status: 'processing' });
+          return;
+        }
+      }
+
+      console.info('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'already_exists', requestId: req.requestId || 'n/a' });
       res.json({
         status: 'already_exists',
         book: existing,
@@ -382,7 +413,7 @@ export const requestBookIngestion = async (req, res) => {
     try {
       book = await gutenbergIngestionService.ensureBookRecord(gutenbergId, { status: 'pending', requestedBy });
     } catch (error) {
-      if (!isTransientUpstreamError(error)) {
+      if (classifyUpstreamError(error) !== 'TRANSIENT') {
         throw error;
       }
 
@@ -418,8 +449,9 @@ export const requestBookIngestion = async (req, res) => {
       return;
     }
 
-    gutenbergIngestionService.enqueue(gutenbergId);
+    await gutenbergIngestionService.enqueue(gutenbergId);
     console.info(`[BOOK_REQUEST] completed gutenbergId=${gutenbergId} status=pending`);
+    console.info('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'processing', requestId: req.requestId || 'n/a' });
 
     res.status(202).json({
       status: 'processing',
@@ -427,7 +459,8 @@ export const requestBookIngestion = async (req, res) => {
     });
   } catch (error) {
     console.error(`[BOOK] Failed to request Gutenberg ${gutenbergId}:`, error?.message || error, { requestId: req.requestId });
-    if (isTransientUpstreamError(error)) {
+    if (classifyUpstreamError(error) === 'TRANSIENT') {
+      console.warn('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'loading', requestId: req.requestId || 'n/a' });
       res.status(503).json(buildErrorResponse({
         status: 'loading',
         message: 'Ingestion service is warming up. Please retry shortly.',
@@ -443,5 +476,8 @@ export const requestBookIngestion = async (req, res) => {
       code: 'INGESTION_REQUEST_FAILED',
       requestId: req.requestId,
     }));
+    console.error('[FIND_BOOK_BACKEND]', { action: 'request', gutenbergId, outcome: 'error', requestId: req.requestId || 'n/a' });
+  } finally {
+    inFlightIngestionRequests.delete(gutenbergId);
   }
 };

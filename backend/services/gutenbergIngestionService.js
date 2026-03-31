@@ -8,14 +8,32 @@ import {
   getGutenbergCoverUrl,
   stripGutenbergBoilerplate,
 } from '../utils/gutenberg.js';
+import { parsePositiveIntStrict } from '../utils/gutenbergId.js';
 
-const parsePositiveInt = (value) => {
-  const parsed = Number.parseInt(String(value || '').trim(), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
+const MAX_INGESTION_RETRIES = 3;
+const PROCESSING_STALE_MS = 15 * 60_000;
+const WATCHDOG_INTERVAL_MS = 30_000;
+const MAX_INGESTION_TIME_MS = 120_000;
+
+const runWithTimeout = async (promiseFactory, timeoutMs, { gutenbergId }) => {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const timeoutError = new Error('Ingestion timed out.');
+      timeoutError.code = 'INGESTION_TIMEOUT';
+      timeoutError.statusCode = 504;
+      timeoutError.gutenbergId = gutenbergId;
+      reject(timeoutError);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promiseFactory(), timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
-
-  return parsed;
 };
 
 const getPrimaryAuthor = (gutendexBook) => {
@@ -40,10 +58,16 @@ class GutenbergIngestionService {
     this.queue = [];
     this.queued = new Set();
     this.processing = false;
+    this.watchdogTimer = setInterval(() => {
+      this.recoverStaleProcessingBooks().catch((error) => {
+        console.error('[INGESTION] Watchdog recovery failed:', error?.message || error);
+      });
+    }, WATCHDOG_INTERVAL_MS);
+    this.watchdogTimer.unref?.();
   }
 
   async fetchPreview(gutenbergIdInput) {
-    const gutenbergId = parsePositiveInt(gutenbergIdInput);
+    const gutenbergId = parsePositiveIntStrict(gutenbergIdInput);
     if (!gutenbergId) {
       return null;
     }
@@ -60,7 +84,7 @@ class GutenbergIngestionService {
   }
 
   async ensureBookRecord(gutenbergIdInput, { status = 'pending', requestedBy = null } = {}) {
-    const gutenbergId = parsePositiveInt(gutenbergIdInput);
+    const gutenbergId = parsePositiveIntStrict(gutenbergIdInput);
     if (!gutenbergId) {
       return null;
     }
@@ -70,7 +94,7 @@ class GutenbergIngestionService {
       return null;
     }
 
-    const allowedStatus = ['pending', 'ready', 'failed'];
+    const allowedStatus = ['pending', 'processing', 'ready', 'failed'];
 
     const safeStatus = allowedStatus.includes(status)
       ? status
@@ -128,18 +152,48 @@ class GutenbergIngestionService {
     return book;
   }
 
-  enqueue(gutenbergIdInput) {
-    const gutenbergId = parsePositiveInt(gutenbergIdInput);
+  async enqueue(gutenbergIdInput) {
+    const gutenbergId = parsePositiveIntStrict(gutenbergIdInput);
     if (!gutenbergId) {
       return false;
+    }
+
+    const book = await Book.findOne({ gutenbergId })
+      .select('status retryCount')
+      .lean();
+
+    if (!book) {
+      return false;
+    }
+
+    if (book.status === 'ready' || book.status === 'processing') {
+      return false;
+    }
+
+    if (book.status === 'failed' && Number(book.retryCount || 0) >= MAX_INGESTION_RETRIES) {
+      return false;
+    }
+
+    if (book.status === 'failed') {
+      await Book.updateOne(
+        {
+          gutenbergId,
+          status: { $in: ['failed'] },
+        },
+        {
+          $set: {
+            status: 'pending',
+          },
+        },
+      );
     }
 
     if (this.queued.has(gutenbergId)) {
       return false;
     }
 
-    this.queue.push(gutenbergId);
     this.queued.add(gutenbergId);
+    this.queue.push(gutenbergId);
     setImmediate(() => {
       this.processQueue().catch((error) => {
         console.error('[INGESTION] Queue processing failed:', error?.message || error);
@@ -172,79 +226,169 @@ class GutenbergIngestionService {
   }
 
   async ingest(gutenbergIdInput) {
-    const gutenbergId = parsePositiveInt(gutenbergIdInput);
+    const gutenbergId = parsePositiveIntStrict(gutenbergIdInput);
     if (!gutenbergId) {
       return null;
     }
 
-    await Book.updateOne(
-      { gutenbergId },
-      { $set: { status: 'pending', ingestionError: null } },
+    const claimed = await Book.findOneAndUpdate(
+      {
+        gutenbergId,
+        status: { $in: ['pending', 'failed'] },
+      },
+      {
+        $set: {
+          status: 'processing',
+          ingestionError: null,
+          processingStartedAt: new Date(),
+          lastIngestionAttemptAt: new Date(),
+        },
+      },
+      { new: true },
     );
+    if (!claimed) {
+      return null;
+    }
 
+    console.info('[INGESTION_EVENT]', { event: 'ingestion_started', gutenbergId });
     try {
-      const preview = await this.fetchPreview(gutenbergId);
-      if (!preview) {
-        throw new Error('Book not found on Gutendex.');
-      }
+      const ingestionPayload = await runWithTimeout(async () => {
+        const preview = await this.fetchPreview(gutenbergId);
+        if (!preview) {
+          throw new Error('Book not found on Gutendex.');
+        }
 
-      const rawText = await fetchGutenbergText(gutenbergId);
-      const textContent = stripGutenbergBoilerplate(rawText);
-      const chapters = convertTextToChapters(textContent, { fallbackTitle: 'Chapter' });
+        const rawText = await fetchGutenbergText(gutenbergId);
+        const textContent = stripGutenbergBoilerplate(rawText);
+        const chapters = convertTextToChapters(textContent, { fallbackTitle: 'Chapter' });
+        return { preview, textContent, chapters };
+      }, MAX_INGESTION_TIME_MS, { gutenbergId });
 
-      await Book.findOneAndUpdate(
-        { gutenbergId },
+      const updated = await Book.findOneAndUpdate(
+        { gutenbergId, status: 'processing' },
         {
           $set: {
-            title: preview.title,
-            author: preview.author,
-            coverImage: preview.coverImage,
+            title: ingestionPayload.preview.title,
+            author: ingestionPayload.preview.author,
+            coverImage: ingestionPayload.preview.coverImage,
             sourceProvider: 'Project Gutenberg',
-            sourceUrl: preview.sourceUrl,
+            sourceUrl: ingestionPayload.preview.sourceUrl,
             rights: 'Public domain (Project Gutenberg)',
-            textContent,
-            chapters,
+            textContent: ingestionPayload.textContent,
+            chapters: ingestionPayload.chapters,
             status: 'ready',
             ingestionError: null,
+            retryCount: 0,
+            processingStartedAt: null,
           },
         },
         { new: true },
       );
+      if (!updated) {
+        return null;
+      }
 
-      return { gutenbergId, status: 'ready', chapters: chapters.length };
+      console.info('[INGESTION_EVENT]', { event: 'ingestion_success', gutenbergId });
+      return { gutenbergId, status: 'ready', chapters: ingestionPayload.chapters.length };
     } catch (error) {
+      const timeoutFailure = error?.code === 'INGESTION_TIMEOUT';
+      if (timeoutFailure) {
+        console.error('[INGESTION_EVENT]', { event: 'ingestion_timeout', gutenbergId });
+      }
+
       await Book.updateOne(
         { gutenbergId },
-        {
-          $set: {
-            status: 'failed',
-            ingestionError: String(error?.message || error),
+        [
+          {
+            $set: {
+              status: 'failed',
+              ingestionError: String(error?.message || error),
+              processingStartedAt: null,
+              retryCount: {
+                $min: [
+                  { $add: [{ $ifNull: ['$retryCount', 0] }, 1] },
+                  MAX_INGESTION_RETRIES,
+                ],
+              },
+            },
           },
-        },
+        ],
       );
+      console.error('[INGESTION_EVENT]', {
+        event: 'ingestion_failed',
+        gutenbergId,
+        reason: String(error?.message || error),
+      });
 
       throw error;
     }
   }
 
   async enqueuePendingBooks() {
+    await this.recoverStaleProcessingBooks();
+
     const [pendingBooks, failedBooks] = await Promise.all([
       Book.find({ status: 'pending' })
-        .select('gutenbergId status')
+        .select('gutenbergId status retryCount')
         .lean(),
-      Book.find({ status: 'failed' })
-        .select('gutenbergId status')
+      Book.find({ status: 'failed', retryCount: { $lt: MAX_INGESTION_RETRIES } })
+        .select('gutenbergId status retryCount')
         .lean(),
     ]);
     const booksToEnqueue = [...pendingBooks, ...failedBooks];
 
-    booksToEnqueue.forEach((book) => {
+    await Promise.all(booksToEnqueue.map(async (book) => {
       if (book?.gutenbergId) {
-        this.enqueue(book.gutenbergId);
+        await this.enqueue(book.gutenbergId);
       }
-    });
+    }));
+  }
+
+  async recoverStaleProcessingBooks() {
+    const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
+    const staleBooks = await Book.find({
+      status: 'processing',
+      processingStartedAt: { $lt: staleBefore },
+    })
+      .select('gutenbergId')
+      .lean();
+
+    if (!staleBooks.length) {
+      return 0;
+    }
+
+    const staleIds = [...new Set(staleBooks
+      .map((book) => parsePositiveIntStrict(book?.gutenbergId))
+      .filter(Boolean))];
+    if (!staleIds.length) {
+      return 0;
+    }
+
+    await Book.updateMany(
+      {
+        status: 'processing',
+        processingStartedAt: { $lt: staleBefore },
+        gutenbergId: { $in: staleIds },
+      },
+      {
+        $set: {
+          status: 'pending',
+          processingStartedAt: null,
+        },
+      },
+    );
+
+    await Promise.all(staleIds.map(async (gutenbergId) => {
+      const book = await Book.findOne({ gutenbergId })
+        .select('status')
+        .lean();
+      if (book?.status === 'pending') {
+        console.info('[INGESTION_EVENT]', { event: 'watchdog_recovered', gutenbergId });
+        await this.enqueue(gutenbergId);
+      }
+    }));
+    return staleIds.length;
   }
 }
 
 export const gutenbergIngestionService = new GutenbergIngestionService();
-export { parsePositiveInt };

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { connectDB } from '../config/db.js';
 import { Book } from '../models/Book.js';
+import { parsePositiveIntStrict } from '../utils/gutenbergId.js';
 
 const args = process.argv.slice(2);
 
@@ -17,8 +18,8 @@ const parseIdList = (value) => {
   if (!value) return [];
   return value
     .split(',')
-    .map((part) => Number.parseInt(part.trim(), 10))
-    .filter((id) => Number.isFinite(id) && id > 0);
+    .map((part) => parsePositiveIntStrict(part))
+    .filter(Boolean);
 };
 
 const printUsage = () => {
@@ -31,17 +32,15 @@ const printUsage = () => {
 
 const buildGutenbergQuery = (idList) => {
   if (idList.length > 0) {
-    return Book.find()
-      .where('gutenbergId')
-      .in(idList);
+    return Book.find({ gutenbergId: { $in: idList } });
   }
 
-  // Use `.where(...).exists(true)` so Mongoose keeps `$exists` as an operator
-  // instead of trying to cast `{ $exists: true }` to the Number schema type.
-  return Book.find()
-    .where('gutenbergId')
-    .exists(true)
-    .gt(0);
+  return Book.find({
+    gutenbergId: {
+      $type: 'number',
+      $gt: 0,
+    },
+  });
 };
 
 const run = async () => {
