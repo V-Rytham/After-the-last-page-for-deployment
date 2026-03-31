@@ -331,7 +331,10 @@ class GutenbergIngestionService {
       Book.find({ status: 'pending' })
         .select('gutenbergId status retryCount')
         .lean(),
-      Book.find({ status: 'failed', retryCount: { $lt: MAX_INGESTION_RETRIES } })
+      Book.find({
+        status: 'failed',
+        retryCount: mongoose.trusted({ $lt: MAX_INGESTION_RETRIES }),
+      })
         .select('gutenbergId status retryCount')
         .lean(),
     ]);
