@@ -343,22 +343,31 @@ export const requestBookIngestion = async (req, res) => {
     return;
   }
 
-  try {
-    const existing = await Book.findOne({ gutenbergId }).select('status _id gutenbergId title author coverImage');
-    if (existing?.status === 'ready') {
-      res.json({
-        message: 'Book is already available.',
-        status: 'ready',
-        book: existing,
-      });
-      return;
-    }
+  if (inFlightIngestionRequests.has(gutenbergId)) {
+    res.status(202).json({ status: 'processing' });
+    return;
+  }
 
-    if (existing?.status === 'pending') {
-      gutenbergIngestionService.enqueue(gutenbergId);
+  inFlightIngestionRequests.set(gutenbergId, Date.now());
+
+  try {
+    console.info(`[BOOK_REQUEST] received gutenbergId=${gutenbergId} requestId=${req.requestId || 'n/a'}`);
+
+    const existing = await Book.findOne({ gutenbergId })
+      .select('status _id gutenbergId title author coverImage')
+      .lean();
+
+    if (existing) {
+      console.info(`[BOOK_REQUEST] skip existing gutenbergId=${gutenbergId} status=${existing.status}`);
+
+      if (existing.status === 'pending') {
+        gutenbergIngestionService.enqueue(gutenbergId);
+        res.status(202).json({ status: 'processing' });
+        return;
+      }
+
       res.json({
-        message: 'Book request already pending.',
-        status: 'pending',
+        status: 'already_exists',
         book: existing,
       });
       return;
@@ -409,18 +418,38 @@ export const requestBookIngestion = async (req, res) => {
       return;
     }
 
+    const updateDoc = {
+      $setOnInsert: {
+        title: preview?.title || `Project Gutenberg #${gutenbergId}`,
+        author: preview?.author || 'Project Gutenberg',
+        coverImage: preview?.coverImage || getGutenbergCoverUrl(gutenbergId, 'medium'),
+        sourceProvider: 'Project Gutenberg',
+        sourceUrl: preview?.sourceUrl || getGutenbergBookPageUrl(gutenbergId),
+        rights: 'Public domain (Project Gutenberg)',
+        requestedAt: new Date(),
+      },
+      $set: {
+        status: 'pending',
+        ...(requestedBy ? { requestedBy, requestedAt: new Date() } : {}),
+      },
+    };
+
+    const book = await Book.findOneAndUpdate(
+      { gutenbergId },
+      updateDoc,
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
+    ).select('_id gutenbergId title author coverImage status');
+
     gutenbergIngestionService.enqueue(gutenbergId);
+    console.info(`[BOOK_REQUEST] completed gutenbergId=${gutenbergId} status=pending`);
 
     res.status(202).json({
-      message: existing?.status === 'failed' ? 'Book re-requested. Ingestion restarted.' : 'Book request accepted.',
-      status: 'pending',
-      book: {
-        _id: book._id,
-        gutenbergId: book.gutenbergId,
-        title: book.title,
-        author: book.author,
-        coverImage: book.coverImage,
-      },
+      status: 'processing',
+      book,
     });
   } catch (error) {
     console.error(`[BOOK] Failed to request Gutenberg ${gutenbergId}:`, error?.message || error, { requestId: req.requestId });
