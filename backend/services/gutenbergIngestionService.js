@@ -1,4 +1,5 @@
 import { Book } from '../models/Book.js';
+import mongoose from 'mongoose';
 import {
   convertTextToChapters,
   fetchGutendexBook,
@@ -94,7 +95,7 @@ class GutenbergIngestionService {
       },
     };
 
-    if (requestedBy) {
+    if (requestedBy && mongoose.Types.ObjectId.isValid(requestedBy)) {
       updateDoc.$set.requestedBy = requestedBy;
       updateDoc.$set.requestedAt = new Date();
     }
