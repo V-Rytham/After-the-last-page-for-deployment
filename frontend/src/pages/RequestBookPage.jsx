@@ -148,8 +148,12 @@ const RequestBookPage = () => {
         }));
 
         if (response?.data?.status === 'loading') {
-          setPreview(null);
-          setError('Preview is warming up. Please try again in a moment.');
+          await wait((Number(response.data.retryAfter || 2) || 2) * 1000);
+          const followup = await api.get(`/books/preview/${targetId}`, {
+            signal: controller.signal,
+            headers: metadata.headers,
+          });
+          setPreview(followup.data);
           return;
         }
 
@@ -217,7 +221,7 @@ const RequestBookPage = () => {
         ));
 
         if (response?.data?.status === 'loading') {
-          setResult({ message: 'Ingestion service is warming up. Please retry in a moment.' });
+          setResult({ message: 'Server warming up. Please try again in a moment.' });
           return;
         }
 
