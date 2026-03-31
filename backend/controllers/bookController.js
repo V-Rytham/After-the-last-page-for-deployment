@@ -1,4 +1,5 @@
 import { Book } from '../models/Book.js';
+import mongoose from 'mongoose';
 import {
   convertTextToChapters,
   fetchGutenbergText,
@@ -16,6 +17,38 @@ const parseGutenbergRouteId = (value) => {
   }
 
   return Number.parseInt(match[1], 10);
+};
+
+const buildErrorResponse = ({
+  message,
+  code,
+  status = 'error',
+  requestId,
+  retryAfter,
+}) => ({
+  status,
+  code,
+  message,
+  requestId,
+  ...(Number.isFinite(retryAfter) ? { retryAfter } : {}),
+});
+
+const isTransientUpstreamError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('failed to fetch')
+    || message.includes('timed out')
+    || message.includes('network')
+    || /\b50\d\b/.test(message);
+};
+
+const inFlightIngestionRequests = new Map();
+
+const safeRequestedBy = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  return mongoose.Types.ObjectId.isValid(value) ? value : null;
 };
 
 const fetchBookByRouteId = async (routeId, projection) => {
@@ -263,14 +296,22 @@ export const getBookContent = async (req, res) => {
 export const previewBookRequest = async (req, res) => {
   const gutenbergId = parsePositiveInt(req.params.gutenbergId);
   if (!gutenbergId) {
-    res.status(400).json({ message: 'Invalid Gutenberg ID.' });
+    res.status(400).json(buildErrorResponse({
+      message: 'Invalid Gutenberg ID.',
+      code: 'INVALID_GUTENBERG_ID',
+      requestId: req.requestId,
+    }));
     return;
   }
 
   try {
     const preview = await gutenbergIngestionService.fetchPreview(gutenbergId);
     if (!preview) {
-      res.status(404).json({ message: 'Book not found on Gutendex.' });
+      res.status(404).json(buildErrorResponse({
+        message: 'Book not found on Gutendex.',
+        code: 'BOOK_NOT_FOUND',
+        requestId: req.requestId,
+      }));
       return;
     }
 
@@ -281,61 +322,112 @@ export const previewBookRequest = async (req, res) => {
       cover: preview.coverImage,
     });
   } catch (error) {
-    console.error(`[BOOK] Failed to preview Gutenberg ${gutenbergId}:`, error?.message || error);
-    res.status(502).json({ message: 'Failed to fetch preview from Gutendex.' });
+    console.error(`[BOOK] Failed to preview Gutenberg ${gutenbergId}:`, error?.message || error, { requestId: req.requestId });
+    if (isTransientUpstreamError(error)) {
+      res.status(503).json(buildErrorResponse({
+        status: 'loading',
+        message: 'Preview data is still warming up.',
+        code: 'UPSTREAM_WARMING',
+        retryAfter: 2,
+        requestId: req.requestId,
+      }));
+      return;
+    }
+
+    res.status(502).json(buildErrorResponse({
+      message: 'Failed to fetch preview from Gutendex.',
+      code: 'PREVIEW_FETCH_FAILED',
+      requestId: req.requestId,
+    }));
   }
 };
 
 export const requestBookIngestion = async (req, res) => {
   const gutenbergId = parsePositiveInt(req.body?.gutenbergId);
   if (!gutenbergId) {
-    res.status(400).json({ message: 'Invalid Gutenberg ID.' });
+    res.status(400).json({ status: 'error', message: 'Invalid Gutenberg ID.' });
     return;
   }
 
+  if (inFlightIngestionRequests.has(gutenbergId)) {
+    res.status(202).json({ status: 'processing' });
+    return;
+  }
+
+  inFlightIngestionRequests.set(gutenbergId, Date.now());
+
   try {
-    const existing = await Book.findOne({ gutenbergId }).select('status _id gutenbergId title author coverImage');
-    if (existing?.status === 'ready') {
+    console.info(`[BOOK_REQUEST] received gutenbergId=${gutenbergId} requestId=${req.requestId || 'n/a'}`);
+
+    const existing = await Book.findOne({ gutenbergId })
+      .select('status _id gutenbergId title author coverImage')
+      .lean();
+
+    if (existing) {
+      console.info(`[BOOK_REQUEST] skip existing gutenbergId=${gutenbergId} status=${existing.status}`);
+
+      if (existing.status === 'pending') {
+        gutenbergIngestionService.enqueue(gutenbergId);
+        res.status(202).json({ status: 'processing' });
+        return;
+      }
+
       res.json({
-        message: 'Book is already available.',
-        status: 'ready',
+        status: 'already_exists',
         book: existing,
       });
       return;
     }
 
-    if (existing?.status === 'pending') {
-      gutenbergIngestionService.enqueue(gutenbergId);
-      res.json({
-        message: 'Book request already pending.',
+    const requestedBy = safeRequestedBy(req.user?._id || null);
+    let preview = null;
+
+    try {
+      preview = await gutenbergIngestionService.fetchPreview(gutenbergId);
+    } catch (error) {
+      console.warn(`[BOOK_REQUEST] preview fetch failed gutenbergId=${gutenbergId}:`, error?.message || error);
+    }
+
+    const updateDoc = {
+      $setOnInsert: {
+        title: preview?.title || `Project Gutenberg #${gutenbergId}`,
+        author: preview?.author || 'Project Gutenberg',
+        coverImage: preview?.coverImage || getGutenbergCoverUrl(gutenbergId, 'medium'),
+        sourceProvider: 'Project Gutenberg',
+        sourceUrl: preview?.sourceUrl || getGutenbergBookPageUrl(gutenbergId),
+        rights: 'Public domain (Project Gutenberg)',
+        requestedAt: new Date(),
+      },
+      $set: {
         status: 'pending',
-        book: existing,
-      });
-      return;
-    }
+        ...(requestedBy ? { requestedBy, requestedAt: new Date() } : {}),
+      },
+    };
 
-    const requestedBy = req.user?._id || null;
-    const book = await gutenbergIngestionService.ensureBookRecord(gutenbergId, { status: 'pending', requestedBy });
-    if (!book) {
-      res.status(404).json({ message: 'Book not found on Gutendex.' });
-      return;
-    }
+    const book = await Book.findOneAndUpdate(
+      { gutenbergId },
+      updateDoc,
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
+    ).select('_id gutenbergId title author coverImage status');
 
     gutenbergIngestionService.enqueue(gutenbergId);
+    console.info(`[BOOK_REQUEST] completed gutenbergId=${gutenbergId} status=pending`);
 
     res.status(202).json({
-      message: existing?.status === 'failed' ? 'Book re-requested. Ingestion restarted.' : 'Book request accepted.',
-      status: 'pending',
-      book: {
-        _id: book._id,
-        gutenbergId: book.gutenbergId,
-        title: book.title,
-        author: book.author,
-        coverImage: book.coverImage,
-      },
+      status: 'processing',
+      book,
     });
-  } catch (error) {
-    console.error(`[BOOK] Failed to request Gutenberg ${gutenbergId}:`, error?.message || error);
-    res.status(500).json({ message: 'Failed to create request for this Gutenberg book.' });
+  } catch (err) {
+    console.error('BOOK REQUEST FAILED:', err);
+    return res.status(500).json({
+      message: 'Internal server error',
+      error: err.message,
+    });
+  } finally {
+    inFlightIngestionRequests.delete(gutenbergId);
   }
 };

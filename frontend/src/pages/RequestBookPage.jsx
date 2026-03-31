@@ -1,16 +1,67 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, LoaderCircle, Search } from 'lucide-react';
 import api from '../utils/api';
 import './RequestBookPage.css';
 
 const RequestBookPage = () => {
+  const isDev = import.meta.env.DEV;
   const [gutenbergId, setGutenbergId] = useState('');
+  const [debouncedGutenbergId, setDebouncedGutenbergId] = useState('');
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [warmupPending, setWarmupPending] = useState(true);
+  const requestSequenceRef = useRef(0);
+  const previewAbortRef = useRef(null);
+  const requestAbortRef = useRef(null);
+  const inFlightRef = useRef(new Map());
+  const previewDebounceTimerRef = useRef(null);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedGutenbergId(gutenbergId);
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [gutenbergId]);
+
+  const debouncedNormalizedId = useMemo(() => {
+    const parsed = Number.parseInt(String(debouncedGutenbergId || '').trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+
+    return parsed;
+  }, [debouncedGutenbergId]);
+
+  useEffect(() => () => {
+    if (previewDebounceTimerRef.current) {
+      window.clearTimeout(previewDebounceTimerRef.current);
+    }
+    previewAbortRef.current?.abort();
+    requestAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    api.get('/warmup')
+      .catch(() => null)
+      .finally(() => {
+        if (active) {
+          setWarmupPending(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const normalizedId = useMemo(() => {
     const parsed = Number.parseInt(String(gutenbergId || '').trim(), 10);
@@ -21,6 +72,107 @@ const RequestBookPage = () => {
     return parsed;
   }, [gutenbergId]);
 
+  const getRequestMetadata = useCallback((actionName, targetId) => {
+    requestSequenceRef.current += 1;
+    const actionId = `${actionName}:${targetId}:${Date.now()}:${requestSequenceRef.current}`;
+    return {
+      actionId,
+      timestamp: new Date().toISOString(),
+      headers: {
+        'X-Book-Action-Id': actionId,
+        'X-Book-Action-Name': actionName,
+      },
+    };
+  }, []);
+
+  const wait = (ms) => new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+  const requestWithRetry = useCallback(async (requestFactory) => {
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        return await requestFactory(attempt);
+      } catch (requestError) {
+        const status = Number(requestError?.statusCode || 0);
+        const networkFailure = !status;
+        const isRetryableServerError = status >= 500 && status < 600;
+        const shouldRetry = attempt < maxRetries && (networkFailure || isRetryableServerError);
+
+        if (!shouldRetry || status === 403) {
+          throw requestError;
+        }
+
+        const backoffMs = 250 * (2 ** attempt);
+        await wait(backoffMs);
+      }
+    }
+
+    return null;
+  }, []);
+
+  const runDedupedRequest = useCallback((key, factory) => {
+    if (inFlightRef.current.has(key)) {
+      return inFlightRef.current.get(key);
+    }
+
+    const requestPromise = factory()
+      .finally(() => {
+        inFlightRef.current.delete(key);
+      });
+
+    inFlightRef.current.set(key, requestPromise);
+    return requestPromise;
+  }, []);
+
+  const executePreviewRequest = useCallback(async (targetId) => {
+    const dedupeKey = `preview:${targetId}`;
+
+    return runDedupedRequest(dedupeKey, async () => {
+      previewAbortRef.current?.abort();
+      const controller = new AbortController();
+      previewAbortRef.current = controller;
+
+      setLoadingPreview(true);
+      setError('');
+      setResult(null);
+
+      const metadata = getRequestMetadata('preview', targetId);
+      if (isDev) {
+        console.info('[FIND_BOOK] preview_requested', metadata.actionId, metadata.timestamp);
+      }
+
+      try {
+        const response = await requestWithRetry(() => api.get(`/books/preview/${targetId}`, {
+          signal: controller.signal,
+          headers: metadata.headers,
+        }));
+
+        if (response?.data?.status === 'loading') {
+          setPreview(null);
+          setError('Preview is warming up. Please try again in a moment.');
+          return;
+        }
+
+        setPreview(response.data);
+      } catch (requestError) {
+        if (requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') {
+          return;
+        }
+
+        setPreview(null);
+        setError(requestError?.uiMessage || 'Could not fetch preview for that Gutenberg ID.');
+      } finally {
+        if (previewAbortRef.current === controller) {
+          previewAbortRef.current = null;
+        }
+        setLoadingPreview(false);
+      }
+    });
+  }, [getRequestMetadata, isDev, requestWithRetry, runDedupedRequest]);
+
   const handlePreview = async (event) => {
     event.preventDefault();
     if (!normalizedId) {
@@ -29,19 +181,13 @@ const RequestBookPage = () => {
       return;
     }
 
-    setLoadingPreview(true);
-    setError('');
-    setResult(null);
-
-    try {
-      const { data } = await api.get(`/books/preview/${normalizedId}`);
-      setPreview(data);
-    } catch (requestError) {
-      setPreview(null);
-      setError(requestError?.uiMessage || 'Could not fetch preview for that Gutenberg ID.');
-    } finally {
-      setLoadingPreview(false);
+    if (previewDebounceTimerRef.current) {
+      window.clearTimeout(previewDebounceTimerRef.current);
     }
+
+    previewDebounceTimerRef.current = window.setTimeout(() => {
+      executePreviewRequest(debouncedNormalizedId || normalizedId);
+    }, 400);
   };
 
   const handleRequest = async () => {
@@ -50,18 +196,50 @@ const RequestBookPage = () => {
       return;
     }
 
-    setRequesting(true);
-    setError('');
-    setResult(null);
+    const dedupeKey = `request:${normalizedId}`;
+    await runDedupedRequest(dedupeKey, async () => {
+      requestAbortRef.current?.abort();
+      const controller = new AbortController();
+      requestAbortRef.current = controller;
 
-    try {
-      const { data } = await api.post('/books/request', { gutenbergId: normalizedId });
-      setResult(data);
-    } catch (requestError) {
-      setError(requestError?.uiMessage || 'Failed to submit request.');
-    } finally {
-      setRequesting(false);
-    }
+      setRequesting(true);
+      setError('');
+      setResult(null);
+
+      const metadata = getRequestMetadata('ingestion_request', normalizedId);
+      if (isDev) {
+        console.info('[FIND_BOOK] request_submitted', metadata.actionId, metadata.timestamp);
+      }
+
+      try {
+        const response = await requestWithRetry(() => api.post(
+          '/books/request',
+          { gutenbergId: normalizedId },
+          {
+            signal: controller.signal,
+            headers: metadata.headers,
+          },
+        ));
+
+        if (response?.data?.status === 'loading') {
+          setResult({ message: 'Ingestion service is warming up. Please retry in a moment.' });
+          return;
+        }
+
+        setResult(response.data);
+      } catch (requestError) {
+        if (requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') {
+          return;
+        }
+
+        setError(requestError?.uiMessage || 'Failed to submit request.');
+      } finally {
+        if (requestAbortRef.current === controller) {
+          requestAbortRef.current = null;
+        }
+        setRequesting(false);
+      }
+    });
   };
 
   return (
@@ -85,12 +263,20 @@ const RequestBookPage = () => {
               onChange={(event) => setGutenbergId(event.target.value)}
               placeholder="e.g. 1342"
             />
-            <button className="btn-primary" type="submit" disabled={loadingPreview}>
+            <button className="btn-primary" type="submit" disabled={loadingPreview || requesting || warmupPending}>
               {loadingPreview ? <LoaderCircle size={16} className="spin" /> : <Search size={16} />}
               Preview
             </button>
           </div>
         </form>
+
+
+        {warmupPending ? (
+          <div className="request-book-feedback">
+            <LoaderCircle size={16} className="spin" />
+            <span>Warming up the service…</span>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="request-book-feedback error">
@@ -106,7 +292,7 @@ const RequestBookPage = () => {
               <h2 className="font-serif">{preview.title}</h2>
               <p>{preview.author}</p>
               <p className="request-book-preview-meta">Gutenberg ID: {preview.gutenbergId}</p>
-              <button className="btn-primary" type="button" onClick={handleRequest} disabled={requesting}>
+              <button className="btn-primary" type="button" onClick={handleRequest} disabled={requesting || loadingPreview || warmupPending}>
                 {requesting ? <LoaderCircle size={16} className="spin" /> : <CheckCircle2 size={16} />}
                 Confirm request
               </button>
