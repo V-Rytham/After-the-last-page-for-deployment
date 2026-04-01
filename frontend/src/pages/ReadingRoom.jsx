@@ -702,7 +702,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     return () => window.clearTimeout(timeout);
   }, [pageTurnDirection]);
 
-  if (loading) return <div className="text-center p-10 mt-20">Loading...</div>;
+  if (loading) return <div className="text-center p-10 mt-20">{isGutenbergRoute ? 'Fetching book from Gutenberg...' : 'Loading...'}</div>;
   if (!book) return <div className="text-center p-10 mt-20">Book not found.</div>;
   if (contentError) return <div className="text-center p-10 mt-20">{contentErrorMessage}</div>;
   if (!activeChapter) return <div className="text-center p-10 mt-20">Book content not available.</div>;
