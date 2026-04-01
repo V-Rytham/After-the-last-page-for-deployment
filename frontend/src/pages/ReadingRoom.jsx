@@ -9,7 +9,6 @@ import {
   Settings2,
 } from 'lucide-react';
 import api from '../utils/api';
-import { getFallbackBookById } from '../utils/bookFallback';
 import { trackBookOpened, updateReadingSession } from '../utils/readingSession';
 import { UI_THEMES } from '../utils/uiThemes';
 import { PaginationEngine } from '../components/reader/PaginationEngine';
@@ -32,13 +31,14 @@ const escapeHtml = (value) => (
 // Gutenberg parsing is now handled server-side; keep client lean.
 
 const ReadingRoom = ({ uiTheme, onThemeChange }) => {
-  const { bookId } = useParams();
+  const { bookId, gutenbergId } = useParams();
   const navigate = useNavigate();
 
   const [book, setBook] = useState(null);
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [contentError, setContentError] = useState(false);
+  const [contentErrorMessage, setContentErrorMessage] = useState('Book content not available.');
 
   const [fontSize, setFontSize] = useState(1.1875);
   const [fontFamily, setFontFamily] = useState('serif');
@@ -54,7 +54,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const [pageTurnDirection, setPageTurnDirection] = useState(null);
   const [goToDraft, setGoToDraft] = useState('1');
   const [goToPageDraft, setGoToPageDraft] = useState('1');
-  const [pendingRestore, setPendingRestore] = useState(null);
+  const [restoreSnapshot, setRestoreSnapshot] = useState(null);
 
   const chromeTimeoutRef = useRef(null);
   const pointerDownRef = useRef(null);
@@ -63,85 +63,63 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const pageViewportRef = useRef(null);
   const paginationEngineRef = useRef(null);
 
-  const resolvedBookId = book?._id || book?.id || bookId;
+  const isGutenbergRoute = Boolean(gutenbergId);
+  const resolvedBookId = book?._id || book?.id || (isGutenbergRoute ? `gutenberg:${gutenbergId}` : bookId);
 
   useEffect(() => {
-    const fetchBook = async () => {
+    const loadBook = async () => {
       setLoading(true);
       setContentError(false);
+      setContentErrorMessage('Book content not available.');
+      setBook(null);
+      setChapters([]);
 
       try {
-        const { data } = await api.get(`/books/${bookId}`);
-        setBook(data);
-      } catch (error) {
-        console.error('Failed to fetch book, using local fallback:', error);
-        setBook(getFallbackBookById(bookId));
-      }
-    };
-
-    fetchBook();
-  }, [bookId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let retryTimer = null;
-
-    const fetchContent = async ({ background = false } = {}) => {
-      if (!resolvedBookId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { data, status } = await api.get(`/books/${resolvedBookId}/read`, {
-          params: background ? { background: true } : undefined,
-        });
-        const nextChapters = Array.isArray(data?.chapters) ? data.chapters : [];
-        const state = data?.status?.state || data?.status;
-
-        if ((status === 202 || state === 'processing' || state === 'not_started') && !nextChapters.length) {
-          if (!cancelled) {
-            retryTimer = setTimeout(() => {
-              fetchContent();
-            }, 2500);
+        if (isGutenbergRoute) {
+          const { data } = await api.get(`/books/gutenberg/${gutenbergId}/read`);
+          const nextChapters = Array.isArray(data?.chapters) ? data.chapters : [];
+          if (nextChapters.length === 0) {
+            throw new Error('Book content response did not include chapters.');
           }
+
+          setBook({
+            _id: null,
+            title: data.title,
+            author: data.author,
+            gutenbergId: data.gutenbergId,
+          });
+          setChapters(nextChapters);
+          setCurrentChapter(1);
           return;
         }
 
+        const { data: metadata } = await api.get(`/books/${bookId}`);
+        const { data: readData } = await api.get(`/books/${bookId}/read`);
+        const nextChapters = Array.isArray(readData?.chapters) ? readData.chapters : [];
         if (nextChapters.length === 0) {
-          if (!background) {
-            await fetchContent({ background: true });
-            return;
-          }
-          throw new Error('Book content response did not include any chapters.');
+          throw new Error('Book content response did not include chapters.');
         }
 
-        if (!cancelled) {
-          setChapters(nextChapters);
-          setCurrentChapter(1);
-        }
+        setBook(metadata);
+        setChapters(nextChapters);
+        setCurrentChapter(1);
       } catch (error) {
-        console.error('Failed to fetch book content:', error);
-        if (!cancelled) {
-          setChapters([]);
-          setContentError(true);
-        }
+        console.error('Failed to load book:', error);
+        const status = Number(error?.statusCode || error?.response?.status || 0);
+        let nextMessage = 'Something went wrong';
+        if (status === 404) nextMessage = 'Book not found';
+        else if (status === 504) nextMessage = 'Book is taking too long to load. Try again.';
+        else if (status === 413) nextMessage = 'Book too large to load';
+
+        setContentError(true);
+        setContentErrorMessage(nextMessage);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
-    fetchContent();
-
-    return () => {
-      cancelled = true;
-      if (retryTimer) {
-        clearTimeout(retryTimer);
-      }
-    };
-  }, [resolvedBookId, book]);
+    loadBook();
+  }, [bookId, gutenbergId, isGutenbergRoute]);
 
   const totalChapters = Math.max(1, chapters.length);
   const clampedChapter = clampNumber(currentChapter, 1, totalChapters);
@@ -405,7 +383,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     if (!readerPositionStorageKey) return;
     if (chapters.length === 0) return;
     if (restoredSettingsForKeyRef.current === readerPositionStorageKey) return;
-    if (pendingRestore) return;
+    if (restoreSnapshot) return;
 
     try {
       const raw = window.localStorage.getItem(readerPositionStorageKey);
@@ -429,13 +407,13 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       const anchor = saved?.reading_anchor || saved?.anchor || null;
       const pageIndexFallback = Math.max(0, Number(saved?.page_index ?? saved?.pageIndex ?? 0) || 0);
 
-      setPendingRestore({ chapterNumber, anchor, pageIndexFallback });
+      setRestoreSnapshot({ chapterNumber, anchor, pageIndexFallback });
       setCurrentChapter(chapterNumber);
       restoredSettingsForKeyRef.current = readerPositionStorageKey;
     } catch (error) {
       console.warn('Failed to restore reading position:', error);
     }
-  }, [chapters.length, onThemeChange, pendingRestore, readerPositionStorageKey, totalChapters, uiTheme]);
+  }, [chapters.length, onThemeChange, restoreSnapshot, readerPositionStorageKey, totalChapters, uiTheme]);
 
   const handleDeskNavigation = useCallback(() => {
     const fallbackToDesk = () => {
@@ -456,7 +434,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   }, [navigate]);
 
   const handleStartAgain = useCallback(() => {
-    setPendingRestore(null);
+    setRestoreSnapshot(null);
     setCurrentChapter(1);
     setCurrentPageIndex(0);
     setPageTurnDirection(null);
@@ -505,7 +483,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     const engine = paginationEngineRef.current;
     if (!engine) return;
     if (!chapterHtmlForPagination) return;
-    if (pendingRestore) return;
+    if (restoreSnapshot) return;
 
     if (lastAppliedLayoutSignatureRef.current === readerLayoutSignature) return;
     lastAppliedLayoutSignatureRef.current = readerLayoutSignature;
@@ -515,7 +493,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     engine.resetPagination();
     const restoredIndex = engine.ensurePageIndexForBoundary(anchor);
     setCurrentPageIndex(restoredIndex);
-  }, [chapterHtmlForPagination, pendingRestore, readerLayoutSignature]);
+  }, [chapterHtmlForPagination, restoreSnapshot, readerLayoutSignature]);
 
   useEffect(() => (
     () => paginationEngineRef.current?.destroy?.()
@@ -524,23 +502,23 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   useEffect(() => {
     if (!activeChapter) return;
 
-    if (pendingRestore && pendingRestore.chapterNumber === clampedChapter) {
+    if (restoreSnapshot && restoreSnapshot.chapterNumber === clampedChapter) {
       const engine = paginationEngineRef.current;
-      if (engine && pendingRestore.anchor) {
+      if (engine && restoreSnapshot.anchor) {
         engine.setLayout(readerLayoutRef.current);
         engine.resetPagination();
-        const boundary = engine.boundaryFromReadingAnchor(pendingRestore.anchor);
+        const boundary = engine.boundaryFromReadingAnchor(restoreSnapshot.anchor);
         const restoredIndex = engine.ensurePageIndexForBoundary(boundary);
         setCurrentPageIndex(restoredIndex);
       } else {
-        setCurrentPageIndex(Math.max(0, Number(pendingRestore.pageIndexFallback) || 0));
+        setCurrentPageIndex(Math.max(0, Number(restoreSnapshot.pageIndexFallback) || 0));
       }
-      setPendingRestore(null);
+      setRestoreSnapshot(null);
       return;
     }
 
     setCurrentPageIndex(0);
-  }, [activeChapter, clampedChapter, pendingRestore]);
+  }, [activeChapter, clampedChapter, restoreSnapshot]);
 
   useEffect(() => {
     const engine = paginationEngineRef.current;
@@ -730,10 +708,10 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     return () => window.clearTimeout(timeout);
   }, [pageTurnDirection]);
 
-  if (loading) return <div className="text-center p-10 mt-20">Loading...</div>;
+  if (loading) return <div className="text-center p-10 mt-20">{isGutenbergRoute ? 'Fetching book from Gutenberg...' : 'Loading...'}</div>;
   if (!book) return <div className="text-center p-10 mt-20">Book not found.</div>;
-  if (contentError) return <div className="text-center p-10 mt-20">Unable to load this book right now.</div>;
-  if (!activeChapter) return <div className="text-center p-10 mt-20">Preparing chapters...</div>;
+  if (contentError) return <div className="text-center p-10 mt-20">{contentErrorMessage}</div>;
+  if (!activeChapter) return <div className="text-center p-10 mt-20">Book content not available.</div>;
 
   return (
     <div className={`reader-root theme-${uiTheme} animate-fade-in`}>

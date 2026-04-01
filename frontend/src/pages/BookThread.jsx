@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { getStoredUser } from '../utils/auth';
-import { getFallbackBookById } from '../utils/bookFallback';
 import BookCoverArt from '../components/books/BookCoverArt';
 import './BookThread.css';
 
@@ -258,8 +257,8 @@ export default function BookThread() {
       if (bookResult.status === 'fulfilled') {
         setBook(bookResult.value.data);
       } else {
-        console.error('Failed to fetch book, using local fallback:', bookResult.reason);
-        setBook(getFallbackBookById(bookId));
+        console.error('Failed to fetch book:', bookResult.reason);
+        setBook(null);
       }
 
       if (threadsResult.status === 'fulfilled') {

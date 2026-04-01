@@ -9,8 +9,6 @@ import threadRoutes from './routes/threadRoutes.js';
 import recommenderRoutes from './routes/recommenderRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
 import registerSocketEvents from './socket/socketHandler.js';
-import { Book } from './models/Book.js';
-import { defaultBooks } from './seed/defaultBooks.js';
 import accessRoutes from './routes/accessRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
 import { buildSessionRoutes } from './routes/sessionRoutes.js';
@@ -21,7 +19,6 @@ import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import { isProd } from './utils/runtime.js';
 import { RealtimeSessionManager } from './services/realtimeSessionManager.js';
 import { requestTracing } from './middleware/requestLogging.js';
-import { gutenbergIngestionService } from './services/gutenbergIngestionService.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -123,7 +120,7 @@ app.use(cors({
   origin: buildCorsOriginValidator(),
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Book-Action-Id', 'X-Book-Action-Name'],
-  exposedHeaders: ['Retry-After', 'X-Request-Id'],
+  exposedHeaders: ['X-Request-Id'],
   maxAge: 600,
 }));
 app.use(securityHeaders);
@@ -167,16 +164,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/warmup', async (req, res) => {
-  try {
-    await Book.findOne({}).select('_id').lean();
-    res.json({ status: 'ok', warmed: true, retryAfter: 0 });
-  } catch (error) {
-    console.error('[WARMUP] Warmup probe failed:', error?.message || error, { requestId: req.requestId });
-    res.status(503).json({ status: 'loading', warmed: false, retryAfter: 2 });
-  }
-});
-
 app.use(notFound);
 app.use(errorHandler);
 
@@ -192,42 +179,8 @@ httpServer.on('error', (error) => {
   process.exit(1);
 });
 
-const seedBooksIfEmpty = async () => {
-  if (process.env.DISABLE_STARTUP_SEED === 'true') {
-    return;
-  }
-
-  if (!defaultBooks.length) {
-    return;
-  }
-
-  try {
-    const existingIds = await Book.distinct('gutenbergId');
-
-    const existingGutenbergIds = new Set(
-      existingIds.filter((id) => Number.isFinite(id) && id > 0)
-    );
-    const missingBooks = defaultBooks.filter((book) => {
-      const gutenbergId = Number(book.gutenbergId);
-      return Number.isFinite(gutenbergId) && !existingGutenbergIds.has(gutenbergId);
-    });
-
-    if (!missingBooks.length) {
-      return;
-    }
-
-    await Book.insertMany(missingBooks, { ordered: false });
-    console.log(`[SEED] Inserted ${missingBooks.length} missing starter books.`);
-
-  } catch (error) {
-    console.error('[SEED] Failed to seed books:', error);
-  }
-};
-
 try {
   await connectDB();
-  await seedBooksIfEmpty();
-  await gutenbergIngestionService.enqueuePendingBooks();
 } catch (error) {
   console.warn('[SERVER] Starting in degraded mode without database:', error?.message || error);
 }
