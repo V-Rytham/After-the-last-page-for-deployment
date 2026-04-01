@@ -9,8 +9,14 @@ const bookSchema = new mongoose.Schema({
     unique: true,
     index: true,
   },
+  lastAccessedAt: {
+    type: Date,
+    default: Date.now,
+    index: true,
+  },
 });
 
 bookSchema.index({ title: 1 });
+bookSchema.index({ lastAccessedAt: -1 });
 
 export const Book = mongoose.model('Book', bookSchema);

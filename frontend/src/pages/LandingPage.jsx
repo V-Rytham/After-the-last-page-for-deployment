@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Check, Users } from 'lucide-react';
+import api from '../utils/api';
 import './LandingPage.css';
 
 const howItWorksSteps = [
@@ -12,6 +13,7 @@ const howItWorksSteps = [
 export default function LandingPage({ currentUser }) {
   const [isHowVisible, setIsHowVisible] = useState(false);
   const [isHowAnimReady, setIsHowAnimReady] = useState(false);
+  const [recentBooks, setRecentBooks] = useState([]);
   const howItWorksRef = useRef(null);
 
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
@@ -43,6 +45,26 @@ export default function LandingPage({ currentUser }) {
 
     observer.observe(section);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadRecent = async () => {
+      try {
+        const { data } = await api.get('/books');
+        if (!mounted) return;
+        setRecentBooks(Array.isArray(data) ? data.slice(0, 5) : []);
+      } catch (error) {
+        console.error('[HOME] Failed to load recent books:', error);
+        if (mounted) setRecentBooks([]);
+      }
+    };
+
+    loadRecent();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
@@ -77,6 +99,24 @@ export default function LandingPage({ currentUser }) {
         </header>
 
         <div className="layout-content home-sections">
+          <section className="home-how-it-works" aria-labelledby="recent-books-heading">
+            <h2 id="recent-books-heading" className="home-how-heading">Recent books</h2>
+            {recentBooks.length === 0 ? (
+              <p className="home-subtitle">No books yet. Enter a Gutenberg ID to start reading.</p>
+            ) : (
+              <div className="books-grid">
+                {recentBooks.map((book) => (
+                  <Link key={book._id || String(book.gutenbergId)} to={`/read/gutenberg/${book.gutenbergId}`} className="book-card">
+                    <div className="book-info">
+                      <h3 className="book-title">{book.title}</h3>
+                      <p className="book-author">{book.author}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="home-how-it-works" aria-labelledby="how-it-works-heading" ref={howItWorksRef}>
             <h2 id="how-it-works-heading" className="home-how-heading">How it works</h2>
             <div

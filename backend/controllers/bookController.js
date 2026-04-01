@@ -2,7 +2,6 @@ import { Book } from '../models/Book.js';
 import mongoose from 'mongoose';
 import {
   parseStrictGutenbergId,
-  fetchGutenbergMetadata,
   readGutenbergBookStateless,
 } from '../utils/gutenbergReader.js';
 
@@ -14,22 +13,15 @@ const fetchBookByObjectId = async (routeId, projection = null) => {
   return Book.findById(routeId).select(projection);
 };
 
-const ensureMetadata = async (gutenbergId) => {
-  let book = await Book.findOne({ gutenbergId }).select('_id title author gutenbergId');
-  if (book) return book;
-
-  const metadata = await fetchGutenbergMetadata(gutenbergId);
-  book = await Book.findOneAndUpdate(
+const upsertMetadata = async ({ gutenbergId, title, author }) => {
+  const book = await Book.findOneAndUpdate(
     { gutenbergId },
     {
-      $setOnInsert: {
-        title: metadata.title,
-        author: metadata.author,
-        gutenbergId: metadata.gutenbergId,
-      },
       $set: {
-        title: metadata.title,
-        author: metadata.author,
+        title,
+        author,
+        gutenbergId,
+        lastAccessedAt: new Date(),
       },
     },
     { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -40,28 +32,11 @@ const ensureMetadata = async (gutenbergId) => {
 
 export const getBooks = async (req, res) => {
   try {
-    const page = Number.parseInt(String(req.query?.page ?? '1'), 10);
-    const requestedLimit = Number.parseInt(String(req.query?.limit ?? '24'), 10);
+    const books = await Book.find({})
+      .select('_id title author gutenbergId')
+      .sort({ lastAccessedAt: -1, _id: -1 })
+      .lean();
 
-    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
-    const safeLimit = Number.isFinite(requestedLimit)
-      ? Math.min(50, Math.max(1, requestedLimit))
-      : 24;
-
-    const [books, totalCount] = await Promise.all([
-      Book.find({})
-        .select('title author gutenbergId')
-        .sort({ title: 1, _id: 1 })
-        .skip((safePage - 1) * safeLimit)
-        .limit(safeLimit)
-        .lean(),
-      Book.countDocuments({}),
-    ]);
-
-    res.setHeader('X-Page', String(safePage));
-    res.setHeader('X-Limit', String(safeLimit));
-    res.setHeader('X-Total-Count', String(totalCount));
-    res.setHeader('X-Has-More', String(safePage * safeLimit < totalCount));
     res.json(books);
   } catch (error) {
     console.error('[BOOK] Failed to fetch books list:', error?.message || error);
@@ -93,6 +68,11 @@ export const readBook = async (req, res) => {
     }
 
     const payload = await readGutenbergBookStateless(book.gutenbergId);
+    await upsertMetadata({
+      gutenbergId: payload.gutenbergId,
+      title: payload.title,
+      author: payload.author,
+    });
     res.json(payload);
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
@@ -110,8 +90,12 @@ export const readGutenbergBook = async (req, res) => {
       return;
     }
 
-    await ensureMetadata(gutenbergId);
     const payload = await readGutenbergBookStateless(gutenbergId);
+    await upsertMetadata({
+      gutenbergId: payload.gutenbergId,
+      title: payload.title,
+      author: payload.author,
+    });
     res.json(payload);
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
