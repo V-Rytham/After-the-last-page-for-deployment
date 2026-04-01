@@ -1,5 +1,14 @@
 import { Book } from '../models/Book.js';
-import { parsePositiveIntStrict } from '../utils/gutenbergId.js';
+
+const parsePositiveIntStrict = (value) => {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }
+  if (typeof value !== 'string') return null;
+  if (!value || value.trim() !== value || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+};
 
 const DEFAULT_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-3sd2.onrender.com';
 const LEGACY_QUESTION_ENGINE_URL = 'https://deterministic-question-engine-1.onrender.com';
