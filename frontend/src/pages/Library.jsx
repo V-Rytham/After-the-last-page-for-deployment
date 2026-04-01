@@ -16,11 +16,11 @@ const LibraryPage = () => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_BOOKS);
-  const loadedRef = useRef(false);
   const loadingMoreRef = useRef(false);
+  const hasLoggedLoadRef = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
     const loadBooks = async () => {
       try {
@@ -31,20 +31,18 @@ const LibraryPage = () => {
         console.log('Books loaded:', nextBooks.length);
       } catch (error) {
         console.error('[LIBRARY] Failed to load books:', error);
-        if (!mounted) return;
+        if (!active) return;
         setBooks([]);
         console.log('Books loaded:', 0);
       } finally {
-        if (mounted) setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    if (loadedRef.current) return undefined;
-    loadedRef.current = true;
     loadBooks();
 
     return () => {
-      mounted = false;
+      active = false;
     };
   }, []);
 
