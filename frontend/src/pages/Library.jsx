@@ -16,8 +16,8 @@ const LibraryPage = () => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_BOOKS);
-  const loadedRef = useRef(false);
   const loadingMoreRef = useRef(false);
+  const hasLoggedLoadRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -26,18 +26,25 @@ const LibraryPage = () => {
       try {
         const { data } = await api.get('/books');
         if (!mounted) return;
-        setBooks(Array.isArray(data) ? data : []);
+        const nextBooks = Array.isArray(data) ? data : [];
+        setBooks(nextBooks);
+        if (!hasLoggedLoadRef.current) {
+          console.log('Books loaded:', nextBooks.length);
+          hasLoggedLoadRef.current = true;
+        }
       } catch (error) {
         console.error('[LIBRARY] Failed to load books:', error);
         if (!mounted) return;
         setBooks([]);
+        if (!hasLoggedLoadRef.current) {
+          console.log('Books loaded:', 0);
+          hasLoggedLoadRef.current = true;
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    if (loadedRef.current) return undefined;
-    loadedRef.current = true;
     loadBooks();
 
     return () => {
@@ -53,15 +60,20 @@ const LibraryPage = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const filteredBooks = useMemo(() => {
-    if (!query) return books;
+  const { filteredBooks, visibleBooks } = useMemo(() => {
+    const nextFilteredBooks = !query
+      ? books
+      : books.filter((book) => {
+        const title = String(book?.title || '').toLowerCase();
+        const author = String(book?.author || '').toLowerCase();
+        return title.includes(query) || author.includes(query);
+      });
 
-    return books.filter((book) => {
-      const title = String(book?.title || '').toLowerCase();
-      const author = String(book?.author || '').toLowerCase();
-      return title.includes(query) || author.includes(query);
-    });
-  }, [books, query]);
+    return {
+      filteredBooks: nextFilteredBooks,
+      visibleBooks: nextFilteredBooks.slice(0, visibleCount),
+    };
+  }, [books, query, visibleCount]);
 
   useEffect(() => {
     setVisibleCount(INITIAL_BOOKS);
@@ -91,10 +103,6 @@ const LibraryPage = () => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [filteredBooks.length, loadMore, visibleCount]);
-
-  const visibleBooks = useMemo(() => filteredBooks.slice(0, visibleCount), [filteredBooks, visibleCount]);
-
-  if (!books) return null;
 
   const handleSubmit = (event) => {
     event.preventDefault();
