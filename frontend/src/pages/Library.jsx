@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BookCard from '../components/books/BookCard';
@@ -17,6 +17,7 @@ const LibraryPage = () => {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_BOOKS);
   const loadedRef = useRef(false);
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -66,28 +67,34 @@ const LibraryPage = () => {
     setVisibleCount(INITIAL_BOOKS);
   }, [query, books.length]);
 
+  const loadMore = useCallback(() => {
+    if (loadingMoreRef.current) return;
+
+    loadingMoreRef.current = true;
+    setVisibleCount((current) => {
+      if (current >= filteredBooks.length) return current;
+      return Math.min(current + BOOKS_PAGE_SIZE, filteredBooks.length);
+    });
+
+    requestAnimationFrame(() => {
+      loadingMoreRef.current = false;
+    });
+  }, [filteredBooks.length]);
+
   useEffect(() => {
-    if (visibleCount >= filteredBooks.length) return undefined;
-
-    const loadMore = () => {
-      setVisibleCount((current) => Math.min(current + BOOKS_PAGE_SIZE, filteredBooks.length));
-    };
-
     const handleScroll = () => {
+      if (visibleCount >= filteredBooks.length) return;
       const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500;
       if (nearBottom) loadMore();
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-
-    const timer = setTimeout(loadMore, 250);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [visibleCount, filteredBooks.length]);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [filteredBooks.length, loadMore, visibleCount]);
 
   const visibleBooks = useMemo(() => filteredBooks.slice(0, visibleCount), [filteredBooks, visibleCount]);
+
+  if (!books) return null;
 
   const handleSubmit = (event) => {
     event.preventDefault();
