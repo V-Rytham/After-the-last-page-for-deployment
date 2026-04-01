@@ -20,7 +20,7 @@ const LibraryPage = () => {
   const hasLoggedLoadRef = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
     const loadBooks = async () => {
       try {
@@ -28,27 +28,21 @@ const LibraryPage = () => {
         if (!mounted) return;
         const nextBooks = Array.isArray(data) ? data : [];
         setBooks(nextBooks);
-        if (!hasLoggedLoadRef.current) {
-          console.log('Books loaded:', nextBooks.length);
-          hasLoggedLoadRef.current = true;
-        }
+        console.log('Books loaded:', nextBooks.length);
       } catch (error) {
         console.error('[LIBRARY] Failed to load books:', error);
-        if (!mounted) return;
+        if (!active) return;
         setBooks([]);
-        if (!hasLoggedLoadRef.current) {
-          console.log('Books loaded:', 0);
-          hasLoggedLoadRef.current = true;
-        }
+        console.log('Books loaded:', 0);
       } finally {
-        if (mounted) setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     loadBooks();
 
     return () => {
-      mounted = false;
+      active = false;
     };
   }, []);
 
