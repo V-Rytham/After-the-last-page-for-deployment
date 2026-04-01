@@ -1,44 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import BookCoverArt from '../components/books/BookCoverArt';
+import BookCard from '../components/books/BookCard';
 import api from '../utils/api';
 import './Library.css';
-
-const OPEN_LIBRARY_COVER_BASE = 'https://covers.openlibrary.org/b/id';
-
-const getCoverId = (book) => {
-  const candidates = [book?.coverId, book?.cover_id, book?.cover?.id, book?.metadata?.coverId];
-  const match = candidates.find((value) => value !== null && value !== undefined && String(value).trim() !== '');
-  return match ? String(match).trim() : null;
-};
-
-const getTags = (book) => {
-  const tags = new Set();
-  const normalizedTags = Array.isArray(book?.tags)
-    ? book.tags.map((tag) => String(tag).toLowerCase())
-    : [];
-
-  const isClassic =
-    book?.isClassic === true ||
-    book?.classic === true ||
-    normalizedTags.includes('classic') ||
-    String(book?.era || '').toLowerCase().includes('classic');
-
-  const isGutenberg =
-    Boolean(book?.gutenbergId) ||
-    normalizedTags.includes('gutenberg') ||
-    String(book?.source || '').toLowerCase().includes('gutenberg');
-
-  if (isClassic) tags.add('Classic');
-  if (isGutenberg) tags.add('Gutenberg');
-
-  return [...tags];
-};
 
 const LibraryPage = () => {
   const navigate = useNavigate();
   const [books, setBooks] = useState([]);
+  const [gutenbergId, setGutenbergId] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,9 +24,7 @@ const LibraryPage = () => {
         if (!mounted) return;
         setBooks([]);
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     };
 
@@ -66,83 +34,53 @@ const LibraryPage = () => {
     };
   }, []);
 
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const id = String(gutenbergId || '').trim();
+    if (!id) return;
+    navigate(`/read/gutenberg/${encodeURIComponent(id)}`);
+  };
+
   return (
     <div className="library-page">
       <div className="content-container library-shell">
-        <div className="library-hero">
-          <div className="library-copy">
+        <header className="library-header">
+          <div>
             <h1 className="library-title">Library</h1>
-            <p className="library-subtitle">Your recent Gutenberg reads.</p>
+            <p className="library-subtitle">Browse your books and jump into a Gutenberg read.</p>
           </div>
-        </div>
+          <form className="gutenberg-entry" onSubmit={handleSubmit}>
+            <label htmlFor="gutenberg-id" className="gutenberg-label">Enter Gutenberg ID</label>
+            <input
+              id="gutenberg-id"
+              className="gutenberg-input"
+              value={gutenbergId}
+              onChange={(event) => setGutenbergId(event.target.value)}
+              placeholder="e.g. 1342"
+              inputMode="numeric"
+            />
+            <button type="submit" className="gutenberg-button">Read Book</button>
+          </form>
+        </header>
 
         {loading ? (
           <div className="loading">Loading books…</div>
         ) : books.length === 0 ? (
           <div className="no-results">
-            <BookOpen size={32} />
+            <BookOpen size={28} />
             <p>No books yet. Enter a Gutenberg ID to start reading.</p>
           </div>
         ) : (
           <section className="books-grid" aria-label="Library books">
-            {books.map((book) => {
-              const coverId = getCoverId(book);
-              const artBook = coverId
-                ? { ...book, coverImage: `${OPEN_LIBRARY_COVER_BASE}/${encodeURIComponent(coverId)}-L.jpg` }
-                : book;
-              const tags = getTags(book);
-
-              return (
-                <article
-                  key={book._id || String(book.gutenbergId)}
-                  className="book-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => navigate(`/read/gutenberg/${book.gutenbergId}`)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      navigate(`/read/gutenberg/${book.gutenbergId}`);
-                    }
-                  }}
-                >
-                  <div className="book-cover-wrap">
-                    <BookCoverArt
-                      book={artBook}
-                      alt={`${book.title} cover`}
-                      fallbackClassName="book-cover-fallback"
-                      showPattern
-                    />
-                  </div>
-
-                  <div className="book-info">
-                    <h2 className="book-title">{book.title}</h2>
-                    <p className="book-author">{book.author || 'Unknown author'}</p>
-                  </div>
-
-                  {tags.length > 0 && (
-                    <div className="book-tags" aria-label="Book metadata">
-                      {tags.map((tag) => (
-                        <span key={`${book.gutenbergId}-${tag}`} className="book-tag">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    className="btn-read"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      navigate(`/read/gutenberg/${book.gutenbergId}`);
-                    }}
-                  >
-                    Read this book
-                  </button>
-                </article>
-              );
-            })}
+            {books.map((book) => (
+              <BookCard
+                key={book._id || String(book.gutenbergId)}
+                book={book}
+                to={`/read/gutenberg/${book.gutenbergId}`}
+                actionLabel="Read"
+                actionHref={`/read/gutenberg/${book.gutenbergId}`}
+              />
+            ))}
           </section>
         )}
       </div>
