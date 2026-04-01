@@ -4,7 +4,6 @@ import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3 }
 import { io } from 'socket.io-client';
 import api from '../utils/api';
 import { getStoredToken } from '../utils/auth';
-import { getFallbackBookById } from '../utils/bookFallback';
 import { getApiBaseUrl, getSocketServerUrl } from '../utils/serviceUrls';
 import './MeetingHub.css';
 
@@ -68,9 +67,8 @@ const MeetingHub = () => {
         const { data } = await api.get(`/books/${bookId}`);
         setBook(data);
       } catch (error) {
-        const fallbackBook = getFallbackBookById(bookId);
-        console.error('Fetch error, using local fallback:', error);
-        setBook(fallbackBook);
+        console.error('Fetch error:', error);
+        setBook(null);
       } finally {
         setLoading(false);
       }

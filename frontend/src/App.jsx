@@ -16,6 +16,7 @@ import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import BookQuiz from './pages/BookQuiz';
 import RequestBookPage from './pages/RequestBookPage';
+import ReadEntryPage from './pages/ReadEntryPage';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
@@ -57,6 +58,8 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
           <Route path="/threads" element={<ThreadAccessHub currentUser={currentUser} />} />
           <Route path="/profile" element={<RequireMember currentUser={currentUser}><ProfilePage currentUser={currentUser} onUserUpdate={onUserUpdate} /></RequireMember>} />
           <Route path="/settings" element={<RequireMember currentUser={currentUser}><SettingsPage uiTheme={uiTheme} onThemeChange={onThemeChange} /></RequireMember>} />
+          <Route path="/read" element={<RequireMember currentUser={currentUser}><ReadEntryPage /></RequireMember>} />
+          <Route path="/read/gutenberg/:gutenbergId" element={<RequireMember currentUser={currentUser}><ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} /></RequireMember>} />
           <Route path="/read/:bookId" element={<RequireMember currentUser={currentUser}><ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} /></RequireMember>} />
           <Route path="/quiz/:bookId" element={<RequireMember currentUser={currentUser}><BookQuiz /></RequireMember>} />
           <Route path="/meet/:bookId" element={<RequireMember currentUser={currentUser}><MeetingHub /></RequireMember>} />
@@ -89,8 +92,17 @@ const App = () => {
     // HashRouter should ignore pathname, but stray prefixes (e.g. "/$#/desk") confuse users and break
     // any code that reads `window.location.pathname`. Normalize once at startup.
     try {
-      if (typeof window !== 'undefined' && window.location.hash.startsWith('#/') && window.location.pathname !== '/') {
-        window.history.replaceState(null, '', `/${window.location.hash}`);
+      if (typeof window !== 'undefined') {
+        if (window.location.hash.startsWith('#/') && window.location.pathname !== '/') {
+          window.history.replaceState(null, '', `/${window.location.hash}`);
+          return;
+        }
+
+        if (!window.location.hash && window.location.pathname && window.location.pathname !== '/') {
+          const search = window.location.search || '';
+          const nextHash = `#${window.location.pathname}${search}`;
+          window.history.replaceState(null, '', `/${nextHash}`);
+        }
       }
     } catch {
       // ignore

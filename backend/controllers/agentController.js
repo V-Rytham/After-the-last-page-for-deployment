@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
 import { buildSafeErrorBody, isProd } from '../utils/runtime.js';
-import { parseRouteGutenbergIdStrict } from '../utils/gutenbergId.js';
 
 const trimTrailingSlash = (value) => String(value || '').replace(/\/$/, '');
 
@@ -64,15 +63,14 @@ const isLocalFallbackEnabled = () => {
 };
 
 const parseBookId = (bookId) => {
-  const raw = String(bookId || '');
-  const parsedGutenbergId = parseRouteGutenbergIdStrict(raw);
-  if (parsedGutenbergId != null) {
-    return { gutenbergId: parsedGutenbergId };
+  const raw = String(bookId || '').trim();
+  const gutenbergMatch = raw.match(/^g?(\d+)$/i);
+  if (gutenbergMatch) {
+    return { gutenbergId: Number.parseInt(gutenbergMatch[1], 10) };
   }
 
-  const normalizedObjectId = raw.trim();
-  if (mongoose.Types.ObjectId.isValid(normalizedObjectId)) {
-    return { _id: normalizedObjectId };
+  if (mongoose.Types.ObjectId.isValid(raw)) {
+    return { _id: raw };
   }
 
   return null;

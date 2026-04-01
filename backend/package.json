@@ -6,8 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test",
-    "reset:gutenberg-chapters": "node scripts/resetGutenbergChapters.mjs --all"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
