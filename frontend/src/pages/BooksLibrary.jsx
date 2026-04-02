@@ -26,10 +26,20 @@ const deskDataCache = {
 
 const getBookKey = (book) => String(book?._id || book?.gutenbergId || `${book?.title || 'book'}-${book?.author || 'unknown'}`);
 
-const requestRecommendations = async ({ readBookIds, currentBookId, limitPerShelf }) => {
+const pickRecommenderBaseBook = (allBooks) => {
+  if (!Array.isArray(allBooks) || allBooks.length === 0) return null;
+
+  const withGutenbergId = allBooks.filter((book) => Number.isFinite(Number(book?.gutenbergId)));
+  if (!withGutenbergId.length) return null;
+
+  return getLastAccessedBook(withGutenbergId) || withGutenbergId[0] || null;
+};
+
+const requestRecommendations = async ({ book, readBookIds, currentBookId, limitPerShelf }) => {
   const payloads = [
-    { readBookIds, currentBookId, limitPerShelf },
+    { book, readBookIds, currentBookId, limitPerShelf },
     {
+      book,
       readBookIds,
       currentBookId,
       currentlyReadingBookId: currentBookId,
@@ -89,12 +99,18 @@ const BooksLibrary = () => {
       const { data } = await api.get('/books');
       const allBooks = Array.isArray(data) ? data : [];
       const readBookIds = allBooks.map((book) => String(book?._id || '')).filter(Boolean);
-      const currentBookId = readBookIds[0] || undefined;
+      const recommenderBook = pickRecommenderBaseBook(allBooks);
+      const currentBookId = recommenderBook?._id ? String(recommenderBook._id) : (readBookIds[0] || undefined);
 
       let recBooks = [];
-      if (readBookIds.length) {
+      if (readBookIds.length && recommenderBook?.gutenbergId != null) {
         try {
           const recData = await requestRecommendations({
+            book: {
+              gutenbergId: recommenderBook.gutenbergId,
+              title: recommenderBook.title,
+              author: recommenderBook.author,
+            },
             readBookIds,
             currentBookId,
             limitPerShelf: 8,

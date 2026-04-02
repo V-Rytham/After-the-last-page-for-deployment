@@ -86,6 +86,17 @@ const idsToBooks = async (recommendationIdsByShelf) => {
 
 export const getRecommendations = async (req, res) => {
   try {
+    const requestBook = req.body?.book && typeof req.body.book === 'object' ? req.body.book : null;
+
+    if (!requestBook || !requestBook.gutenbergId) {
+      return res.status(200).json([]);
+    }
+
+    const requestGutenbergId = Number(requestBook.gutenbergId);
+    if (!Number.isFinite(requestGutenbergId)) {
+      return res.status(200).json([]);
+    }
+
     const readBookIds = asStringArray(req.body?.readBookIds);
     const currentBookId = req.body?.currentBookId
       ? String(req.body.currentBookId)
@@ -95,28 +106,33 @@ export const getRecommendations = async (req, res) => {
       ? Math.max(1, Math.min(20, Number(req.body.limitPerShelf)))
       : 10;
 
-    if (readBookIds.length > 120) {
-      return res.status(400).json({ message: 'Too many readBookIds requested at once.' });
-    }
-
-    const readBooks = await Book.find({ _id: { $in: readBookIds.filter((id) => mongoose.Types.ObjectId.isValid(id)) } })
+    const safeReadBookIds = readBookIds.slice(0, 120);
+    const readBooks = await Book.find({ _id: { $in: safeReadBookIds.filter((id) => mongoose.Types.ObjectId.isValid(id)) } })
       .select('_id title author gutenbergId')
       .lean();
 
-    let resolvedFromDb = null;
+    const currentRead = readBooks.find((book) => String(book._id) === currentBookId);
+    const baseBook = {
+      title: requestBook.title || currentRead?.title || '',
+      author: requestBook.author || currentRead?.author || '',
+      gutenbergId: requestGutenbergId,
+      tags: normalizeTags(requestBook.tags || []),
+    };
+
     try {
+      const databaseBaseBook = readBooks.find((book) => Number(book?.gutenbergId) === requestGutenbergId) || currentRead;
       const recommendationsByShelf = await recommendFromDatabase({
-        currentBookId,
-        readBookIds,
+        currentBookId: databaseBaseBook?._id ? String(databaseBaseBook._id) : '',
+        readBookIds: safeReadBookIds,
         limitPerShelf,
       });
 
-      resolvedFromDb = await idsToBooks(recommendationsByShelf || {});
+      const resolvedFromDb = await idsToBooks(recommendationsByShelf || {});
       const flatResolved = Object.values(resolvedFromDb || {}).flat();
 
       if (flatResolved.length > 0) {
         return res.json({
-          currentBookId: currentBookId || null,
+          currentBookId: databaseBaseBook?._id ? String(databaseBaseBook._id) : null,
           recommendations: resolvedFromDb,
           source: 'database',
         });
@@ -132,12 +148,15 @@ export const getRecommendations = async (req, res) => {
       .map((book) => Number(book?.gutenbergId))
       .filter((id) => Number.isFinite(id));
 
-    const currentRead = readBooks.find((book) => String(book._id) === currentBookId) || readBooks[0];
-    const currentBook = normalizedCatalog.find((book) => book.gutenbergId === Number(currentRead?.gutenbergId)) || normalizedCatalog[0];
+    if (!readGutenbergIds.includes(requestGutenbergId)) {
+      readGutenbergIds.push(requestGutenbergId);
+    }
+
+    const catalogCurrentBook = normalizedCatalog.find((book) => book.gutenbergId === requestGutenbergId) || baseBook;
 
     const fallback = buildCatalogRecommendations({
       catalogBooks: normalizedCatalog,
-      currentBook,
+      currentBook: catalogCurrentBook,
       readGutenbergIds,
       limit: Math.min(8, limitPerShelf),
     });
@@ -153,7 +172,7 @@ export const getRecommendations = async (req, res) => {
       source: 'catalog-fallback',
     });
   } catch (error) {
-    console.error('[RECOMMENDER] Failed to generate recommendations:', error?.message || error);
-    return res.status(500).json({ message: 'Server error generating recommendations.' });
+    console.error('[RECOMMENDER ERROR]', error);
+    return res.status(200).json([]);
   }
 };

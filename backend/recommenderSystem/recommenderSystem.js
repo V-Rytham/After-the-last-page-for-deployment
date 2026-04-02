@@ -197,7 +197,7 @@ export const recommendForContext = (books, options = {}) => {
 // Thin wrapper: loads only the fields needed for lightweight, content-based recs.
 export const recommendFromDatabase = async (options = {}) => {
   const books = await Book.find({})
-    .select('title author tags series seriesIndex')
+    .select('_id title author tags series seriesIndex gutenbergId')
     .lean();
 
   return recommendForContext(books, options);

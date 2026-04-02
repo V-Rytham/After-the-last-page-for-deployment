@@ -115,7 +115,7 @@ const LibraryPage = () => {
           <div className="library-header-left">
             <h1 className="library-title">Library</h1>
             <p className="library-subtitle">
-              Your personal reading space. Continue reading or explore books instantly via Gutenberg.
+              Pick up where you left off or instantly access any book using Project Gutenberg.
             </p>
           </div>
 
@@ -131,7 +131,7 @@ const LibraryPage = () => {
               <div className="library-search-controls">
                 <input
                   id="library-search"
-                  className="library-search-input"
+                  className="search-input"
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
                   placeholder="Search books or authors..."
