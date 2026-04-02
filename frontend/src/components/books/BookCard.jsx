@@ -11,6 +11,10 @@ const BookCard = ({
   compact = false,
   actionLabel,
   actionHref,
+  cardRef,
+  tabIndex,
+  onCardKeyDown,
+  onCardFocus,
 }) => {
   const coverUrl = getBestCoverUrl(book);
 
@@ -20,7 +24,13 @@ const BookCard = ({
   const shouldShowImage = Boolean(coverUrl) && !imgError;
 
   return (
-    <article className={`book-card ${compact ? 'book-card--compact' : ''} ${className}`.trim()}>
+    <article
+      ref={cardRef}
+      className={`book-card ${compact ? 'book-card--compact' : ''} ${className}`.trim()}
+      tabIndex={tabIndex}
+      onKeyDown={onCardKeyDown}
+      onFocus={onCardFocus}
+    >
       <div className="card-inner">
         <Link className="book-card__cover-link" to={to} aria-label={`Open ${book?.title || 'book'}`}>
           <div className="book-card__cover-wrap">
@@ -58,6 +68,15 @@ const BookCard = ({
         <div className="book-card__info">
           <h3 className="book-card__title">{book?.title || 'Untitled'}</h3>
           <p className="book-card__author">{book?.author || 'Unknown author'}</p>
+          {Array.isArray(book?.tags) && book.tags.length > 0 && (
+            <div className="book-card__tags" aria-label="Book tags">
+              {book.tags.slice(0, 2).map((tag) => (
+                <span key={`${book?.gutenbergId || book?._id || book?.title}-${tag}`} className="book-card__tag">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {actionLabel && actionHref && (

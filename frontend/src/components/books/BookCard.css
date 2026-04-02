@@ -1,56 +1,48 @@
 .book-card {
-  width: min(100%, 12.5rem);
+  width: min(100%, 13rem);
   justify-self: center;
   display: grid;
   color: var(--text-primary);
 }
 
 .card-inner {
-  position: relative;
   display: grid;
-  gap: 0.45rem;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  background: var(--book-card-overlay);
+  gap: 0.38rem;
+  background: var(--surface-1);
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  padding: 0.55rem;
-  box-shadow: var(--book-card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.45rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
+  min-height: 24.2rem;
 }
 
-.card-inner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--book-card-gradient);
-  pointer-events: none;
-}
-
-.card-inner > * {
-  position: relative;
-  z-index: 1;
+.book-card:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 .book-card__cover-link {
   display: block;
   border-radius: var(--radius-sm);
+  min-height: 72%;
 }
 
 .book-card__cover-wrap {
   position: relative;
   aspect-ratio: 2 / 3;
+  min-height: 17.2rem;
   border-radius: var(--radius-sm);
   overflow: hidden;
   border: 1px solid var(--border-soft);
   background: var(--surface-2);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
 }
 
 .book-card__cover-link:hover .book-card__cover-wrap,
 .book-card__cover-link:focus-visible .book-card__cover-wrap {
-  transform: scale(1.03);
-  box-shadow: var(--shadow-panel);
+  transform: translateY(-1px);
   border-color: var(--border-strong);
 }
 
@@ -67,11 +59,11 @@
 
 .book-card__info {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.12rem;
 }
 
 .book-card__title {
-  font-size: clamp(0.9rem, 1vw, 1.1rem);
+  font-size: clamp(0.9rem, 1vw, 1.02rem);
   line-height: 1.22;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -85,15 +77,29 @@
   line-height: 1.3;
 }
 
+.book-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.book-card__tag {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
 .book-card__action {
   width: fit-content;
   color: var(--btn-text);
   background: var(--btn-bg);
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-sm);
-  padding: 0.2rem 0.55rem;
+  padding: 0.18rem 0.55rem;
   font-size: 0.78rem;
-  transition: background var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast), border-color var(--transition-fast);
 }
 
 .book-card__action:hover,
@@ -139,7 +145,7 @@
   position: relative;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-2) 92%, #9f7a3e 8%), var(--surface-1));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-2) 94%, #9f7a3e 6%), var(--surface-1));
   display: grid;
   place-items: center;
 }
