@@ -116,7 +116,7 @@
     color-mix(in srgb, var(--surface-2) 76%, transparent) 48%
   );
   background-size: 200% 100%;
-  animation: cover-shimmer 1.15s linear infinite;
+  animation: cover-shimmer 320ms linear 1 forwards;
 }
 
 @keyframes cover-shimmer {

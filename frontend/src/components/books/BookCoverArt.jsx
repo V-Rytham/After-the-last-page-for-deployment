@@ -10,12 +10,13 @@ const BookCoverArt = ({
   showPattern = false,
   spineClassName = 'book-cover-spine',
   patternClassName = 'book-cover-pattern',
+  disableImage = false,
 }) => {
   const coverUrl = useMemo(() => getOpenLibraryCoverUrl(book), [book]);
   const [loadedUrl, setLoadedUrl] = useState(null);
   const [failedUrls, setFailedUrls] = useState(() => new Set());
 
-  const showFallback = !coverUrl || failedUrls.has(coverUrl);
+  const showFallback = disableImage || !coverUrl || failedUrls.has(coverUrl);
   const imgLoaded = coverUrl && loadedUrl === coverUrl;
 
   return (

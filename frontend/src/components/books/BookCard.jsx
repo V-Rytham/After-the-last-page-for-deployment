@@ -1,7 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BookCoverArt from './BookCoverArt';
-import { getOpenLibraryCoverUrl } from '../../utils/openLibraryCovers';
 import './BookCard.css';
 
 const BookCard = ({
@@ -12,35 +11,48 @@ const BookCard = ({
   actionLabel,
   actionHref,
 }) => {
-  const coverUrl = useMemo(() => getOpenLibraryCoverUrl(book), [book]);
-  const [loadedUrl, setLoadedUrl] = useState(null);
-  const [failedUrls, setFailedUrls] = useState(() => new Set());
+  const gutenbergId = String(book?.gutenbergId || '').trim();
+  const fallbackTitleKey = String(book?.title || '').trim().toLowerCase().replace(/\s+/g, '-');
 
-  const showFallback = !coverUrl || failedUrls.has(coverUrl);
-  const imgLoaded = coverUrl && loadedUrl === coverUrl;
+  const coverUrl = useMemo(() => {
+    if (gutenbergId) return `https://covers.openlibrary.org/b/olid/${encodeURIComponent(gutenbergId)}-L.jpg`;
+    if (fallbackTitleKey) return `https://covers.openlibrary.org/b/title/${encodeURIComponent(fallbackTitleKey)}-L.jpg`;
+    return null;
+  }, [fallbackTitleKey, gutenbergId]);
+
+  const [imgError, setImgError] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+  const shouldShowImage = Boolean(coverUrl) && !imgError;
 
   return (
     <article className={`book-card ${compact ? 'book-card--compact' : ''} ${className}`.trim()}>
       <div className="card-inner">
         <Link className="book-card__cover-link" to={to} aria-label={`Open ${book?.title || 'book'}`}>
           <div className="book-card__cover-wrap">
-            {!imgLoaded && !showFallback && <div className="book-cover-skeleton" aria-hidden="true" />}
+            {showSkeleton && (
+              <div
+                className="book-cover-skeleton"
+                aria-hidden="true"
+                onAnimationEnd={() => setShowSkeleton(false)}
+              />
+            )}
 
-            {!showFallback ? (
+            {shouldShowImage ? (
               <img
                 src={coverUrl}
                 alt={`${book?.title || 'Book'} cover`}
                 className="book-card__cover-image"
                 loading="lazy"
                 decoding="async"
-                onLoad={() => setLoadedUrl(coverUrl)}
-                onError={() => setFailedUrls((previous) => new Set(previous).add(coverUrl))}
+                onError={() => setImgError(true)}
               />
             ) : (
               <BookCoverArt
                 book={book}
                 fallbackClassName="book-card__cover-fallback"
                 showPattern
+                disableImage
               />
             )}
           </div>

@@ -108,10 +108,14 @@ const LibraryPage = () => {
     <div className="library-page">
       <div className="content-container library-shell">
         <header className="library-header">
-          <h1 className="library-title">Library</h1>
-          <p className="library-subtitle">Browse your books and jump into a Gutenberg read.</p>
+          <div className="library-header-left">
+            <h1 className="library-title">Library</h1>
+            <p className="library-subtitle">
+              Your personal reading space. Continue reading or explore books instantly via Gutenberg.
+            </p>
+          </div>
 
-          <div className="library-toolbar-panel">
+          <div className="library-header-right">
             <label className="library-search" htmlFor="library-search">
               <span className="toolbar-label">Search</span>
               <input
