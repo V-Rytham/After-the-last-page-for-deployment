@@ -39,6 +39,10 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const [loading, setLoading] = useState(true);
   const [contentError, setContentError] = useState(false);
   const [contentErrorMessage, setContentErrorMessage] = useState('Book content not available.');
+  const [isPartialContent, setIsPartialContent] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [estimatedChapters, setEstimatedChapters] = useState(null);
+  const [loadingMoreChapters, setLoadingMoreChapters] = useState(false);
 
   const [fontSize, setFontSize] = useState(1.1875);
   const [fontFamily, setFontFamily] = useState('serif');
@@ -66,6 +70,37 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const isGutenbergRoute = Boolean(gutenbergId);
   const resolvedBookId = book?._id || book?.id || (isGutenbergRoute ? `gutenberg:${gutenbergId}` : bookId);
 
+  const fetchMoreChapters = useCallback(async () => {
+    if (!isGutenbergRoute || nextCursor == null || loadingMoreChapters) return;
+    setLoadingMoreChapters(true);
+    try {
+      const { data } = await api.get(`/books/gutenberg/${gutenbergId}/read`, {
+        params: {
+          cursor: nextCursor,
+          maxChapters: 5,
+        },
+      });
+      const incoming = Array.isArray(data?.chapters) ? data.chapters : [];
+      if (incoming.length > 0) {
+        setChapters((prev) => ([
+          ...prev,
+          ...incoming.map((chapter, index) => ({
+            ...chapter,
+            index: prev.length + index + 1,
+          })),
+        ]));
+      }
+      setIsPartialContent(data?.status === 'partial');
+      setNextCursor(data?.nextCursor ?? null);
+      setEstimatedChapters(Number.isFinite(Number(data?.totalChaptersEstimated)) ? Number(data.totalChaptersEstimated) : null);
+    } catch (error) {
+      console.error('Failed to fetch more chapters:', error);
+      setContentErrorMessage(error?.uiMessage || 'Still loading, please retry.');
+    } finally {
+      setLoadingMoreChapters(false);
+    }
+  }, [gutenbergId, isGutenbergRoute, loadingMoreChapters, nextCursor]);
+
   useEffect(() => {
     const loadBook = async () => {
       setLoading(true);
@@ -73,6 +108,10 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       setContentErrorMessage('Book content not available.');
       setBook(null);
       setChapters([]);
+      setIsPartialContent(false);
+      setNextCursor(null);
+      setEstimatedChapters(null);
+      setLoadingMoreChapters(false);
 
       try {
         if (isGutenbergRoute) {
@@ -89,6 +128,9 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
             gutenbergId: data.gutenbergId,
           });
           setChapters(nextChapters);
+          setIsPartialContent(data?.status === 'partial');
+          setNextCursor(data?.nextCursor ?? null);
+          setEstimatedChapters(Number.isFinite(Number(data?.totalChaptersEstimated)) ? Number(data.totalChaptersEstimated) : null);
           setCurrentChapter(1);
           return;
         }
@@ -106,7 +148,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       } catch (error) {
         console.error('Failed to load book:', error);
         setContentError(true);
-        setContentErrorMessage(isGutenbergRoute ? 'Unable to fetch this book. Check the ID.' : 'Book content not available.');
+        setContentErrorMessage(error?.uiMessage || (isGutenbergRoute ? 'Unable to fetch this book. Check the ID.' : 'Book content not available.'));
       } finally {
         setLoading(false);
       }
@@ -733,6 +775,17 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
           </button>
         </div>
       </div>
+      {isPartialContent && (
+        <div className="text-center p-2">
+          <p>Loading remaining chapters...</p>
+          <p className="text-sm opacity-80">
+            {estimatedChapters ? `Estimated total chapters: ${estimatedChapters}.` : 'Additional chapters are available.'}
+          </p>
+          <button type="button" className="goto-submit" onClick={fetchMoreChapters} disabled={loadingMoreChapters}>
+            {loadingMoreChapters ? 'Loading…' : 'Retry loading remaining chapters'}
+          </button>
+        </div>
+      )}
 
       {activeControlPanel && (
         <div className="settings-backdrop" onClick={() => setActiveControlPanel(null)}>

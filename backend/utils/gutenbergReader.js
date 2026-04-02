@@ -1,8 +1,9 @@
 const GUTENBERG_HOST = 'https://www.gutenberg.org';
 const GUTENDEX_HOST = 'https://gutendex.com';
 
-const DEFAULT_TIMEOUT_MS = 12000;
-const MAX_TEXT_BYTES = 3_000_000;
+const DEFAULT_TIMEOUT_MS = 70_000;
+const DEFAULT_PROCESSING_BUDGET_MS = 40_000;
+const DEFAULT_INITIAL_CHAPTERS = 5;
 
 export const parseStrictGutenbergId = (value) => {
   const raw = String(value || '').trim();
@@ -43,7 +44,7 @@ export const fetchGutenbergMetadata = async (gutenbergId, { timeoutMs = DEFAULT_
   return { title, author, gutenbergId };
 };
 
-export const fetchGutenbergText = async (gutenbergId, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = MAX_TEXT_BYTES } = {}) => {
+export const fetchGutenbergText = async (gutenbergId, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) => {
   const response = await fetchWithTimeout(
     `${GUTENBERG_HOST}/ebooks/${encodeURIComponent(String(gutenbergId))}.txt.utf-8`,
     { timeoutMs },
@@ -55,21 +56,7 @@ export const fetchGutenbergText = async (gutenbergId, { timeoutMs = DEFAULT_TIME
     throw error;
   }
 
-  const contentLength = Number(response.headers.get('content-length') || 0);
-  if (contentLength > maxBytes) {
-    const error = new Error('Book text is too large to process safely.');
-    error.statusCode = 413;
-    throw error;
-  }
-
-  const text = await response.text();
-  if (Buffer.byteLength(text, 'utf8') > maxBytes) {
-    const error = new Error('Book text is too large to process safely.');
-    error.statusCode = 413;
-    throw error;
-  }
-
-  return text;
+  return response.text();
 };
 
 export const stripGutenbergBoilerplate = (rawText) => {
@@ -150,10 +137,155 @@ export const convertTextToChapters = (cleanText) => {
   return chapters.filter((chapter) => chapter.html);
 };
 
+const normalizeCursor = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  const int = Math.floor(num);
+  return int > 0 ? int : 0;
+};
+
+const headingRegex = /^chapter\s+(\d+|[ivxlcdm]+)\b(?:[\s.:\-–—]+(.*))?$/i;
+const startMarkerRegex = /^\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK/i;
+const endMarkerRegex = /^\*\*\*\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK/i;
+
+const buildChapterTitle = (match, fallbackIndex) => {
+  const n = String(match?.[1] || fallbackIndex);
+  const suffix = String(match?.[2] || '').trim();
+  return suffix ? `Chapter ${n}: ${suffix}` : `Chapter ${n}`;
+};
+
+export const processGutenbergTextProgressive = (
+  rawText,
+  {
+    cursor = 0,
+    maxChapters = null,
+    processingBudgetMs = DEFAULT_PROCESSING_BUDGET_MS,
+  } = {},
+) => {
+  const lines = String(rawText || '').replaceAll('\r\n', '\n').split('\n');
+  const startLine = normalizeCursor(cursor);
+  const startedAt = Date.now();
+  const chapterLimit = Number.isFinite(Number(maxChapters)) ? Math.max(1, Math.floor(Number(maxChapters))) : null;
+
+  let inBody = false;
+  let currentTitle = null;
+  let buffer = [];
+  let processedChapters = 0;
+  let processedLineCount = 0;
+  let foundAnyChapterHeading = false;
+  const chapters = [];
+  let completed = true;
+  let nextCursor = lines.length;
+
+  const flush = () => {
+    if (!currentTitle) {
+      buffer = [];
+      return;
+    }
+
+    const text = buffer.join('\n').trim();
+    buffer = [];
+    if (!text) {
+      currentTitle = null;
+      return;
+    }
+
+    processedChapters += 1;
+    chapters.push({
+      index: processedChapters,
+      title: currentTitle,
+      html: toHtmlParagraphs(text),
+    });
+    currentTitle = null;
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!inBody && startMarkerRegex.test(trimmed)) {
+      inBody = true;
+      continue;
+    }
+    if (endMarkerRegex.test(trimmed)) {
+      completed = true;
+      nextCursor = index + 1;
+      break;
+    }
+    if (!inBody && (startLine > 0 || index > 0)) {
+      // If we did not detect boilerplate markers, treat all lines as body.
+      inBody = true;
+    }
+    if (!inBody || index < startLine) {
+      continue;
+    }
+
+    const headingMatch = trimmed.match(headingRegex);
+    if (headingMatch) {
+      foundAnyChapterHeading = true;
+      flush();
+      currentTitle = buildChapterTitle(headingMatch, processedChapters + 1);
+      continue;
+    }
+
+    if (currentTitle) {
+      buffer.push(line);
+    }
+
+    processedLineCount += 1;
+    const limitReached = chapterLimit != null && chapters.length >= chapterLimit;
+    const budgetReached = (Date.now() - startedAt) >= processingBudgetMs;
+    if ((limitReached || budgetReached) && !currentTitle) {
+      completed = false;
+      nextCursor = index + 1;
+      break;
+    }
+  }
+
+  flush();
+
+  if (!chapters.length && startLine === 0 && !foundAnyChapterHeading) {
+    const fallbackHtml = toHtmlParagraphs(
+      lines
+        .slice(startLine, nextCursor >= startLine ? nextCursor : undefined)
+        .join('\n')
+        .trim(),
+    );
+    if (fallbackHtml) {
+      chapters.push({ index: 1, title: 'Chapter 1', html: fallbackHtml });
+      completed = true;
+      nextCursor = lines.length;
+    }
+  }
+
+  const averageLinesPerChapter = chapters.length > 0 ? Math.max(1, Math.round(processedLineCount / chapters.length)) : 600;
+  const remainingLines = Math.max(0, lines.length - nextCursor);
+  const remainingEstimate = Math.ceil(remainingLines / averageLinesPerChapter);
+  const totalChaptersEstimated = chapters.length + Math.max(0, remainingEstimate);
+
+  return {
+    status: completed ? 'complete' : 'partial',
+    chapters: chapters.filter((chapter) => chapter?.html),
+    nextCursor: completed ? null : nextCursor,
+    totalChaptersEstimated,
+  };
+};
+
 export const readGutenbergBookStateless = async (gutenbergId, options = {}) => {
+  const {
+    cursor = 0,
+    maxChapters = null,
+    processingBudgetMs = DEFAULT_PROCESSING_BUDGET_MS,
+    initialChapterCount = DEFAULT_INITIAL_CHAPTERS,
+  } = options;
   const metadata = await fetchGutenbergMetadata(gutenbergId, options);
   const rawText = await fetchGutenbergText(gutenbergId, options);
-  const cleanText = stripGutenbergBoilerplate(rawText);
-  const chapters = convertTextToChapters(cleanText);
-  return { ...metadata, chapters };
+  const parsedCursor = normalizeCursor(cursor);
+  const effectiveChapterLimit = parsedCursor === 0 ? initialChapterCount : maxChapters;
+  const processed = processGutenbergTextProgressive(rawText, {
+    cursor: parsedCursor,
+    maxChapters: effectiveChapterLimit,
+    processingBudgetMs,
+  });
+  return { ...metadata, ...processed };
 };

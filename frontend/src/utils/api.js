@@ -5,7 +5,7 @@ const baseURL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,15 +28,20 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error?.response?.data?.message
-      || (error?.code === 'ECONNABORTED' ? 'Request timed out. Please try again.' : null)
+    const statusCode = Number(error?.response?.status || 0) || null;
+    const isTimeout = error?.code === 'ECONNABORTED' || /timeout/i.test(String(error?.message || ''));
+    const mappedMessage = statusCode === 504
+      ? 'This book is large and taking longer than expected.'
+      : (isTimeout ? 'Still loading, please retry.' : null);
+    const message = mappedMessage
+      || error?.response?.data?.message
       || error?.message
       || 'Request failed.';
 
     return Promise.reject({
       ...error,
       uiMessage: message,
-      statusCode: Number(error?.response?.status || 0) || null,
+      statusCode,
     });
   },
 );
