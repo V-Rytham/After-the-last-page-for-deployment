@@ -97,12 +97,15 @@ export const readBook = async (req, res) => {
     }
 
     const payload = await readGutenbergBookStateless(book.gutenbergId, buildReaderOptions(req));
-    await upsertMetadata({
+    const persisted = await upsertMetadata({
       gutenbergId: payload.gutenbergId,
       title: payload.title,
       author: payload.author,
     });
-    res.json(payload);
+    res.json({
+      ...payload,
+      bookId: persisted?._id ? String(persisted._id) : String(book._id),
+    });
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({
@@ -157,12 +160,15 @@ export const readGutenbergBook = async (req, res) => {
     }
 
     const payload = await readGutenbergBookStateless(gutenbergId, buildReaderOptions(req));
-    await upsertMetadata({
+    const persisted = await upsertMetadata({
       gutenbergId: payload.gutenbergId,
       title: payload.title,
       author: payload.author,
     });
-    res.json(payload);
+    res.json({
+      ...payload,
+      bookId: persisted?._id ? String(persisted._id) : null,
+    });
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({

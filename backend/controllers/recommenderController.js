@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
 import { gutenbergCatalog } from '../seed/gutenbergCatalog.js';
+import { recommendFromDatabase } from '../recommenderSystem/recommenderSystem.js';
 
 const asStringArray = (value) => {
   if (!Array.isArray(value)) {
@@ -18,6 +19,13 @@ const normalizeCatalogBook = (book) => ({
   gutenbergId: Number(book.gutenbergId),
   title: String(book.title || '').trim(),
   author: String(book.author || '').trim(),
+});
+
+const emptyShelves = () => ({
+  based_on_book: [],
+  same_author: [],
+  series_continuation: [],
+  genre_based: [],
 });
 
 const normalizeTitleTokens = (title) => String(title || '')
@@ -89,33 +97,68 @@ export const getRecommendations = async (req, res) => {
       readGutenbergIds.push(baseBook.gutenbergId);
     }
 
-    try {
-      const normalizedCatalog = (Array.isArray(gutenbergCatalog) ? gutenbergCatalog : [])
-        .filter((book) => book && Number.isFinite(Number(book.gutenbergId)))
-        .map(normalizeCatalogBook);
+    const normalizedCatalog = (Array.isArray(gutenbergCatalog) ? gutenbergCatalog : [])
+      .filter((book) => book && Number.isFinite(Number(book.gutenbergId)))
+      .map(normalizeCatalogBook);
 
-      const fallback = buildRecommendations({
-        catalogBooks: normalizedCatalog,
-        baseBook,
-        readGutenbergIds,
-        limit: limitPerShelf,
+    const fallback = buildRecommendations({
+      catalogBooks: normalizedCatalog,
+      baseBook,
+      readGutenbergIds,
+      limit: limitPerShelf,
+    });
+
+    let recommendations = emptyShelves();
+    let source = 'catalog-title-author';
+
+    if (readBooks.length > 0) {
+      const currentBookId = String(req.body?.currentBookId || readBooks[0]?._id || '').trim() || undefined;
+      const dbRecommendations = await recommendFromDatabase({
+        currentBookId,
+        readBookIds: readBooks.map((book) => String(book?._id || '')).filter(Boolean),
+        limitPerShelf,
       });
 
-      return res.json({
-        currentBookId: req.body?.currentBookId || null,
-        recommendations: {
-          based_on_book: fallback,
-          same_author: [],
-          series_continuation: [],
-          genre_based: [],
-        },
-        source: 'catalog-title-author',
-      });
-    } catch {
-      return res.status(200).json([]);
+      const candidateIds = [
+        ...(dbRecommendations?.based_on_book || []),
+        ...(dbRecommendations?.same_author || []),
+        ...(dbRecommendations?.series_continuation || []),
+        ...(dbRecommendations?.genre_based || []),
+      ].map((id) => String(id)).filter(Boolean);
+
+      const dbBooks = candidateIds.length
+        ? await Book.find({ _id: { $in: candidateIds } }).select('_id title author gutenbergId').lean()
+        : [];
+      const idLookup = new Map(dbBooks.map((book) => [String(book._id), book]));
+      const mapIdsToBooks = (ids = []) => ids
+        .map((id) => idLookup.get(String(id)))
+        .filter(Boolean);
+
+      recommendations = {
+        based_on_book: mapIdsToBooks(dbRecommendations?.based_on_book),
+        same_author: mapIdsToBooks(dbRecommendations?.same_author),
+        series_continuation: mapIdsToBooks(dbRecommendations?.series_continuation),
+        genre_based: mapIdsToBooks(dbRecommendations?.genre_based),
+      };
+      source = 'database-content';
     }
+
+    if (!recommendations.based_on_book.length) {
+      recommendations.based_on_book = fallback;
+      source = 'catalog-title-author';
+    }
+
+    return res.json({
+      currentBookId: req.body?.currentBookId || null,
+      recommendations,
+      source,
+    });
   } catch (error) {
     console.error('[RECOMMENDER ERROR]', error);
-    return res.status(200).json([]);
+    return res.status(200).json({
+      currentBookId: req.body?.currentBookId || null,
+      recommendations: emptyShelves(),
+      source: 'error-fallback',
+    });
   }
 };

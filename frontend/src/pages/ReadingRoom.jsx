@@ -122,7 +122,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
           }
 
           setBook({
-            _id: null,
+            _id: data?.bookId || null,
             title: data.title,
             author: data.author,
             gutenbergId: data.gutenbergId,
