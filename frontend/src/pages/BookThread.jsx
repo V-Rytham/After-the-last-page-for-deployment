@@ -288,16 +288,16 @@ export default function BookThread() {
   }, [location.state]);
 
   useEffect(() => {
-    const hashThreadId = location.hash.replace('#', '');
-    if (!hashThreadId) {
+    const selectedFromQuery = new URLSearchParams(location.search).get('thread');
+    if (!selectedFromQuery) {
       return;
     }
 
-    const matchingThread = threads.find((thread) => thread._id === hashThreadId);
+    const matchingThread = threads.find((thread) => thread._id === selectedFromQuery);
     if (matchingThread) {
-      setSelectedThreadId(hashThreadId);
+      setSelectedThreadId(selectedFromQuery);
     }
-  }, [location.hash, threads]);
+  }, [location.search, threads]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread._id === selectedThreadId) || null,
@@ -312,11 +312,19 @@ export default function BookThread() {
     setThreads((prev) => prev.map((thread) => (thread._id === updatedThread._id ? updatedThread : thread)));
   };
 
-  const updateHash = (threadId) => {
-    const baseHash = `#${location.pathname}${location.search || ''}`;
-    const nextHash = threadId ? `${baseHash}#${threadId}` : baseHash;
-    // Ensure the URL never accumulates stray pathname prefixes (e.g. "/$#/desk").
-    window.history.replaceState(null, '', `/${nextHash}`);
+  const updateThreadQuery = (threadId) => {
+    const params = new URLSearchParams(location.search || '');
+    if (threadId) {
+      params.set('thread', threadId);
+    } else {
+      params.delete('thread');
+    }
+
+    const nextSearch = params.toString();
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch ? `?${nextSearch}` : '',
+    }, { replace: true });
   };
 
   const handleOpenThread = (threadId) => {
@@ -326,7 +334,7 @@ export default function BookThread() {
     setCollapsedBranches({});
     setFeedback('');
     setError('');
-    updateHash(threadId);
+    updateThreadQuery(threadId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -336,7 +344,7 @@ export default function BookThread() {
     setCollapsedBranches({});
     setFeedback('');
     setError('');
-    updateHash('');
+    updateThreadQuery('');
   };
 
   const handleThreadFieldChange = (event) => {
@@ -374,7 +382,7 @@ export default function BookThread() {
       setShowComposer(false);
       setSelectedThreadId(data._id);
       setFeedback('Your discussion note has been placed into the room.');
-      updateHash(data._id);
+      updateThreadQuery(data._id);
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to publish this discussion right now.');
     } finally {
@@ -430,7 +438,7 @@ export default function BookThread() {
   };
 
   const handleShareThread = async (threadId) => {
-    const shareUrl = `${window.location.origin}/thread/${bookId}#${threadId}`;
+    const shareUrl = `${window.location.origin}/#/thread/${bookId}?thread=${threadId}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
