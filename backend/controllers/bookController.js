@@ -5,6 +5,34 @@ import {
   readGutenbergBookStateless,
 } from '../utils/gutenbergReader.js';
 
+const BACKEND_TIMEOUT_MS = 70_000;
+
+const parseOptionalPositiveInt = (value, fallback = null) => {
+  if (value == null || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const normalized = Math.floor(parsed);
+  return normalized >= 0 ? normalized : fallback;
+};
+
+const buildReaderOptions = (req) => {
+  const cursor = parseOptionalPositiveInt(req.query?.cursor, 0);
+  const maxChapters = parseOptionalPositiveInt(req.query?.maxChapters, null);
+  const processingBudgetMs = parseOptionalPositiveInt(req.query?.processingBudgetMs, 40_000);
+  return {
+    cursor,
+    maxChapters,
+    processingBudgetMs,
+    timeoutMs: BACKEND_TIMEOUT_MS,
+  };
+};
+
+const mapReadErrorMessage = (statusCode) => {
+  if (statusCode === 404) return 'Unable to fetch this book. Check the ID.';
+  if (statusCode === 504) return 'This book is large and taking longer than expected.';
+  return 'Unable to fetch this book right now. Please retry.';
+};
+
 const fetchBookByObjectId = async (routeId, projection = null) => {
   if (!mongoose.Types.ObjectId.isValid(routeId)) {
     return null;
@@ -67,7 +95,7 @@ export const readBook = async (req, res) => {
       return;
     }
 
-    const payload = await readGutenbergBookStateless(book.gutenbergId);
+    const payload = await readGutenbergBookStateless(book.gutenbergId, buildReaderOptions(req));
     await upsertMetadata({
       gutenbergId: payload.gutenbergId,
       title: payload.title,
@@ -77,7 +105,7 @@ export const readBook = async (req, res) => {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({
-      message: statusCode === 404 ? 'Book content not found on Gutenberg.' : 'Unable to fetch this book. Check the ID.',
+      message: mapReadErrorMessage(statusCode),
     });
   }
 };
@@ -90,7 +118,7 @@ export const readGutenbergBook = async (req, res) => {
       return;
     }
 
-    const payload = await readGutenbergBookStateless(gutenbergId);
+    const payload = await readGutenbergBookStateless(gutenbergId, buildReaderOptions(req));
     await upsertMetadata({
       gutenbergId: payload.gutenbergId,
       title: payload.title,
@@ -100,7 +128,7 @@ export const readGutenbergBook = async (req, res) => {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({
-      message: statusCode === 404 ? 'Unable to fetch this book. Check the ID.' : 'Unable to fetch this book. Check the ID.',
+      message: mapReadErrorMessage(statusCode),
     });
   }
 };
