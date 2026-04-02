@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import BookCard from '../components/books/BookCard';
+import { getBestCoverUrl } from '../utils/openLibraryCovers';
 import api from '../utils/api';
 import './BooksLibrary.css';
 
@@ -28,11 +29,7 @@ const getBookKey = (book) => String(book?._id || book?.gutenbergId || `${book?.t
 
 const pickRecommenderBaseBook = (allBooks) => {
   if (!Array.isArray(allBooks) || allBooks.length === 0) return null;
-
-  const withGutenbergId = allBooks.filter((book) => Number.isFinite(Number(book?.gutenbergId)));
-  if (!withGutenbergId.length) return null;
-
-  return getLastAccessedBook(withGutenbergId) || withGutenbergId[0] || null;
+  return getLastAccessedBook(allBooks) || allBooks[0] || null;
 };
 
 const requestRecommendations = async ({ book, readBookIds, currentBookId, limitPerShelf }) => {
@@ -74,11 +71,24 @@ const getLastAccessedBook = (allBooks) => {
   })[0] || null;
 };
 
-const scrollByPage = (ref, direction) => {
-  const el = ref.current;
-  if (!el) return;
-  const amount = Math.max(el.clientWidth * 0.85, 240);
-  el.scrollBy({ left: direction * amount, behavior: 'smooth' });
+const ShelfCover = ({ book }) => {
+  const coverUrl = getBestCoverUrl(book);
+
+  return (
+    <Link className="shelf-item" to={`/read/gutenberg/${book.gutenbergId}`} aria-label={`Open ${book?.title || 'book'}`}>
+      <div className="shelf-cover-wrap">
+        {coverUrl ? (
+          <img src={coverUrl} alt={`${book?.title || 'Book'} cover`} className="shelf-cover-image" loading="lazy" decoding="async" />
+        ) : (
+          <div className="shelf-cover-fallback" aria-hidden="true">
+            <span>{(book?.title || '?').slice(0, 1).toUpperCase()}</span>
+          </div>
+        )}
+      </div>
+      <h3>{book?.title || 'Untitled'}</h3>
+      <p>{book?.author || 'Unknown author'}</p>
+    </Link>
+  );
 };
 
 const BooksLibrary = () => {
@@ -87,8 +97,6 @@ const BooksLibrary = () => {
   const [loading, setLoading] = useState(true);
   const loadedRef = useRef(false);
   const cache = useRef(null);
-  const shelfRowRef = useRef(null);
-  const recommendationRowRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -103,7 +111,7 @@ const BooksLibrary = () => {
       const currentBookId = recommenderBook?._id ? String(recommenderBook._id) : (readBookIds[0] || undefined);
 
       let recBooks = [];
-      if (readBookIds.length && recommenderBook?.gutenbergId != null) {
+      if (readBookIds.length && recommenderBook) {
         try {
           const recData = await requestRecommendations({
             book: {
@@ -113,7 +121,7 @@ const BooksLibrary = () => {
             },
             readBookIds,
             currentBookId,
-            limitPerShelf: 8,
+            limitPerShelf: 12,
           });
 
           const deduped = [];
@@ -125,7 +133,7 @@ const BooksLibrary = () => {
               deduped.push(book);
             }
           });
-          recBooks = deduped.slice(0, 8);
+          recBooks = deduped.slice(0, 12);
         } catch (recommendationError) {
           if (recommendationError?.statusCode === 404) {
             console.warn('[DESK] Recommender endpoint unavailable (404). Continuing without recommendations.');
@@ -176,14 +184,22 @@ const BooksLibrary = () => {
   }, []);
 
   const continueBook = useMemo(() => getLastAccessedBook(books), [books]);
-  const shelfBooks = useMemo(() => books.slice(0, 8), [books]);
+  const shelfBooks = useMemo(() => books.slice(0, 12), [books]);
 
   return (
     <div className="desk-page">
       <div className="content-container desk-shell">
         <header className="desk-header">
-          <h1>Your Desk</h1>
-          <p>Your active reading space, shelf, and recommendations.</p>
+          <div>
+            <h1>Your Desk</h1>
+            <p>Your active reading space, shelf, and recommendations.</p>
+          </div>
+          <div className="desk-header-actions">
+            <Link className="btn-resume btn-resume--ghost" to="/library">Browse library</Link>
+            {continueBook?.gutenbergId && (
+              <Link className="btn-resume" to={`/read/gutenberg/${continueBook.gutenbergId}`}>Continue reading</Link>
+            )}
+          </div>
         </header>
 
         <section className="desk-section" aria-label="Continue reading">
@@ -201,8 +217,11 @@ const BooksLibrary = () => {
                 <h3>{continueBook.title}</h3>
                 <p>{continueBook.author || 'Unknown author'}</p>
                 <span className="continue-progress">Progress: In progress</span>
+                <div className="continue-actions">
+                  <Link className="btn-resume" to={`/read/gutenberg/${continueBook.gutenbergId}`}>Resume book</Link>
+                  <Link className="btn-resume btn-resume--ghost" to="/library">Find another</Link>
+                </div>
               </div>
-              <Link className="btn-resume" to={`/read/gutenberg/${continueBook.gutenbergId}`}>Resume</Link>
             </article>
           ) : (
             <div className="no-results">
@@ -213,52 +232,36 @@ const BooksLibrary = () => {
         </section>
 
         <section className="desk-section" aria-label="Your shelf">
-          <div className="section-heading section-heading--with-controls">
+          <div className="section-heading">
             <h2>Your Shelf</h2>
-            <div className="row-controls" aria-label="Shelf carousel controls">
-              <button type="button" className="row-control-btn" onClick={() => scrollByPage(shelfRowRef, -1)} aria-label="Scroll shelf left">
-                <ChevronLeft size={16} />
-              </button>
-              <button type="button" className="row-control-btn" onClick={() => scrollByPage(shelfRowRef, 1)} aria-label="Scroll shelf right">
-                <ChevronRight size={16} />
-              </button>
-            </div>
           </div>
 
           {shelfBooks.length === 0 ? (
             <div className="no-results"><p>Your shelf is empty.</p></div>
           ) : (
-            <div className="books-carousel" ref={shelfRowRef}>
+            <div className="shelf-grid">
               {shelfBooks.map((book) => (
-                <BookCard key={getBookKey(book)} book={book} to={`/read/gutenberg/${book.gutenbergId}`} compact className="desk-carousel-card" />
+                <ShelfCover key={getBookKey(book)} book={book} />
               ))}
             </div>
           )}
         </section>
 
         <section className="desk-section" aria-label="Recommendations">
-          <div className="section-heading section-heading--with-controls">
+          <div className="section-heading">
             <h2>Recommendations</h2>
-            <div className="row-controls" aria-label="Recommendations carousel controls">
-              <button type="button" className="row-control-btn" onClick={() => scrollByPage(recommendationRowRef, -1)} aria-label="Scroll recommendations left">
-                <ChevronLeft size={16} />
-              </button>
-              <button type="button" className="row-control-btn" onClick={() => scrollByPage(recommendationRowRef, 1)} aria-label="Scroll recommendations right">
-                <ChevronRight size={16} />
-              </button>
-            </div>
           </div>
           {recommendations.length === 0 ? (
             <div className="no-results"><p>Discover more books as you read.</p></div>
           ) : (
-            <div className="books-carousel" ref={recommendationRowRef}>
+            <div className="books-grid">
               {recommendations.map((book) => (
                 <BookCard
                   key={getBookKey(book)}
                   book={book}
                   to={book.gutenbergId ? `/read/gutenberg/${book.gutenbergId}` : '/library'}
                   compact
-                  className="desk-carousel-card"
+                  className="desk-grid-card"
                 />
               ))}
             </div>
