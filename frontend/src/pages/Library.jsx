@@ -17,7 +17,6 @@ const LibraryPage = () => {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_BOOKS);
   const loadingMoreRef = useRef(false);
-  const hasLoggedLoadRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -25,7 +24,7 @@ const LibraryPage = () => {
     const loadBooks = async () => {
       try {
         const { data } = await api.get('/books');
-        if (!mounted) return;
+        if (!active) return;
         const nextBooks = Array.isArray(data) ? data : [];
         setBooks(nextBooks);
         console.log('Books loaded:', nextBooks.length);
