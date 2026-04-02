@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { buildSafeErrorBody } from '../utils/runtime.js';
 import { checkMeetAccess } from '../services/accessService.js';
 
+const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
+
 export const createMatchmakingController = (sessionManager) => {
   if (!sessionManager) {
     throw new Error('sessionManager is required');
@@ -20,12 +22,17 @@ export const createMatchmakingController = (sessionManager) => {
         return res.status(400).json({ message: 'Valid bookId is required.' });
       }
 
+      const normalizedPrefType = String(prefType || 'text').trim().toLowerCase();
+      if (!MATCH_PREF_TYPES.has(normalizedPrefType)) {
+        return res.status(400).json({ message: 'Invalid prefType. Use text, voice, or video.' });
+      }
+
       const access = await checkMeetAccess({ userId, bookId });
       if (!access?.access) {
         return res.status(403).json({ message: 'Access is locked for this book.' });
       }
 
-      const result = await sessionManager.joinMatchmaking({ userId, bookId, prefType });
+      const result = await sessionManager.joinMatchmaking({ userId, bookId, prefType: normalizedPrefType });
       return res.json({ ...result, session: sessionManager.getSession(userId) });
     } catch (error) {
       const status = error.statusCode || 500;
@@ -49,4 +56,3 @@ export const createMatchmakingController = (sessionManager) => {
 
   return { join, leave };
 };
-

@@ -2,6 +2,7 @@ import { SessionStore } from './sessionStore.js';
 import { SESSION_STATES } from '../utils/sessionStates.js';
 
 const normalizeId = (value) => String(value || '').trim();
+const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
 
 const buildRoomId = () => `room_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -112,9 +113,16 @@ export class RealtimeSessionManager {
   async joinMatchmaking({ userId, bookId, prefType }) {
     const normalizedUserId = normalizeId(userId);
     const normalizedBookId = normalizeId(bookId);
-    const normalizedPrefType = normalizeId(prefType) || 'text';
+    const requestedPrefType = normalizeId(prefType).toLowerCase();
+    const normalizedPrefType = requestedPrefType || 'text';
     if (!normalizedUserId || !normalizedBookId) {
       const error = new Error('userId and bookId are required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!MATCH_PREF_TYPES.has(normalizedPrefType)) {
+      const error = new Error('Invalid prefType. Supported values are text, voice, or video.');
       error.statusCode = 400;
       throw error;
     }
@@ -318,4 +326,3 @@ export class RealtimeSessionManager {
     return { ended: true };
   }
 }
-

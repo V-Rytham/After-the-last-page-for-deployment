@@ -43,6 +43,7 @@ export const requestMeetFallback = async (req, res) => {
 export const checkAccessBatch = async (req, res) => {
   try {
     const bookIds = Array.isArray(req.body?.bookIds) ? req.body.bookIds : [];
+    const context = String(req.body?.context || '').trim().toLowerCase();
     if (!bookIds.length) {
       return res.status(400).json({ message: 'bookIds must be a non-empty array.' });
     }
@@ -56,14 +57,30 @@ export const checkAccessBatch = async (req, res) => {
       return res.status(400).json({ message: 'One or more bookIds are invalid.' });
     }
 
-    const records = await UserProgress.find({
-      userId: req.user?._id,
-      bookId: { $in: normalized },
-      quizAttempted: true,
-      quizPassed: true,
-    }).select('bookId');
+    let allowedBookIds = [];
 
-    const allowedBookIds = records.map((rec) => String(rec.bookId));
+    if (context === 'meet') {
+      const checks = await Promise.allSettled(
+        normalized.map(async (bookId) => {
+          const result = await checkMeetAccess({ userId: req.user?._id, bookId });
+          return result?.access ? bookId : null;
+        }),
+      );
+
+      allowedBookIds = checks
+        .map((entry) => (entry.status === 'fulfilled' ? entry.value : null))
+        .filter(Boolean);
+    } else {
+      const records = await UserProgress.find({
+        userId: req.user?._id,
+        bookId: { $in: normalized },
+        quizAttempted: true,
+        quizPassed: true,
+      }).select('bookId');
+
+      allowedBookIds = records.map((rec) => String(rec.bookId));
+    }
+
     return res.json({ allowedBookIds });
   } catch (error) {
     return res.status(500).json(buildSafeErrorBody('Failed to check access.', error));
