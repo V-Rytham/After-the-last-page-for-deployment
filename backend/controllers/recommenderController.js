@@ -103,23 +103,31 @@ export const getRecommendations = async (req, res) => {
       .select('_id title author gutenbergId')
       .lean();
 
-    const recommendationsByShelf = await recommendFromDatabase({
-      currentBookId,
-      readBookIds,
-      limitPerShelf,
-    });
-
-    const resolvedFromDb = await idsToBooks(recommendationsByShelf);
-    const flatResolved = Object.values(resolvedFromDb).flat();
-
-    if (flatResolved.length > 0) {
-      return res.json({
-        currentBookId: currentBookId || null,
-        recommendations: resolvedFromDb,
+    let resolvedFromDb = null;
+    try {
+      const recommendationsByShelf = await recommendFromDatabase({
+        currentBookId,
+        readBookIds,
+        limitPerShelf,
       });
+
+      resolvedFromDb = await idsToBooks(recommendationsByShelf || {});
+      const flatResolved = Object.values(resolvedFromDb || {}).flat();
+
+      if (flatResolved.length > 0) {
+        return res.json({
+          currentBookId: currentBookId || null,
+          recommendations: resolvedFromDb,
+          source: 'database',
+        });
+      }
+    } catch (databaseError) {
+      console.warn('[RECOMMENDER] Database recommendation path failed, using catalog fallback:', databaseError?.message || databaseError);
     }
 
-    const normalizedCatalog = gutenbergCatalog.map(normalizeCatalogBook);
+    const normalizedCatalog = (Array.isArray(gutenbergCatalog) ? gutenbergCatalog : [])
+      .filter((book) => book && Number.isFinite(Number(book.gutenbergId)))
+      .map(normalizeCatalogBook);
     const readGutenbergIds = readBooks
       .map((book) => Number(book?.gutenbergId))
       .filter((id) => Number.isFinite(id));

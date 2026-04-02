@@ -26,6 +26,34 @@ const deskDataCache = {
 
 const getBookKey = (book) => String(book?._id || book?.gutenbergId || `${book?.title || 'book'}-${book?.author || 'unknown'}`);
 
+const requestRecommendations = async ({ readBookIds, currentBookId, limitPerShelf }) => {
+  const payloads = [
+    { readBookIds, currentBookId, limitPerShelf },
+    {
+      readBookIds,
+      currentBookId,
+      currentlyReadingBookId: currentBookId,
+      readBooksIds: readBookIds,
+      limitPerShelf,
+    },
+  ];
+
+  let lastError = null;
+  for (const payload of payloads) {
+    try {
+      const response = await api.post('/recommender', payload);
+      return response?.data || null;
+    } catch (error) {
+      lastError = error;
+      if (error?.statusCode && error.statusCode < 500) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+};
+
 const getLastAccessedBook = (allBooks) => {
   if (!Array.isArray(allBooks) || allBooks.length === 0) return null;
 
@@ -60,14 +88,15 @@ const BooksLibrary = () => {
 
       const { data } = await api.get('/books');
       const allBooks = Array.isArray(data) ? data : [];
-      const readBookIds = allBooks.map((book) => book?._id).filter(Boolean);
+      const readBookIds = allBooks.map((book) => String(book?._id || '')).filter(Boolean);
+      const currentBookId = readBookIds[0] || undefined;
 
       let recBooks = [];
       if (readBookIds.length) {
         try {
-          const { data: recData } = await api.post('/recommender', {
+          const recData = await requestRecommendations({
             readBookIds,
-            currentBookId: readBookIds[0] || undefined,
+            currentBookId,
             limitPerShelf: 8,
           });
 

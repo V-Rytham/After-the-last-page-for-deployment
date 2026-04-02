@@ -96,9 +96,9 @@ html[data-theme='light'] {
 }
 
 html[data-theme='sepia'] {
-  --btn-bg: #caa86c;
-  --btn-text: #2f2316;
-  --btn-hover: #bd9b5f;
+  --btn-bg: #667aa9;
+  --btn-text: #f7f2e5;
+  --btn-hover: #7387b7;
   --accent-primary: #8a6b34;
   --book-card-overlay: rgba(246, 231, 193, 0.34);
   --book-card-gradient: linear-gradient(180deg, rgba(255, 247, 224, 0.26), rgba(172, 127, 55, 0.08));

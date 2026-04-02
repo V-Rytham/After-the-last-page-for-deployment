@@ -76,11 +76,29 @@
 }
 
 .continue-card {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(8.2rem, 9.6rem) minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: center;
   padding: clamp(0.9rem, 1.7vw, 1.2rem);
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--surface-1) 84%, transparent), color-mix(in srgb, var(--surface-1) 94%, var(--accent-soft) 6%)),
+    radial-gradient(circle at 6% 6%, color-mix(in srgb, var(--accent-soft) 48%, transparent), transparent 42%);
+  box-shadow:
+    0 18px 38px color-mix(in srgb, var(--text-primary) 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 38%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.continue-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 65%, transparent);
+  pointer-events: none;
 }
 
 .continue-cover .book-card {
@@ -113,6 +131,7 @@
   font-weight: 600;
   display: inline-flex;
   align-items: center;
+  justify-self: end;
 }
 
 .btn-resume:hover,
@@ -144,11 +163,8 @@
 
 @media (max-width: 1100px) {
   .continue-card {
-    grid-template-columns: minmax(7rem, 8.2rem) minmax(0, 1fr);
-  }
-
-  .btn-resume {
-    justify-self: start;
+    grid-template-columns: minmax(7rem, 8.2rem) minmax(0, 1fr) auto;
+    gap: 0.75rem;
   }
 }
 
