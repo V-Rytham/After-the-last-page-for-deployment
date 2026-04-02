@@ -48,6 +48,7 @@
 
   --shadow-line: 0 1px 0 rgba(28, 22, 15, 0.06);
   --shadow-panel: 0 12px 30px rgba(51, 39, 20, 0.05);
+  --accent-contrast: #ffffff;
 
   --transition-fast: 180ms ease;
   --transition-normal: 280ms ease;
@@ -55,9 +56,10 @@
 
 html[data-theme='light'] {
   --btn-bg: #d9e4ff;
+  --accent-contrast: #ffffff;
   --btn-text: #2b3f73;
   --btn-hover: #c7d7fb;
-  --accent-primary: #6b8fe8;
+  --accent-primary: #6f9fe8;
   --book-card-overlay: rgba(255, 247, 236, 0.42);
   --book-card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 245, 227, 0.08));
   --book-card-shadow: 0 7px 16px rgba(51, 39, 20, 0.07), 0 16px 34px rgba(51, 39, 20, 0.05);
@@ -97,9 +99,10 @@ html[data-theme='light'] {
 
 html[data-theme='sepia'] {
   --btn-bg: #667aa9;
+  --accent-contrast: #f8f3e8;
   --btn-text: #f7f2e5;
   --btn-hover: #7387b7;
-  --accent-primary: #8a6b34;
+  --accent-primary: #9a7440;
   --book-card-overlay: rgba(246, 231, 193, 0.34);
   --book-card-gradient: linear-gradient(180deg, rgba(255, 247, 224, 0.26), rgba(172, 127, 55, 0.08));
   --book-card-shadow: 0 7px 16px rgba(73, 49, 24, 0.08), 0 16px 34px rgba(73, 49, 24, 0.06);
@@ -139,6 +142,7 @@ html[data-theme='sepia'] {
 
 html[data-theme='mocha'] {
   --btn-bg: rgba(116, 92, 240, 0.32);
+  --accent-contrast: #f1edff;
   --btn-text: #efeaff;
   --btn-hover: rgba(126, 98, 255, 0.44);
   --accent-primary: #7e62ff;
@@ -183,6 +187,7 @@ html[data-theme='mocha'] {
 
 html[data-theme='dark'] {
   --btn-bg: rgba(123, 94, 255, 0.34);
+  --accent-contrast: #f3efff;
   --btn-text: #f3efff;
   --btn-hover: rgba(143, 115, 255, 0.46);
   --accent-primary: #8f73ff;
@@ -227,6 +232,7 @@ html[data-theme='dark'] {
 
 html[data-theme='midnight'] {
   --btn-bg: rgba(90, 133, 255, 0.36);
+  --accent-contrast: #edf3ff;
   --btn-text: #edf3ff;
   --btn-hover: rgba(121, 166, 255, 0.48);
   --accent-primary: #79a6ff;
