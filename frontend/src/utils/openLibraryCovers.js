@@ -1,4 +1,5 @@
 const OPEN_LIBRARY_BASE = 'https://covers.openlibrary.org';
+const GUTENBERG_COVER_BASE = 'https://www.gutenberg.org/cache/epub';
 
 const normalizeIsbn = (value) => {
   if (!value) return null;
@@ -51,4 +52,17 @@ export const getOpenLibraryCoverUrl = (book) => {
   }
 
   return null;
+};
+
+export const getGutenbergCoverUrl = (book) => {
+  const gutenbergId = String(book?.gutenbergId || '').trim();
+  if (!/^\d+$/.test(gutenbergId)) return null;
+
+  return `${GUTENBERG_COVER_BASE}/${encodeURIComponent(gutenbergId)}/pg${encodeURIComponent(gutenbergId)}.cover.medium.jpg`;
+};
+
+export const getBestCoverUrl = (book) => {
+  if (!book) return null;
+
+  return getOpenLibraryCoverUrl(book) || getGutenbergCoverUrl(book);
 };

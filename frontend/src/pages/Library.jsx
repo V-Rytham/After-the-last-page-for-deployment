@@ -104,6 +104,10 @@ const LibraryPage = () => {
     navigate(`/read/gutenberg/${encodeURIComponent(id)}`);
   };
 
+  const handleClearSearch = () => {
+    setSearchInput('');
+  };
+
   return (
     <div className="library-page">
       <div className="content-container library-shell">
@@ -116,19 +120,36 @@ const LibraryPage = () => {
           </div>
 
           <div className="library-header-right">
-            <label className="library-search" htmlFor="library-search">
-              <span className="toolbar-label">Search</span>
-              <input
-                id="library-search"
-                className="library-search-input"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search books..."
-              />
-            </label>
+            <form
+              className="library-search"
+              onSubmit={(event) => event.preventDefault()}
+              role="search"
+              aria-label="Search books in your library"
+            >
+              <label className="toolbar-label" htmlFor="library-search">Search your shelf</label>
+              <p className="toolbar-help">Filter by title or author.</p>
+              <div className="library-search-controls">
+                <input
+                  id="library-search"
+                  className="library-search-input"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search books or authors..."
+                />
+                <button
+                  type="button"
+                  className="library-clear-button"
+                  onClick={handleClearSearch}
+                  disabled={!searchInput}
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
 
             <form className="gutenberg-entry" onSubmit={handleSubmit}>
-              <label htmlFor="gutenberg-id" className="toolbar-label">Enter Gutenberg ID</label>
+              <label htmlFor="gutenberg-id" className="toolbar-label">Open by Gutenberg ID</label>
+              <p className="toolbar-help">Jump directly to a specific book.</p>
               <div className="gutenberg-controls">
                 <input
                   id="gutenberg-id"
@@ -138,7 +159,7 @@ const LibraryPage = () => {
                   placeholder="e.g. 1342"
                   inputMode="numeric"
                 />
-                <button type="submit" className="gutenberg-button">Read Book</button>
+                <button type="submit" className="gutenberg-button">Open Book</button>
               </div>
             </form>
           </div>

@@ -1,6 +1,7 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BookCoverArt from './BookCoverArt';
+import { getBestCoverUrl } from '../../utils/openLibraryCovers';
 import './BookCard.css';
 
 const BookCard = ({
@@ -11,14 +12,7 @@ const BookCard = ({
   actionLabel,
   actionHref,
 }) => {
-  const gutenbergId = String(book?.gutenbergId || '').trim();
-  const fallbackTitleKey = String(book?.title || '').trim().toLowerCase().replace(/\s+/g, '-');
-
-  const coverUrl = useMemo(() => {
-    if (gutenbergId) return `https://covers.openlibrary.org/b/olid/${encodeURIComponent(gutenbergId)}-L.jpg`;
-    if (fallbackTitleKey) return `https://covers.openlibrary.org/b/title/${encodeURIComponent(fallbackTitleKey)}-L.jpg`;
-    return null;
-  }, [fallbackTitleKey, gutenbergId]);
+  const coverUrl = getBestCoverUrl(book);
 
   const [imgError, setImgError] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -34,7 +28,6 @@ const BookCard = ({
               <div
                 className="book-cover-skeleton"
                 aria-hidden="true"
-                onAnimationEnd={() => setShowSkeleton(false)}
               />
             )}
 
@@ -45,7 +38,11 @@ const BookCard = ({
                 className="book-card__cover-image"
                 loading="lazy"
                 decoding="async"
-                onError={() => setImgError(true)}
+                onLoad={() => setShowSkeleton(false)}
+                onError={() => {
+                  setShowSkeleton(false);
+                  setImgError(true);
+                }}
               />
             ) : (
               <BookCoverArt

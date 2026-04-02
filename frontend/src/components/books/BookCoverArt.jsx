@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getOpenLibraryCoverUrl } from '../../utils/openLibraryCovers';
+import { getBestCoverUrl } from '../../utils/openLibraryCovers';
 
 const BookCoverArt = ({
   book,
@@ -12,7 +12,7 @@ const BookCoverArt = ({
   patternClassName = 'book-cover-pattern',
   disableImage = false,
 }) => {
-  const coverUrl = useMemo(() => getOpenLibraryCoverUrl(book), [book]);
+  const coverUrl = useMemo(() => getBestCoverUrl(book), [book]);
   const [loadedUrl, setLoadedUrl] = useState(null);
   const [failedUrls, setFailedUrls] = useState(() => new Set());
 
