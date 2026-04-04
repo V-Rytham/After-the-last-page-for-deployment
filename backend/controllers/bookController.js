@@ -14,6 +14,23 @@ const fallbackBooks = [
   { gutenbergId: 84, title: 'Frankenstein', author: 'Mary Shelley' },
 ];
 
+const toStableBookShape = (book) => {
+  const gutenbergId = Number(book?.gutenbergId);
+  if (!Number.isFinite(gutenbergId) || gutenbergId <= 0) {
+    return null;
+  }
+
+  const objectId = book?._id ? String(book._id) : null;
+  return {
+    ...book,
+    id: objectId || `gutenberg:${gutenbergId}`,
+    _id: objectId || null,
+    gutenbergId,
+    title: String(book?.title || 'Untitled'),
+    author: String(book?.author || 'Unknown author'),
+  };
+};
+
 const parseOptionalPositiveInt = (value, fallback = null) => {
   if (value == null || value === '') return fallback;
   const parsed = Number(value);
@@ -68,7 +85,7 @@ const upsertMetadata = async ({ gutenbergId, title, author }) => {
 export const getBooks = async (req, res) => {
   try {
     if (isDegradedMode()) {
-      return res.json(fallbackBooks);
+      return res.json(fallbackBooks.map((book) => toStableBookShape(book)).filter(Boolean));
     }
 
     const books = await Book.find({})
@@ -76,10 +93,37 @@ export const getBooks = async (req, res) => {
       .sort({ lastAccessedAt: -1, _id: -1 })
       .lean();
 
-    res.json(books);
+    res.json(books.map((book) => toStableBookShape(book)).filter(Boolean));
   } catch (error) {
     console.error('[BOOK] Failed to fetch books list:', error?.message || error);
     res.status(500).json({ message: 'Server error fetching books.' });
+  }
+};
+
+export const searchGutenbergBooks = async (req, res) => {
+  try {
+    const query = String(req.query?.q || '').trim().toLowerCase();
+    if (!query) {
+      return res.json({ results: [] });
+    }
+
+    const source = Array.isArray(gutenbergCatalog) && gutenbergCatalog.length > 0
+      ? gutenbergCatalog
+      : fallbackBooks;
+    const results = source
+      .filter((book) => {
+        const title = String(book?.title || '').toLowerCase();
+        const author = String(book?.author || '').toLowerCase();
+        return title.includes(query) || author.includes(query);
+      })
+      .slice(0, 30)
+      .map((book) => toStableBookShape(book))
+      .filter(Boolean);
+
+    return res.json({ results });
+  } catch (error) {
+    console.error('[BOOK] Failed to search Gutenberg books:', error?.message || error);
+    return res.status(500).json({ message: 'Server error searching Gutenberg books.' });
   }
 };
 

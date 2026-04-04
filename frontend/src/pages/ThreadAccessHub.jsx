@@ -8,6 +8,7 @@ import './ThreadAccessHub.css';
 const ThreadAccessHub = ({ currentUser }) => {
   const navigate = useNavigate();
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+  const resolveBookId = (book) => String(book?._id || book?.id || book?.gutenbergId || '').trim();
   const [loading, setLoading] = useState(isMember);
   const [error, setError] = useState('');
   const [books, setBooks] = useState([]);
@@ -29,7 +30,7 @@ const ThreadAccessHub = ({ currentUser }) => {
         const { data: availableBooks } = await api.get('/books');
         const normalizedBooks = Array.isArray(availableBooks) ? availableBooks : [];
         const bookIds = normalizedBooks
-          .map((book) => String(book?._id || book?.id || '').trim())
+          .map((book) => resolveBookId(book))
           .filter(Boolean);
 
         if (!bookIds.length) {
@@ -40,7 +41,10 @@ const ThreadAccessHub = ({ currentUser }) => {
         const { data: access } = await api.post('/access/check-batch', { bookIds, context: 'thread' });
         const allowed = new Set((Array.isArray(access?.allowedBookIds) ? access.allowedBookIds : []).map(String));
         const nextBooks = normalizedBooks
-          .map((book) => ({ ...book, _id: String(book?._id || book?.id || ''), coverUrl: getBestCoverUrl(book) }))
+          .map((book) => {
+            const resolvedId = resolveBookId(book);
+            return { ...book, _id: resolvedId || null, coverUrl: getBestCoverUrl(book) };
+          })
           .filter((book) => book._id && allowed.has(book._id));
 
         if (!cancelled) {
