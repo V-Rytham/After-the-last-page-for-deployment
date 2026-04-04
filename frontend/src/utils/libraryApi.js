@@ -201,3 +201,48 @@ export const searchBooks = async (query, signal) => {
 };
 
 export { normalizeBook, PLACEHOLDER_COVER };
+
+export const fetchLibraryBooks = async ({ search = '', category = 'all', sort = 'popular', page = 1, perPage = 24, signal } = {}) => {
+  const params = {
+    page,
+    perPage,
+    sort,
+  };
+
+  if (String(search || '').trim()) params.search = String(search).trim();
+  if (category && category !== 'all') params.category = category;
+
+  const { data } = await api.get('/books', { params, signal });
+
+  const list = Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data?.results)
+      ? data.results
+      : Array.isArray(data?.books)
+        ? data.books
+        : Array.isArray(data)
+          ? data
+          : [];
+
+  const normalized = list
+    .map((entry) => normalizeBook({
+      id: entry?.id,
+      gutenbergId: entry?.gutenbergId ?? entry?.id,
+      title: entry?.title,
+      author: entry?.author,
+      tags: Array.isArray(entry?.tags) ? entry.tags : [],
+      coverImage: entry?.cover_url ?? entry?.coverImage,
+    }))
+    .filter(Boolean)
+    .map((entry) => ({
+      ...entry,
+      id: entry.gutenbergId,
+      category: category === 'all' ? (entry.category || '') : category,
+    }));
+
+  const total = Number(data?.total ?? data?.count ?? normalized.length);
+  return {
+    books: normalized,
+    total: Number.isFinite(total) ? total : normalized.length,
+  };
+};

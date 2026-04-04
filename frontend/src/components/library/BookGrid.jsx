@@ -5,24 +5,24 @@ const BookGrid = ({ books = [], loading = false, error = '' }) => {
   if (loading) {
     return (
       <div className="library-grid" role="status" aria-label="Loading books">
-        {Array.from({ length: 12 }).map((_, index) => <BookCard key={`skeleton-${index}`} loading />)}
+        {Array.from({ length: 10 }).map((_, index) => <BookCard key={`skeleton-${index}`} loading />)}
       </div>
     );
   }
 
-  if (!loading && books.length === 0) {
-    return (
-      <div className="library-empty" role="status">
-        {error || 'No books found'}
-      </div>
-    );
+  if (error) {
+    return <div className="library-empty" role="status">{error}</div>;
+  }
+
+  if (books.length === 0) {
+    return <div className="library-empty" role="status">No books found</div>;
   }
 
   return (
     <div className="library-grid" role="list">
-      {books.map((book) => <BookCard key={book.gutenbergId} book={book} />)}
+      {books.map((book) => <BookCard key={book.id || book.gutenbergId} book={book} />)}
     </div>
   );
 };
 
-export default BookGrid;
+export default React.memo(BookGrid);

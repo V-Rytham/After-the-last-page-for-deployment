@@ -1,148 +1,104 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import SearchBar from '../components/library/SearchBar';
+import FilterPills from '../components/library/FilterPills';
+import SortControl from '../components/library/SortControl';
+import SectionHeader from '../components/library/SectionHeader';
 import BookGrid from '../components/library/BookGrid';
-import {
-  addRecentBook,
-  fallbackBooks,
-  fetchBookByGutenbergId,
-  fetchBooksByIds,
-  readRecentBooks,
-  searchBooks,
-} from '../utils/libraryApi';
+import { fetchLibraryBooks } from '../utils/libraryApi';
 import './Library.css';
 
-const mergeUniqueBooks = (...sources) => {
-  const seen = new Set();
-  return sources
-    .flat()
-    .filter(Boolean)
-    .filter((book) => {
-      const id = Number(book?.gutenbergId);
-      if (!Number.isFinite(id) || id <= 0 || seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+const FILTER_OPTIONS = [
+  { label: 'All Books', value: 'all' },
+  { label: 'Fiction', value: 'fiction' },
+  { label: 'Non-fiction', value: 'non-fiction' },
+  { label: 'Mystery', value: 'mystery' },
+  { label: 'Classic', value: 'classic' },
+  { label: 'Philosophy', value: 'philosophy' },
+];
+
+const useDebouncedValue = (value, delay = 320) => {
+  const [debounced, setDebounced] = React.useState(value);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+
+  return debounced;
+};
+
+const queryCache = new Map();
+
+const useLibraryQuery = (params) => {
+  const key = JSON.stringify(params);
+  const [state, setState] = React.useState(() => {
+    const cached = queryCache.get(key);
+    if (cached) return { data: cached, loading: false, error: '' };
+    return { data: null, loading: true, error: '' };
+  });
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    const cached = queryCache.get(key);
+
+    if (cached) {
+      setState({ data: cached, loading: false, error: '' });
+    } else {
+      setState((previous) => ({ ...previous, loading: true, error: '' }));
+    }
+
+    fetchLibraryBooks({ ...params, signal: controller.signal })
+      .then((data) => {
+        queryCache.set(key, data);
+        setState({ data, loading: false, error: '' });
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setState((previous) => ({ ...previous, loading: false, error: 'Unable to load books right now. Please try again.' }));
+      });
+
+    return () => controller.abort();
+  }, [key, params]);
+
+  return state;
 };
 
 const Library = () => {
-  const [baseBooks, setBaseBooks] = useState([]);
-  const [query, setQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [sort, setSort] = useState('popular');
+  const debouncedSearch = useDebouncedValue(search);
 
-  const searchAbortRef = useRef(null);
+  const queryParams = useMemo(() => ({
+    search: debouncedSearch,
+    category,
+    sort,
+    page: 1,
+    perPage: 24,
+  }), [debouncedSearch, category, sort]);
 
-  useEffect(() => {
-    let mounted = true;
+  const { data, loading, error } = useLibraryQuery(queryParams);
 
-    const loadBooks = async () => {
-      setLoading(true);
-      setError('');
-
-      const recent = readRecentBooks();
-      const fallbackIds = fallbackBooks.map((book) => Number(book.gutenbergId));
-      const recentIds = recent.map((book) => Number(book.gutenbergId));
-
-      try {
-        const dynamicBooks = await fetchBooksByIds([...fallbackIds, ...recentIds]);
-        if (!mounted) return;
-
-        const fallbackResolved = fallbackBooks.map((book) => ({
-          ...book,
-          tags: [],
-        }));
-
-        const nextBooks = mergeUniqueBooks(dynamicBooks, recent, fallbackResolved);
-        setBaseBooks(nextBooks);
-      } catch {
-        if (!mounted) return;
-        const resilientFallback = fallbackBooks.map((book) => ({ ...book, tags: [] }));
-        setBaseBooks(mergeUniqueBooks(recent, resilientFallback));
-        setError('Some books could not be loaded. Showing available titles.');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    loadBooks();
-    return () => {
-      mounted = false;
-      searchAbortRef.current?.abort?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    const term = query.trim();
-    searchAbortRef.current?.abort?.();
-
-    if (!term) {
-      setSearchLoading(false);
-      setSearchResults([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    searchAbortRef.current = controller;
-
-    const timer = window.setTimeout(async () => {
-      setSearchLoading(true);
-      try {
-        const results = await searchBooks(term, controller.signal);
-        setSearchResults(results);
-      } catch (searchError) {
-        if (searchError?.name === 'AbortError') return;
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 300);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [query]);
-
-  const hasQuery = Boolean(query.trim());
-  const visibleBooks = useMemo(() => (hasQuery ? searchResults : baseBooks), [hasQuery, searchResults, baseBooks]);
-  const subtitleCount = visibleBooks.length;
-
-  const handleOpenBook = async (book) => {
-    try {
-      await fetchBookByGutenbergId(book?.gutenbergId);
-      addRecentBook(book);
-    } catch {
-      // Silent resilience path; card navigation still works.
-    }
-  };
+  const books = data?.books ?? [];
+  const total = data?.total ?? books.length;
+  const showingLabel = useMemo(() => `Showing ${books.length} of ${total}`, [books.length, total]);
 
   return (
     <main className="library-page content-container">
-      <header className="library-header">
+      <header className="library-page-header">
         <h1>Library</h1>
-        <p>{hasQuery ? `Search results: ${subtitleCount} books` : `Top selling books: ${subtitleCount} titles`}</p>
-        <SearchBar value={query} onChange={setQuery} loading={searchLoading} />
+        <p>Explore 100 curated classics and timeless reads</p>
+        <SearchBar value={search} onChange={setSearch} onClear={() => setSearch('')} />
       </header>
 
-      <section className="library-section" aria-label={hasQuery ? 'Search results' : 'Top selling books'}>
-        <h2>{hasQuery ? 'Search Results' : 'Top Selling Books'}</h2>
-        <div onClickCapture={(event) => {
-          const card = event.target.closest('[href^="/read/gutenberg/"]');
-          if (!card) return;
-          const match = card.getAttribute('href')?.match(/(\d+)/);
-          if (!match) return;
-          const selected = visibleBooks.find((book) => Number(book.gutenbergId) === Number(match[1]));
-          if (selected) handleOpenBook(selected);
-        }}>
-          <BookGrid
-            books={visibleBooks}
-            loading={loading || searchLoading}
-            error={error}
-          />
-        </div>
+      <section className="library-controls-row" aria-label="Library controls">
+        <FilterPills options={FILTER_OPTIONS} active={category} onChange={setCategory} />
+        <SortControl sort={sort} onSortChange={setSort} />
       </section>
+
+      <SectionHeader title="All Books" showingLabel={showingLabel} />
+
+      <BookGrid books={books} loading={loading} error={error} />
     </main>
   );
 };
