@@ -1,63 +1,57 @@
-import React, { useMemo } from 'react';
+import React, { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getBestCoverUrl } from '../../utils/openLibraryCovers';
-
-const trimLabel = (value, max = 62) => {
-  const raw = String(value || '').trim();
-  if (raw.length <= max) return raw;
-  return `${raw.slice(0, Math.max(0, max - 1)).trim()}…`;
-};
+import { getGutenbergCoverUrl, PLACEHOLDER_COVER } from '../../utils/libraryApi';
 
 const inferTag = (book) => {
   const title = String(book?.title || '').toLowerCase();
-  if (title.includes('mystery') || title.includes('detective')) return 'Mystery';
-  if (title.includes('love') || title.includes('romance')) return 'Romance';
-  if (title.includes('adventure')) return 'Adventure';
-  if (title.includes('science') || title.includes('time')) return 'Science';
-  return null;
+  if (title.includes('wonderland') || title.includes('fantasy')) return 'Fantasy';
+  if (title.includes('hamlet') || title.includes('romeo') || title.includes('drama')) return 'Drama';
+  if (title.includes('prejudice') || title.includes('classic')) return 'Classic Literature';
+  return '';
 };
 
 const BookCard = ({ book, loading = false }) => {
-  const coverUrl = useMemo(() => getBestCoverUrl(book), [book]);
-  const title = String(book?.title || 'Untitled');
-  const author = String(book?.author || 'Unknown author');
-  const tags = Array.isArray(book?.tags) ? book.tags.filter(Boolean).slice(0, 2) : [];
-  const fallbackTag = inferTag(book);
+  const [imageError, setImageError] = useState(false);
 
   if (loading) {
     return (
-      <article className="library-book-card is-loading" aria-hidden="true">
+      <article className="library-book-card" aria-hidden="true">
         <div className="library-book-cover skeleton" />
-        <div className="library-book-line skeleton" />
-        <div className="library-book-line library-book-line--short skeleton" />
+        <div className="library-book-title skeleton" />
+        <div className="library-book-author skeleton" />
       </article>
     );
   }
 
+  const title = String(book?.title || 'Untitled');
+  const author = String(book?.author || 'Unknown author');
+  const tags = Array.isArray(book?.tags) && book.tags.length > 0 ? book.tags.slice(0, 2) : (inferTag(book) ? [inferTag(book)] : []);
+  const coverSrc = imageError ? PLACEHOLDER_COVER : (book?.coverImage || getGutenbergCoverUrl(book?.gutenbergId));
+
   return (
     <article className="library-book-card">
-      <Link to={`/read/gutenberg/${book.gutenbergId}`} className="library-book-cover-link" aria-label={`Read ${title}`}>
+      <Link className="library-cover-link" to={`/read/gutenberg/${book.gutenbergId}`} aria-label={`Read ${title}`}>
         <div className="library-book-cover">
-          {coverUrl ? (
-            <img src={coverUrl} alt={`${title} cover`} loading="lazy" decoding="async" />
-          ) : (
-            <div className="library-book-cover-fallback" aria-hidden="true">
-              <span>{String(title || 'B').charAt(0).toUpperCase()}</span>
-            </div>
-          )}
+          <img
+            src={coverSrc}
+            alt={`${title} cover`}
+            loading="lazy"
+            decoding="async"
+            onError={() => setImageError(true)}
+          />
         </div>
       </Link>
 
-      <h3 className="library-book-title" title={title}>{trimLabel(title)}</h3>
+      <h3 className="library-book-title" title={title}>{title}</h3>
       <p className="library-book-author">{author}</p>
 
-      <div className="library-book-tags" aria-label="Book categories">
-        {tags.length > 0 ? tags.map((tag) => <span key={`${book.gutenbergId}-${tag}`}>{tag}</span>) : fallbackTag ? <span>{fallbackTag}</span> : null}
+      <div className="library-book-tags" aria-label="Book tags">
+        {tags.map((tag) => <span key={`${book.gutenbergId}-${tag}`}>{tag}</span>)}
       </div>
 
-      <Link to={`/read/gutenberg/${book.gutenbergId}`} className="library-book-cta">Read this book</Link>
+      <Link className="library-book-cta" to={`/read/gutenberg/${book.gutenbergId}`}>Read this book</Link>
     </article>
   );
 };
 
-export default BookCard;
+export default memo(BookCard);

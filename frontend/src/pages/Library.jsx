@@ -1,133 +1,98 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import BookShelf from '../components/library/BookShelf';
-import GutenbergInput from '../components/library/GutenbergInput';
+import SearchBar from '../components/library/SearchBar';
+import BookGrid from '../components/library/BookGrid';
 import {
   addRecentBook,
+  fallbackBooks,
   fetchBookByGutenbergId,
-  fetchBooksFromCatalog,
-  fetchPopularGutenbergBooks,
+  fetchBooksByIds,
   readRecentBooks,
-  searchGutendexBooks,
+  searchBooks,
 } from '../utils/libraryApi';
-import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
 import './Library.css';
 
-const toBookMap = (books = []) => new Map(books.map((book) => [Number(book.gutenbergId), book]));
-
-const hydrateFromSessions = (sessions, fallbackById) => Object.entries(sessions || {})
-  .map(([sessionBookId, session]) => {
-    const idMatch = String(sessionBookId).match(/(\d+)/);
-    const gutenbergId = Number(idMatch?.[1] || 0);
-    if (!Number.isFinite(gutenbergId) || gutenbergId <= 0) return null;
-
-    return {
-      ...(fallbackById.get(gutenbergId) || {
-        gutenbergId,
-        title: `Gutenberg #${gutenbergId}`,
-        author: 'Unknown author',
-      }),
-      session,
-    };
-  })
-  .filter(Boolean)
-  .sort((a, b) => new Date(b.session?.lastOpenedAt || 0) - new Date(a.session?.lastOpenedAt || 0));
+const mergeUniqueBooks = (...sources) => {
+  const seen = new Set();
+  return sources
+    .flat()
+    .filter(Boolean)
+    .filter((book) => {
+      const id = Number(book?.gutenbergId);
+      if (!Number.isFinite(id) || id <= 0 || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+};
 
 const Library = () => {
-  const navigate = useNavigate();
-
-  const [catalogBooks, setCatalogBooks] = useState([]);
-  const [popularBooks, setPopularBooks] = useState([]);
-  const [recentBooks, setRecentBooks] = useState(() => readRecentBooks());
-  const [searchTerm, setSearchTerm] = useState('');
+  const [baseBooks, setBaseBooks] = useState([]);
+  const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [popularLoading, setPopularLoading] = useState(true);
-  const [manualLoading, setManualLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const [catalogError, setCatalogError] = useState('');
-  const [popularError, setPopularError] = useState('');
-  const [manualError, setManualError] = useState('');
-  const [searchError, setSearchError] = useState('');
-
-  const latestSearchRequestRef = useRef(null);
+  const searchAbortRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadCatalog = async () => {
-      setCatalogLoading(true);
-      setCatalogError('');
+    const loadBooks = async () => {
+      setLoading(true);
+      setError('');
+
+      const recent = readRecentBooks();
+      const fallbackIds = fallbackBooks.map((book) => Number(book.gutenbergId));
+      const recentIds = recent.map((book) => Number(book.gutenbergId));
+
       try {
-        const books = await fetchBooksFromCatalog();
+        const dynamicBooks = await fetchBooksByIds([...fallbackIds, ...recentIds]);
         if (!mounted) return;
-        setCatalogBooks(books);
+
+        const fallbackResolved = fallbackBooks.map((book) => ({
+          ...book,
+          tags: [],
+        }));
+
+        const nextBooks = mergeUniqueBooks(dynamicBooks, recent, fallbackResolved);
+        setBaseBooks(nextBooks);
       } catch {
         if (!mounted) return;
-        setCatalogBooks([]);
-        setCatalogError('Live catalog is temporarily unavailable. Showing fallback shelves.');
+        const resilientFallback = fallbackBooks.map((book) => ({ ...book, tags: [] }));
+        setBaseBooks(mergeUniqueBooks(recent, resilientFallback));
+        setError('Some books could not be loaded. Showing available titles.');
       } finally {
-        if (mounted) setCatalogLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    loadCatalog();
+    loadBooks();
     return () => {
       mounted = false;
+      searchAbortRef.current?.abort?.();
     };
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    const term = query.trim();
+    searchAbortRef.current?.abort?.();
 
-    const loadPopular = async () => {
-      setPopularLoading(true);
-      setPopularError('');
-      try {
-        const books = await fetchPopularGutenbergBooks();
-        if (!mounted) return;
-        setPopularBooks(books);
-      } catch {
-        if (!mounted) return;
-        setPopularBooks([]);
-        setPopularError('Popular shelf could not be loaded right now.');
-      } finally {
-        if (mounted) setPopularLoading(false);
-      }
-    };
-
-    loadPopular();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const term = String(searchTerm || '').trim();
     if (!term) {
-      setSearchResults([]);
-      setSearchError('');
       setSearchLoading(false);
-      latestSearchRequestRef.current?.abort?.();
+      setSearchResults([]);
       return;
     }
 
     const controller = new AbortController();
-    latestSearchRequestRef.current?.abort?.();
-    latestSearchRequestRef.current = controller;
+    searchAbortRef.current = controller;
 
-    const timeout = window.setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       setSearchLoading(true);
-      setSearchError('');
       try {
-        const results = await searchGutendexBooks(term, controller.signal);
+        const results = await searchBooks(term, controller.signal);
         setSearchResults(results);
-      } catch (error) {
-        if (error?.name === 'AbortError') return;
-        setSearchError('Search is unavailable right now. Please retry in a moment.');
+      } catch (searchError) {
+        if (searchError?.name === 'AbortError') return;
         setSearchResults([]);
       } finally {
         setSearchLoading(false);
@@ -136,117 +101,48 @@ const Library = () => {
 
     return () => {
       controller.abort();
-      window.clearTimeout(timeout);
+      window.clearTimeout(timer);
     };
-  }, [searchTerm]);
+  }, [query]);
 
-  const fallbackById = useMemo(() => toBookMap([...catalogBooks, ...recentBooks, ...popularBooks, ...searchResults]), [catalogBooks, popularBooks, recentBooks, searchResults]);
+  const visibleBooks = useMemo(() => (query.trim() ? searchResults : baseBooks), [query, searchResults, baseBooks]);
+  const subtitleCount = visibleBooks.length;
 
-  const sessionBooks = useMemo(() => hydrateFromSessions(getReadingSessionsForCurrentUser(), fallbackById), [fallbackById]);
-
-  const continueReading = useMemo(
-    () => sessionBooks.filter((book) => Number(book?.session?.progressPercent || 0) > 0 && Number(book?.session?.progressPercent || 0) < 100).slice(0, 12),
-    [sessionBooks],
-  );
-
-  const recentlyOpened = useMemo(() => {
-    const fromSessions = sessionBooks.filter((book) => !continueReading.some((entry) => entry.gutenbergId === book.gutenbergId));
-    const merged = [...recentBooks, ...fromSessions]
-      .reduce((acc, book) => {
-        if (!acc.some((entry) => entry.gutenbergId === book.gutenbergId)) acc.push(book);
-        return acc;
-      }, [])
-      .slice(0, 12);
-
-    return merged;
-  }, [continueReading, recentBooks, sessionBooks]);
-
-  const handleOpenBook = async (inputId) => {
-    setManualLoading(true);
-    setManualError('');
-
+  const handleOpenBook = async (book) => {
     try {
-      const book = await fetchBookByGutenbergId(inputId);
-      const nextRecent = addRecentBook(book);
-      setRecentBooks(nextRecent);
-      navigate(`/read/gutenberg/${book.gutenbergId}`);
-    } catch (error) {
-      setManualError(error?.uiMessage || error?.message || 'Could not open this Gutenberg book.');
-    } finally {
-      setManualLoading(false);
+      await fetchBookByGutenbergId(book?.gutenbergId);
+      addRecentBook(book);
+    } catch {
+      // Silent resilience path; card navigation still works.
     }
   };
 
   return (
-    <div className="library-page">
-      <div className="content-container library-v2-shell">
-        <header className="library-v2-header">
-          <div>
-            <h1>Library</h1>
-            <p>Discover, reopen, and continue reading Gutenberg books with resilient shelves.</p>
-          </div>
+    <main className="library-page content-container">
+      <header className="library-header">
+        <h1>Library</h1>
+        <p>Browse our complete collection of {subtitleCount} books</p>
+        <SearchBar value={query} onChange={setQuery} loading={searchLoading} />
+      </header>
 
-          <div className="library-v2-tools">
-            <div className="library-search-wrap">
-              <Search size={16} aria-hidden="true" />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search Gutenberg books"
-                aria-label="Search Gutenberg books"
-              />
-            </div>
-            <GutenbergInput onSubmit={handleOpenBook} loading={manualLoading} />
-            {manualError ? <p className="library-global-error">{manualError}</p> : null}
-          </div>
-        </header>
-
-        <BookShelf
-          title="Continue Reading"
-          description="Books where your reading session is in progress."
-          books={continueReading}
-          loading={catalogLoading}
-          emptyMessage="No active reading sessions yet."
-        />
-
-        <BookShelf
-          title="Recently Opened"
-          description="Quick return to books you opened recently."
-          books={recentlyOpened}
-          loading={false}
-          emptyMessage="No recent books. Open one with a Gutenberg ID."
-        />
-
-        <BookShelf
-          title="Popular Gutenberg Books"
-          description="Fallback curated titles so discovery always works."
-          books={popularBooks}
-          loading={popularLoading}
-          error={popularError}
-          emptyMessage="Popular shelf unavailable."
-        />
-
-        {searchTerm.trim() ? (
-          <BookShelf
-            title="Search Results"
-            description="Live Gutenberg search results."
-            books={searchResults}
-            loading={searchLoading}
-            error={searchError}
-            emptyMessage="No results for this query yet."
+      <section className="library-section" aria-label="All books">
+        <h2>All Books</h2>
+        <div onClickCapture={(event) => {
+          const card = event.target.closest('[href^="/read/gutenberg/"]');
+          if (!card) return;
+          const match = card.getAttribute('href')?.match(/(\d+)/);
+          if (!match) return;
+          const selected = visibleBooks.find((book) => Number(book.gutenbergId) === Number(match[1]));
+          if (selected) handleOpenBook(selected);
+        }}>
+          <BookGrid
+            books={visibleBooks}
+            loading={loading || searchLoading}
+            error={error}
           />
-        ) : null}
-
-        <BookShelf
-          title="Catalog Pulse"
-          description="Recent backend catalog metadata when available."
-          books={catalogBooks.slice(0, 12)}
-          loading={catalogLoading}
-          error={catalogError}
-          emptyMessage="Catalog is unavailable, but discovery shelves remain active."
-        />
-      </div>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 };
 
