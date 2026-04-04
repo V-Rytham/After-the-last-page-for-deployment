@@ -684,16 +684,16 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
 
   useEffect(() => {
     if (isAtEndOfBook && book) {
-      updateReadingSession(book._id || book.id, totalChapters, totalChapters);
+      updateReadingSession(resolvedBookId, totalChapters, totalChapters);
     }
-  }, [book, isAtEndOfBook, totalChapters]);
+  }, [book, isAtEndOfBook, resolvedBookId, totalChapters]);
 
   useEffect(() => {
     if (book) {
-      trackBookOpened(book._id || book.id);
-      updateReadingSession(book._id || book.id, clampedChapter, totalChapters);
+      trackBookOpened(resolvedBookId);
+      updateReadingSession(resolvedBookId, clampedChapter, totalChapters);
     }
-  }, [book, clampedChapter, totalChapters]);
+  }, [book, clampedChapter, resolvedBookId, totalChapters]);
 
   useEffect(() => {
     document.body.classList.add('is-reading-room');

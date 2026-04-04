@@ -59,13 +59,14 @@ const writeSessionStore = (store) => {
   localStorage.setItem(SESSION_KEY, JSON.stringify(store));
 };
 
-const getCurrentActorSessions = () => {
+export const getReadingSessionsForCurrentUser = () => {
   const store = readSessionStore();
   const actorKey = getActorKeyForUser(getStoredUser());
   return store[actorKey] || {};
 };
 
 const setCurrentActorSession = (bookId, updates) => {
+  if (!bookId) return null;
   const store = readSessionStore();
   const actorKey = getActorKeyForUser(getStoredUser());
   const actorSessions = store[actorKey] || {};
@@ -99,14 +100,14 @@ export const updateReadingSession = (bookId, currentPage, totalPages) => (
 );
 
 export const getFinishedBookIds = () => {
-  const sessions = getCurrentActorSessions();
+  const sessions = getReadingSessionsForCurrentUser();
   return Object.entries(sessions)
     .filter(([, session]) => Boolean(session?.isFinished || session?.progressPercent >= 100))
     .map(([bookId]) => bookId);
 };
 
 export const getLibraryState = (books) => {
-  const sessions = getCurrentActorSessions();
+  const sessions = getReadingSessionsForCurrentUser();
   const byId = new Map(books.map((book) => [book._id || book.id, book]));
 
   const continueReading = Object.entries(sessions)

@@ -24,6 +24,26 @@ import './index.css';
 
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
 
+const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const createAnonymousUserWithRetry = async (attempts = 3) => {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const { data } = await api.post('/users/anonymous');
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await sleep(350 * (2 ** (attempt - 1)));
+      }
+    }
+  }
+
+  throw lastError;
+};
+
 const RequireMember = ({ currentUser, children }) => {
   const location = useLocation();
   const storedUser = getStoredUser();
@@ -132,7 +152,7 @@ const App = () => {
       }
 
       try {
-        const { data } = await api.post('/users/anonymous');
+        const data = await createAnonymousUserWithRetry(4);
         const user = saveAuthSession(data);
         setCurrentUser(user);
       } catch (error) {
@@ -162,7 +182,7 @@ const App = () => {
     clearAuthSession();
 
     try {
-      const { data } = await api.post('/users/anonymous');
+      const data = await createAnonymousUserWithRetry(4);
       const guestUser = saveAuthSession(data);
       setCurrentUser(guestUser);
     } catch (error) {
