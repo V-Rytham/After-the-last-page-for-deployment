@@ -25,16 +25,36 @@ import './index.css';
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
 let isFetchingUser = false;
 
-const retry = async (fn, retries = 3) => {
+const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const shouldRetry = (error) => {
+  const status = Number(error?.statusCode || error?.response?.status || 0);
+  if (status === 429) return true;
+  if (status >= 500) return true;
+  return !status;
+};
+
+const getRetryDelayMs = (error, attempt) => {
+  const retryAfterHeader = error?.response?.headers?.['retry-after'];
+  const retryAfter = Number(retryAfterHeader);
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+    return Math.round(retryAfter * 1000);
+  }
+
+  const baseMs = 600;
+  return Math.min(8000, baseMs * (2 ** attempt));
+};
+
+const retry = async (fn, retries = 3, attempt = 0) => {
   try {
     return await fn();
   } catch (error) {
-    if (retries <= 0) {
+    if (retries <= 0 || !shouldRetry(error)) {
       throw error;
     }
 
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
-    return retry(fn, retries - 1);
+    await sleep(getRetryDelayMs(error, attempt));
+    return retry(fn, retries - 1, attempt + 1);
   }
 };
 
@@ -146,8 +166,15 @@ const App = () => {
             setCurrentUser(user);
             return;
           } catch (error) {
-            console.error('[AUTH] Stored session is invalid, replacing with guest session:', error);
-            clearAuthSession();
+            const status = Number(error?.statusCode || error?.response?.status || 0);
+            if (status === 401 || status === 403) {
+              console.error('[AUTH] Stored session is invalid, replacing with guest session:', error);
+              clearAuthSession();
+            } else {
+              console.warn('[AUTH] Could not validate stored session, keeping existing user for now:', error);
+              setCurrentUser(getStoredUser());
+              return;
+            }
           }
         }
 

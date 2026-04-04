@@ -31,23 +31,41 @@ export default function SessionNavigationGuard() {
   const allowNavigationRef = useRef(false);
   const cleanupInFlightRef = useRef(false);
   const pollTimerRef = useRef(null);
+  const statusRequestInFlightRef = useRef(false);
+  const pollingDelayRef = useRef(3000);
 
   const refreshStatus = useCallback(async () => {
     if (!getStoredToken()) {
       setSessionState('IDLE');
+      pollingDelayRef.current = 3000;
       return 'IDLE';
     }
+
+    if (statusRequestInFlightRef.current) {
+      return sessionState;
+    }
+
+    statusRequestInFlightRef.current = true;
     try {
       const { data } = await api.get('/session/status');
       const state = String(data?.session?.state || 'IDLE').toUpperCase();
       setSessionState(state);
+      pollingDelayRef.current = 3000;
       return state;
-    } catch {
+    } catch (error) {
+      const status = Number(error?.statusCode || error?.response?.status || 0);
+      if (status === 429) {
+        pollingDelayRef.current = Math.min(pollingDelayRef.current * 2, 15000);
+      } else {
+        pollingDelayRef.current = 5000;
+      }
       // If status can't be fetched, don't block navigation.
       setSessionState('IDLE');
       return 'IDLE';
+    } finally {
+      statusRequestInFlightRef.current = false;
     }
-  }, []);
+  }, [sessionState]);
 
   const cleanupSession = useCallback(async (reason = 'nav-guard') => {
     if (!getStoredToken()) {
@@ -80,7 +98,7 @@ export default function SessionNavigationGuard() {
 
   useEffect(() => {
     if (pollTimerRef.current) {
-      window.clearInterval(pollTimerRef.current);
+      window.clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
     }
 
@@ -88,13 +106,19 @@ export default function SessionNavigationGuard() {
       return undefined;
     }
 
-    pollTimerRef.current = window.setInterval(() => {
-      refreshStatus();
-    }, 1500);
+    const runPoll = async () => {
+      await refreshStatus();
+      if (!pollTimerRef.current) {
+        return;
+      }
+      pollTimerRef.current = window.setTimeout(runPoll, pollingDelayRef.current);
+    };
+
+    pollTimerRef.current = window.setTimeout(runPoll, pollingDelayRef.current);
 
     return () => {
       if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
+        window.clearTimeout(pollTimerRef.current);
         pollTimerRef.current = null;
       }
     };
