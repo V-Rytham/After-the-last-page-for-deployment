@@ -69,7 +69,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
         <Routes>
           <Route path="/" element={<LandingPage currentUser={currentUser} />} />
           <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
-          <Route path="/desk" element={<RequireMember currentUser={currentUser}><BooksLibrary /></RequireMember>} />
+          <Route path="/desk" element={<RequireMember currentUser={currentUser}><BooksLibrary currentUser={currentUser} /></RequireMember>} />
           <Route path="/library" element={<RequireMember currentUser={currentUser}><Library /></RequireMember>} />
           <Route path="/books" element={<Navigate to="/desk" replace />} />
           <Route path="/request-book" element={<RequireMember currentUser={currentUser}><RequestBookPage /></RequireMember>} />
