@@ -23,25 +23,24 @@ import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes
 import './index.css';
 
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
+let isFetchingUser = false;
 
-const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-const createAnonymousUserWithRetry = async (attempts = 3) => {
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const { data } = await api.post('/users/anonymous');
-      return data;
-    } catch (error) {
-      lastError = error;
-      if (attempt < attempts) {
-        await sleep(350 * (2 ** (attempt - 1)));
-      }
+const retry = async (fn, retries = 3) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) {
+      throw error;
     }
-  }
 
-  throw lastError;
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    return retry(fn, retries - 1);
+  }
+};
+
+const createAnonymousUserWithRetry = async () => {
+  const { data } = await retry(() => api.post('/users/anonymous'), 3);
+  return data;
 };
 
 const RequireMember = ({ currentUser, children }) => {
@@ -136,32 +135,39 @@ const App = () => {
 
     bootstrapStartedRef.current = true;
 
-    const bootstrapSession = async () => {
-      const token = getStoredToken();
-
-      if (token) {
-        try {
-          const { data } = await api.get('/users/profile');
-          const user = updateStoredUser(data) || data;
-          setCurrentUser(user);
-          return;
-        } catch (error) {
-          console.error('[AUTH] Stored session is invalid, replacing with guest session:', error);
-          clearAuthSession();
-        }
+    const bootstrapUser = async () => {
+      if (isFetchingUser) {
+        return;
       }
 
+      isFetchingUser = true;
+      const token = getStoredToken();
+
       try {
-        const data = await createAnonymousUserWithRetry(4);
+        if (token) {
+          try {
+            const { data } = await api.get('/users/profile');
+            const user = updateStoredUser(data) || data;
+            setCurrentUser(user);
+            return;
+          } catch (error) {
+            console.error('[AUTH] Stored session is invalid, replacing with guest session:', error);
+            clearAuthSession();
+          }
+        }
+
+        const data = await createAnonymousUserWithRetry();
         const user = saveAuthSession(data);
         setCurrentUser(user);
       } catch (error) {
         console.error('[AUTH] Failed to register anonymous user:', error);
         setCurrentUser(null);
+      } finally {
+        isFetchingUser = false;
       }
     };
 
-    bootstrapSession();
+    bootstrapUser();
   }, []);
 
   useEffect(() => {
@@ -182,7 +188,7 @@ const App = () => {
     clearAuthSession();
 
     try {
-      const data = await createAnonymousUserWithRetry(4);
+      const data = await createAnonymousUserWithRetry();
       const guestUser = saveAuthSession(data);
       setCurrentUser(guestUser);
     } catch (error) {

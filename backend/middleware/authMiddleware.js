@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 import { isProd } from '../utils/runtime.js';
-import { getDegradedUserById, isDegradedMode } from '../utils/degradedMode.js';
+import { isDegradedMode } from '../utils/degradedMode.js';
 
 export const protect = async (req, res, next) => {
   let token;
@@ -10,11 +10,18 @@ export const protect = async (req, res, next) => {
     try {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const tokenUserId = decoded?.id || decoded?._id;
 
       if (isDegradedMode()) {
-        req.user = getDegradedUserById(decoded.id);
+        req.user = tokenUserId
+          ? {
+            _id: tokenUserId,
+            anonymousId: decoded?.anonymousId || '',
+            isAnonymous: Boolean(decoded?.isAnonymous),
+          }
+          : null;
       } else {
-        req.user = await User.findById(decoded.id).select('-password');
+        req.user = await User.findById(tokenUserId).select('-password');
       }
 
       if (!req.user) {

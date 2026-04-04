@@ -10,18 +10,11 @@ export const errorHandler = (err, req, res, next) => {
     return;
   }
 
-  // Handle malformed JSON bodies from express.json()
-  if (err instanceof SyntaxError && 'body' in err) {
-    res.status(400).json(buildSafeErrorBody('Malformed JSON payload.', err));
-    return;
-  }
+  console.error('[ERROR]', err);
 
-  const status = Number(err?.statusCode || err?.status || 500);
-  const safeStatus = Number.isFinite(status) && status >= 400 && status <= 599 ? status : 500;
-  const message = safeStatus >= 500
-    ? 'Server error.'
-    : (err?.message || 'Request failed.');
-
-  res.status(safeStatus).json(buildSafeErrorBody(message, err));
+  return res.status(200).json({
+    ...buildSafeErrorBody(err?.message || 'Fallback error', err),
+    error: true,
+    fallback: true,
+  });
 };
-

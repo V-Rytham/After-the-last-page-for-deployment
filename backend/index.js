@@ -1,8 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { connectDB, getLastDbError, isDbConnected } from './config/db.js';
+import { connectDB } from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
 import bookRoutes from './routes/bookRoutes.js';
 import threadRoutes from './routes/threadRoutes.js';
@@ -154,10 +155,20 @@ app.use('/api/matchmaking', requireDatabase({ feature: 'Meet' }), buildMatchmaki
 app.use('/api/recommender', requireDatabase({ feature: 'Recommendations' }), recommenderRoutes);
 
 app.get('/api/health', (req, res) => {
-  const connected = isDbConnected();
-  res.status(200).json(connected
-    ? { status: 'ok', db: 'connected' }
-    : { status: 'degraded', db: 'disconnected', error: getLastDbError()?.message || 'Database unavailable' });
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+
+    return res.status(200).json({
+      status: dbConnected ? 'ok' : 'degraded',
+      db: dbConnected ? 'connected' : 'disconnected',
+      uptime: process.uptime(),
+    });
+  } catch (_ERROR) {
+    return res.status(200).json({
+      status: 'degraded',
+      db: 'unknown',
+    });
+  }
 });
 
 app.use(notFound);
