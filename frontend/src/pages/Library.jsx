@@ -105,7 +105,8 @@ const Library = () => {
     };
   }, [query]);
 
-  const visibleBooks = useMemo(() => (query.trim() ? searchResults : baseBooks), [query, searchResults, baseBooks]);
+  const hasQuery = Boolean(query.trim());
+  const visibleBooks = useMemo(() => (hasQuery ? searchResults : baseBooks), [hasQuery, searchResults, baseBooks]);
   const subtitleCount = visibleBooks.length;
 
   const handleOpenBook = async (book) => {
@@ -121,12 +122,12 @@ const Library = () => {
     <main className="library-page content-container">
       <header className="library-header">
         <h1>Library</h1>
-        <p>Browse our complete collection of {subtitleCount} books</p>
+        <p>{hasQuery ? `Search results: ${subtitleCount} books` : `Top selling books: ${subtitleCount} titles`}</p>
         <SearchBar value={query} onChange={setQuery} loading={searchLoading} />
       </header>
 
-      <section className="library-section" aria-label="All books">
-        <h2>All Books</h2>
+      <section className="library-section" aria-label={hasQuery ? 'Search results' : 'Top selling books'}>
+        <h2>{hasQuery ? 'Search Results' : 'Top Selling Books'}</h2>
         <div onClickCapture={(event) => {
           const card = event.target.closest('[href^="/read/gutenberg/"]');
           if (!card) return;

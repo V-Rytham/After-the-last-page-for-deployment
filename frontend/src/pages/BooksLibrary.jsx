@@ -4,6 +4,7 @@ import { BookOpen } from 'lucide-react';
 import BookCard from '../components/books/BookCard';
 import { getBestCoverUrl } from '../utils/openLibraryCovers';
 import api from '../utils/api';
+import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
 import './BooksLibrary.css';
 
 const getRecommendationsFromResponse = (payload) => {
@@ -71,6 +72,15 @@ const getLastAccessedBook = (allBooks) => {
   })[0] || null;
 };
 
+const getBookReadingState = (book, sessions) => {
+  const keys = [book?._id, book?.id, String(book?.gutenbergId || '')].filter(Boolean).map(String);
+  const session = keys.map((key) => sessions[key]).find(Boolean);
+  if (!session) return 'Added';
+  if (session?.isFinished || Number(session?.progressPercent) >= 100) return 'Finished';
+  if (Number(session?.progressPercent) > 0) return `In progress · ${Math.round(session.progressPercent)}%`;
+  return 'Started';
+};
+
 const ShelfCover = ({ book }) => {
   const coverUrl = getBestCoverUrl(book);
 
@@ -94,6 +104,7 @@ const ShelfCover = ({ book }) => {
 const BooksLibrary = () => {
   const [books, setBooks] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  const [sessions, setSessions] = useState({});
   const [loading, setLoading] = useState(true);
   const loadedRef = useRef(false);
   const cache = useRef(null);
@@ -155,6 +166,7 @@ const BooksLibrary = () => {
         if (deskDataCache.books && deskDataCache.recommendations) {
           setBooks(deskDataCache.books);
           setRecommendations(deskDataCache.recommendations);
+          setSessions(getReadingSessionsForCurrentUser());
           setLoading(false);
           return;
         }
@@ -163,12 +175,14 @@ const BooksLibrary = () => {
         if (!mounted) return;
         setBooks(payload.books);
         setRecommendations(payload.recommendations);
+        setSessions(getReadingSessionsForCurrentUser());
       } catch (error) {
         console.error('[DESK] Failed to load desk data:', error);
         if (!mounted) return;
 
         setBooks(Array.isArray(deskDataCache.books) ? deskDataCache.books : []);
         setRecommendations(Array.isArray(deskDataCache.recommendations) ? deskDataCache.recommendations : []);
+        setSessions(getReadingSessionsForCurrentUser());
       } finally {
         if (mounted) setLoading(false);
       }
@@ -184,7 +198,13 @@ const BooksLibrary = () => {
   }, []);
 
   const continueBook = useMemo(() => getLastAccessedBook(books), [books]);
-  const shelfBooks = useMemo(() => books.slice(0, 12), [books]);
+  const shelfBooks = useMemo(() => [...books]
+    .sort((a, b) => {
+      const aDate = new Date(a?.lastAccessedAt || a?.updatedAt || 0).getTime();
+      const bDate = new Date(b?.lastAccessedAt || b?.updatedAt || 0).getTime();
+      return bDate - aDate;
+    })
+    .slice(0, 12), [books]);
 
   return (
     <div className="desk-page">
@@ -192,7 +212,7 @@ const BooksLibrary = () => {
         <header className="desk-header">
           <div>
             <h1>Your Desk</h1>
-            <p>Your active reading space, shelf, and recommendations.</p>
+            <p>A personal space for your active reads, tailored picks, and shelf.</p>
           </div>
           <div className="desk-header-actions">
             <Link className="btn-resume btn-resume--ghost" to="/library">Browse library</Link>
@@ -219,7 +239,6 @@ const BooksLibrary = () => {
                 <span className="continue-progress">Progress: In progress</span>
                 <div className="continue-actions">
                   <Link className="btn-resume" to={`/read/gutenberg/${continueBook.gutenbergId}`}>Resume book</Link>
-                  <Link className="btn-resume btn-resume--ghost" to="/library">Find another</Link>
                 </div>
               </div>
             </article>
@@ -227,22 +246,6 @@ const BooksLibrary = () => {
             <div className="no-results">
               <BookOpen size={24} />
               <p>No recent books yet.</p>
-            </div>
-          )}
-        </section>
-
-        <section className="desk-section" aria-label="Your shelf">
-          <div className="section-heading">
-            <h2>Your Shelf</h2>
-          </div>
-
-          {shelfBooks.length === 0 ? (
-            <div className="no-results"><p>Your shelf is empty.</p></div>
-          ) : (
-            <div className="shelf-grid">
-              {shelfBooks.map((book) => (
-                <ShelfCover key={getBookKey(book)} book={book} />
-              ))}
             </div>
           )}
         </section>
@@ -263,6 +266,25 @@ const BooksLibrary = () => {
                   compact
                   className="desk-grid-card"
                 />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="desk-section" aria-label="Your shelf">
+          <div className="section-heading">
+            <h2>Your Shelf</h2>
+          </div>
+
+          {shelfBooks.length === 0 ? (
+            <div className="no-results"><p>Your shelf is empty.</p></div>
+          ) : (
+            <div className="shelf-grid">
+              {shelfBooks.map((book) => (
+                <div key={getBookKey(book)} className="shelf-cell">
+                  <ShelfCover book={book} />
+                  <span className="shelf-status">{getBookReadingState(book, sessions)}</span>
+                </div>
               ))}
             </div>
           )}

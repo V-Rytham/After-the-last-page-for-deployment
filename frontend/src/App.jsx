@@ -95,13 +95,8 @@ const App = () => {
   const bootstrapStartedRef = useRef(false);
   const [uiTheme, setUiTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (storedTheme === 'midnight') {
-      return 'dark';
-    }
-
-    if (storedTheme === 'dark') {
-      // Preserve the older brown-toned palette under its new id.
-      return 'mocha';
+    if (storedTheme === 'midnight' || storedTheme === 'mocha') {
+      return DEFAULT_UI_THEME;
     }
 
     return VALID_THEMES.includes(storedTheme) ? storedTheme : DEFAULT_UI_THEME;
