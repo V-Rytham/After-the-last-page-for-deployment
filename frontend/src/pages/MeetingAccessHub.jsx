@@ -8,6 +8,7 @@ import './MeetingAccessHub.css';
 const MeetingAccessHub = ({ currentUser }) => {
   const navigate = useNavigate();
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+  const resolveBookId = (book) => String(book?._id || book?.id || book?.gutenbergId || '').trim();
   const [loading, setLoading] = useState(isMember);
   const [error, setError] = useState('');
   const [availableBooks, setAvailableBooks] = useState([]);
@@ -36,7 +37,7 @@ const MeetingAccessHub = ({ currentUser }) => {
         }
 
         const bookIds = normalizedBooks
-          .map((book) => String(book?._id || book?.id || '').trim())
+          .map((book) => resolveBookId(book))
           .filter(Boolean);
 
         if (!bookIds.length) {
@@ -53,7 +54,7 @@ const MeetingAccessHub = ({ currentUser }) => {
 
         const allowed = new Set((Array.isArray(access?.allowedBookIds) ? access.allowedBookIds : []).map(String));
         const filtered = normalizedBooks
-          .filter((book) => allowed.has(String(book?._id || book?.id || '')))
+          .filter((book) => allowed.has(resolveBookId(book)))
           .map((book) => ({
             ...book,
             coverUrl: getBestCoverUrl(book),
@@ -137,7 +138,7 @@ const MeetingAccessHub = ({ currentUser }) => {
       {!loading && !error && hasRooms && (
         <section className="meeting-access-grid" aria-label="Unlocked meet books">
           {availableBooks.map((book) => {
-            const bookId = book?._id || book?.id;
+            const bookId = resolveBookId(book);
             if (!bookId) return null;
 
             return (
