@@ -202,47 +202,98 @@ export const searchBooks = async (query, signal) => {
 
 export { normalizeBook, PLACEHOLDER_COVER };
 
+const inferCategory = (book) => {
+  const title = String(book?.title || '').toLowerCase();
+  const tags = (Array.isArray(book?.tags) ? book.tags : []).map((tag) => String(tag).toLowerCase());
+  const haystack = `${title} ${tags.join(' ')}`;
+
+  if (/(mystery|detective|sherlock|crime)/.test(haystack)) return 'mystery';
+  if (/(philosophy|ethic|metaphysics|republic|zarathustra)/.test(haystack)) return 'philosophy';
+  if (/(memoir|history|essay|treatise|biography|nonfiction|non-fiction)/.test(haystack)) return 'non-fiction';
+  if (/(classic|prejudice|frankenstein|odyssey|iliad|dickens|austen)/.test(haystack)) return 'classic';
+  return 'fiction';
+};
+
+const sortBooks = (books, sort) => {
+  const list = [...books];
+  switch (sort) {
+    case 'title-asc':
+      return list.sort((a, b) => a.title.localeCompare(b.title));
+    case 'title-desc':
+      return list.sort((a, b) => b.title.localeCompare(a.title));
+    case 'author-asc':
+      return list.sort((a, b) => a.author.localeCompare(b.author));
+    case 'author-desc':
+      return list.sort((a, b) => b.author.localeCompare(a.author));
+    case 'newest':
+      return list.sort((a, b) => b.gutenbergId - a.gutenbergId);
+    case 'popular':
+    default:
+      return list.sort((a, b) => {
+        const aRecent = Number(readRecentBooks().some((entry) => Number(entry?.gutenbergId) === Number(a.gutenbergId)));
+        const bRecent = Number(readRecentBooks().some((entry) => Number(entry?.gutenbergId) === Number(b.gutenbergId)));
+        if (aRecent !== bRecent) return bRecent - aRecent;
+        return a.title.localeCompare(b.title);
+      });
+  }
+};
+
 export const fetchLibraryBooks = async ({ search = '', category = 'all', sort = 'popular', page = 1, perPage = 24, signal } = {}) => {
-  const params = {
-    page,
-    perPage,
-    sort,
-  };
+  const normalizedSearch = String(search || '').trim().toLowerCase();
 
-  if (String(search || '').trim()) params.search = String(search).trim();
-  if (category && category !== 'all') params.category = category;
+  let normalized = [];
+  if (normalizedSearch) {
+    normalized = await searchBooks(normalizedSearch, signal);
+  } else {
+    try {
+      const { data } = await api.get('/books', { signal });
+      const list = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data?.books)
+            ? data.books
+            : Array.isArray(data)
+              ? data
+              : [];
 
-  const { data } = await api.get('/books', { params, signal });
+      normalized = list
+        .map((entry) => normalizeBook({
+          id: entry?.id,
+          gutenbergId: entry?.gutenbergId ?? entry?.id,
+          title: entry?.title,
+          author: entry?.author,
+          tags: Array.isArray(entry?.tags) ? entry.tags : [],
+          coverImage: entry?.cover_url ?? entry?.coverImage,
+        }))
+        .filter(Boolean);
+    } catch {
+      normalized = [];
+    }
 
-  const list = Array.isArray(data?.items)
-    ? data.items
-    : Array.isArray(data?.results)
-      ? data.results
-      : Array.isArray(data?.books)
-        ? data.books
-        : Array.isArray(data)
-          ? data
-          : [];
+    if (normalized.length === 0) {
+      normalized = fallbackBooks
+        .map((entry) => normalizeBook(entry))
+        .filter(Boolean);
+    }
+  }
 
-  const normalized = list
-    .map((entry) => normalizeBook({
-      id: entry?.id,
-      gutenbergId: entry?.gutenbergId ?? entry?.id,
-      title: entry?.title,
-      author: entry?.author,
-      tags: Array.isArray(entry?.tags) ? entry.tags : [],
-      coverImage: entry?.cover_url ?? entry?.coverImage,
-    }))
-    .filter(Boolean)
-    .map((entry) => ({
-      ...entry,
-      id: entry.gutenbergId,
-      category: category === 'all' ? (entry.category || '') : category,
-    }));
+  const deduped = Array.from(
+    new Map(normalized.map((book) => [book.gutenbergId, { ...book, category: inferCategory(book) }])).values(),
+  );
 
-  const total = Number(data?.total ?? data?.count ?? normalized.length);
+  const filtered = category === 'all'
+    ? deduped
+    : deduped.filter((book) => book.category === category);
+
+  const sorted = sortBooks(filtered, sort);
+  const safePage = Math.max(1, Number(page) || 1);
+  const safePerPage = Math.max(1, Number(perPage) || 24);
+  const start = (safePage - 1) * safePerPage;
+  const paged = sorted.slice(start, start + safePerPage);
+
   return {
-    books: normalized,
-    total: Number.isFinite(total) ? total : normalized.length,
+    books: paged.map((entry) => ({ ...entry, id: entry.gutenbergId })),
+    total: sorted.length,
   };
 };

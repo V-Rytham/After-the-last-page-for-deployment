@@ -3,7 +3,6 @@ import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'reac
 import Navbar from './components/layout/Navbar';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
 import LandingPage from './pages/LandingPage';
-import BooksLibrary from './pages/BooksLibrary';
 import Library from './pages/Library';
 import MeetingAccessHub from './pages/MeetingAccessHub';
 import ReadingRoom from './pages/ReadingRoom';
@@ -89,7 +88,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
         <Routes>
           <Route path="/" element={<LandingPage currentUser={currentUser} />} />
           <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
-          <Route path="/desk" element={<RequireMember currentUser={currentUser}><BooksLibrary currentUser={currentUser} /></RequireMember>} />
+          <Route path="/desk" element={<RequireMember currentUser={currentUser}><Navigate to="/library" replace /></RequireMember>} />
           <Route path="/library" element={<RequireMember currentUser={currentUser}><Library /></RequireMember>} />
           <Route path="/books" element={<Navigate to="/desk" replace />} />
           <Route path="/request-book" element={<RequireMember currentUser={currentUser}><RequestBookPage /></RequireMember>} />
