@@ -2,13 +2,13 @@
   min-height: 100vh;
   width: min(100%, var(--page-max-width));
   margin: 0 auto;
-  padding: 0.9rem var(--page-gutter) var(--section-space);
+  padding: 1.2rem var(--page-gutter) var(--section-space);
   color: var(--text-primary);
 }
 
 .desk-shell {
   display: grid;
-  gap: clamp(1rem, 2.1vw, 1.5rem);
+  gap: clamp(1.35rem, 2.6vw, 1.8rem);
 }
 
 .desk-header {
@@ -22,7 +22,7 @@
 .desk-header h1 {
   font-size: clamp(2.4rem, 4.8vw, 3.7rem);
   line-height: 1.04;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
 }
 
 .desk-header p {
@@ -38,8 +38,8 @@
 
 .desk-section {
   display: grid;
-  gap: 0.95rem;
-  margin-top: 1rem;
+  gap: 1rem;
+  margin-top: 0.8rem;
 }
 
 .section-heading {
@@ -62,12 +62,12 @@
 
 .continue-card {
   display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
   gap: 1rem 1.4rem;
-  background: var(--surface-1);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--surface-1) 85%, var(--surface-2) 15%), color-mix(in srgb, var(--surface-1) 60%, transparent));
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  padding: 1rem;
+  border-radius: 1.4rem;
+  padding: 1.2rem;
 }
 
 .continue-cover {
@@ -85,7 +85,7 @@
 }
 
 .continue-copy h3 {
-  font-size: clamp(1.2rem, 2.2vw, 1.7rem);
+  font-size: clamp(1.35rem, 2.3vw, 2rem);
   line-height: 1.18;
   font-weight: 700;
 }
@@ -97,7 +97,7 @@
 
 .continue-progress {
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.9rem;
 }
 
 .continue-actions {
@@ -127,8 +127,13 @@
 .shelf-grid,
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.95rem;
+}
+
+.shelf-cell {
+  display: grid;
+  gap: 0.3rem;
 }
 
 .shelf-item {
@@ -175,6 +180,11 @@
   font-size: 0.84rem;
 }
 
+.shelf-status {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 .desk-grid-card {
   width: 100%;
 }
@@ -202,7 +212,7 @@
 
   .shelf-grid,
   .books-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

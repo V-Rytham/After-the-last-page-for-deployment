@@ -19,7 +19,6 @@ import {
   UserRound,
   UserPlus,
   UsersRound,
-  Sparkles,
 } from 'lucide-react';
 import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
@@ -27,7 +26,6 @@ import './Navbar.css';
 const THEME_ICONS = {
   light: Sun,
   sepia: BookOpenText,
-  mocha: Sparkles,
   dark: Moon,
 };
 
