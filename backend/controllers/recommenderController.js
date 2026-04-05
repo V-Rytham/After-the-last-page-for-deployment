@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
+import { UserProgress } from '../models/UserProgress.js';
 import { gutenbergCatalog } from '../seed/gutenbergCatalog.js';
 import { recommendFromDatabase } from '../recommenderSystem/recommenderSystem.js';
 
@@ -26,6 +27,8 @@ const emptyShelves = () => ({
   same_author: [],
   series_continuation: [],
   genre_based: [],
+  contentBased: [],
+  popular: [],
 });
 
 const normalizeTitleTokens = (title) => String(title || '')
@@ -66,6 +69,53 @@ const buildRecommendations = ({ catalogBooks, baseBook, readGutenbergIds, limit 
     })
     .map((entry) => entry.book)
     .slice(0, Math.min(limit, 8));
+};
+
+const dedupeBooks = (books = []) => {
+  const seen = new Set();
+  return books.filter((book) => {
+    const key = String(book?._id || book?.gutenbergId || `${book?.title || ''}-${book?.author || ''}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const getPopularBooks = async ({ excludeIds = [], limit = 8 }) => {
+  const excludedSet = new Set(excludeIds.map(String));
+
+  const topProgress = await UserProgress.aggregate([
+    { $group: { _id: '$bookId', reads: { $sum: 1 }, lastReadAt: { $max: '$updatedAt' } } },
+    { $sort: { reads: -1, lastReadAt: -1 } },
+    { $limit: Math.max(limit * 3, 20) },
+  ]);
+
+  const topIds = topProgress
+    .map((entry) => String(entry?._id || ''))
+    .filter((id) => id && !excludedSet.has(id));
+
+  const booksByPopularity = topIds.length
+    ? await Book.find({ _id: { $in: topIds } }).select('_id title author gutenbergId lastAccessedAt').lean()
+    : [];
+  const byId = new Map(booksByPopularity.map((book) => [String(book?._id || ''), book]));
+
+  const sortedPopular = topIds
+    .map((id) => byId.get(id))
+    .filter(Boolean);
+
+  if (sortedPopular.length >= limit) {
+    return sortedPopular.slice(0, limit);
+  }
+
+  const fallbackRecent = await Book.find({})
+    .select('_id title author gutenbergId lastAccessedAt')
+    .sort({ lastAccessedAt: -1, _id: -1 })
+    .limit(Math.max(limit * 2, 16))
+    .lean();
+
+  return dedupeBooks([...sortedPopular, ...fallbackRecent])
+    .filter((book) => !excludedSet.has(String(book?._id || '')))
+    .slice(0, limit);
 };
 
 export const getRecommendations = async (req, res) => {
@@ -127,25 +177,55 @@ export const getRecommendations = async (req, res) => {
       ].map((id) => String(id)).filter(Boolean);
 
       const dbBooks = candidateIds.length
-        ? await Book.find({ _id: { $in: candidateIds } }).select('_id title author gutenbergId').lean()
+        ? await Book.find({ _id: { $in: candidateIds } }).select('_id title author gutenbergId lastAccessedAt').lean()
         : [];
       const idLookup = new Map(dbBooks.map((book) => [String(book._id), book]));
       const mapIdsToBooks = (ids = []) => ids
         .map((id) => idLookup.get(String(id)))
         .filter(Boolean);
 
+      const basedOnBook = mapIdsToBooks(dbRecommendations?.based_on_book);
+      const sameAuthor = mapIdsToBooks(dbRecommendations?.same_author);
+      const seriesContinuation = mapIdsToBooks(dbRecommendations?.series_continuation);
+      const genreBased = mapIdsToBooks(dbRecommendations?.genre_based);
+
+      const contentBased = dedupeBooks([
+        ...basedOnBook,
+        ...sameAuthor,
+        ...seriesContinuation,
+        ...genreBased,
+      ]).slice(0, limitPerShelf);
+
+      const popular = await getPopularBooks({
+        excludeIds: [...readBookIds, ...contentBased.map((book) => String(book?._id || ''))],
+        limit: limitPerShelf,
+      });
+
       recommendations = {
-        based_on_book: mapIdsToBooks(dbRecommendations?.based_on_book),
-        same_author: mapIdsToBooks(dbRecommendations?.same_author),
-        series_continuation: mapIdsToBooks(dbRecommendations?.series_continuation),
-        genre_based: mapIdsToBooks(dbRecommendations?.genre_based),
+        based_on_book: basedOnBook,
+        same_author: sameAuthor,
+        series_continuation: seriesContinuation,
+        genre_based: genreBased,
+        contentBased,
+        popular,
       };
-      source = 'database-content';
+      source = 'database-content-popular';
     }
 
-    if (!recommendations.based_on_book.length) {
+    if (!recommendations.based_on_book.length && fallback.length) {
       recommendations.based_on_book = fallback;
+      recommendations.contentBased = dedupeBooks([
+        ...recommendations.contentBased,
+        ...fallback,
+      ]).slice(0, limitPerShelf);
       source = 'catalog-title-author';
+    }
+
+    if (!recommendations.popular.length) {
+      recommendations.popular = await getPopularBooks({
+        excludeIds: [...readBookIds, ...recommendations.contentBased.map((book) => String(book?._id || ''))],
+        limit: limitPerShelf,
+      });
     }
 
     return res.json({
