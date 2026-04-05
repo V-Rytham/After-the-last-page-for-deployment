@@ -207,34 +207,6 @@
   min-width: 0;
 }
 
-.thread-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  width: fit-content;
-  padding: 0.2rem 0.52rem;
-  border-radius: var(--radius-pill);
-  font-size: 0.68rem;
-  border: 1px solid var(--border-soft);
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-}
-
-.thread-status.unlocked {
-  background: var(--success-soft);
-  color: var(--text-primary);
-}
-
-.thread-status.quiz-required {
-  background: var(--accent-soft);
-  color: var(--text-primary);
-}
-
-.thread-status.read-required {
-  background: var(--warning-soft);
-  color: var(--text-primary);
-}
-
 .thread-access-title {
   margin: 0;
   font-size: 1rem;

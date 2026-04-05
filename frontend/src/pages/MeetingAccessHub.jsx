@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Search, ShieldCheck } from 'lucide-react';
 import api from '../utils/api';
 import { getBestCoverUrl } from '../utils/openLibraryCovers';
 import './MeetingAccessHub.css';
@@ -12,6 +12,7 @@ const MeetingAccessHub = ({ currentUser }) => {
   const [loading, setLoading] = useState(isMember);
   const [error, setError] = useState('');
   const [availableBooks, setAvailableBooks] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (!isMember) {
@@ -81,7 +82,18 @@ const MeetingAccessHub = ({ currentUser }) => {
     };
   }, [isMember]);
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredBooks = useMemo(() => (
+    availableBooks.filter((book) => {
+      if (!normalizedSearch) return true;
+      const title = String(book?.title || '').toLowerCase();
+      const author = String(book?.author || '').toLowerCase();
+      return title.includes(normalizedSearch) || author.includes(normalizedSearch);
+    })
+  ), [availableBooks, normalizedSearch]);
+
   const hasRooms = useMemo(() => availableBooks.length > 0, [availableBooks.length]);
+  const hasVisibleRooms = useMemo(() => filteredBooks.length > 0, [filteredBooks.length]);
 
   if (!isMember) {
     return (
@@ -108,8 +120,25 @@ const MeetingAccessHub = ({ currentUser }) => {
   return (
     <div className="meeting-access-page animate-fade-in">
       <section className="meeting-access-hero">
-        <h1 className="font-serif">Join conversations beyond the final page.</h1>
-        <p>Enter live discussions, voice rooms, or debates with readers who’ve completed the same book.</p>
+        <div className="meeting-access-hero-row">
+          <div className="meeting-access-hero-copy">
+            <h1 className="font-serif">Join conversations beyond the final page.</h1>
+            <p>Enter live discussions, voice rooms, or debates with readers who’ve completed the same book.</p>
+          </div>
+          {hasRooms && (
+            <label className="meeting-access-search" htmlFor="meeting-search-input">
+              <Search size={16} aria-hidden="true" />
+              <input
+                id="meeting-search-input"
+                type="search"
+                value={searchTerm}
+                placeholder="Search reading rooms"
+                onChange={(event) => setSearchTerm(event.target.value)}
+                aria-label="Search reading rooms"
+              />
+            </label>
+          )}
+        </div>
       </section>
 
       {loading && (
@@ -135,9 +164,16 @@ const MeetingAccessHub = ({ currentUser }) => {
         </section>
       )}
 
-      {!loading && !error && hasRooms && (
+      {!loading && !error && hasRooms && !hasVisibleRooms && (
+        <section className="meeting-access-empty glass-panel">
+          <h2 className="font-serif">No matching reading rooms.</h2>
+          <p>Try a different title or author.</p>
+        </section>
+      )}
+
+      {!loading && !error && hasVisibleRooms && (
         <section className="meeting-access-grid" aria-label="Unlocked meet books">
-          {availableBooks.map((book) => {
+          {filteredBooks.map((book) => {
             const bookId = resolveBookId(book);
             if (!bookId) return null;
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, LockKeyhole } from 'lucide-react';
+import { ArrowRight, LockKeyhole, Search } from 'lucide-react';
 import api from '../utils/api';
 import { getBestCoverUrl } from '../utils/openLibraryCovers';
 import './ThreadAccessHub.css';
@@ -12,6 +12,7 @@ const ThreadAccessHub = ({ currentUser }) => {
   const [loading, setLoading] = useState(isMember);
   const [error, setError] = useState('');
   const [books, setBooks] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (!isMember) {
@@ -66,7 +67,18 @@ const ThreadAccessHub = ({ currentUser }) => {
     return () => { cancelled = true; };
   }, [isMember]);
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredBooks = useMemo(() => (
+    books.filter((book) => {
+      if (!normalizedSearch) return true;
+      const title = String(book?.title || '').toLowerCase();
+      const author = String(book?.author || '').toLowerCase();
+      return title.includes(normalizedSearch) || author.includes(normalizedSearch);
+    })
+  ), [books, normalizedSearch]);
+
   const hasThreadAccess = useMemo(() => books.length > 0, [books.length]);
+  const hasVisibleResults = useMemo(() => filteredBooks.length > 0, [filteredBooks.length]);
 
   return (
     <div className="thread-access-page animate-fade-in">
@@ -76,6 +88,19 @@ const ThreadAccessHub = ({ currentUser }) => {
             <h1 className="font-serif">Step into the reader-only thread.</h1>
             <p>Where finished books become conversations.</p>
           </div>
+          {isMember && hasThreadAccess && (
+            <label className="thread-access-search" htmlFor="thread-search-input">
+              <Search size={16} aria-hidden="true" />
+              <input
+                id="thread-search-input"
+                type="search"
+                value={searchTerm}
+                placeholder="Search threads"
+                onChange={(event) => setSearchTerm(event.target.value)}
+                aria-label="Search thread books"
+              />
+            </label>
+          )}
         </div>
       </section>
 
@@ -111,7 +136,13 @@ const ThreadAccessHub = ({ currentUser }) => {
           </div>
         )}
 
-        {isMember && !loading && !error && hasThreadAccess && books.map((book) => (
+        {isMember && !loading && !error && hasThreadAccess && !hasVisibleResults && (
+          <div className="thread-access-loading glass-panel">
+            <p>No threads match “{searchTerm.trim()}”.</p>
+          </div>
+        )}
+
+        {isMember && !loading && !error && hasVisibleResults && filteredBooks.map((book) => (
           <article key={book._id} className="thread-access-card glass-panel">
             <div className="thread-access-mini-cover" aria-hidden="true">
               {book.coverUrl ? (
@@ -133,7 +164,6 @@ const ThreadAccessHub = ({ currentUser }) => {
             <div className="thread-access-card-body">
               <h3 className="thread-access-title font-serif">{book.title || 'Untitled Book'}</h3>
               <p className="thread-access-author">{book.author || 'Unknown author'}</p>
-              <span className="thread-status unlocked">Thread unlocked</span>
             </div>
             <div className="thread-access-actions">
               <button className="btn-primary sm thread-access-button" onClick={() => navigate(`/thread/${encodeURIComponent(book._id)}`)}>
