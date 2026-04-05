@@ -15,7 +15,6 @@ import { PaginationEngine } from '../components/reader/PaginationEngine';
 import PageRenderer from '../components/reader/PageRenderer';
 import './ReadingRoom.css';
 
-const GUTENBERG_HOST = 'https://www.gutenberg.org';
 const READ_REQUEST_TIMEOUT_MS = 120000;
 
 const clampNumber = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -217,10 +216,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const hasResolvedTotalPages = resolvedTotalPages != null && resolvedTotalPages > 0;
 
   const nextBookPath = book ? `/meet/${book._id || book.id}` : '/desk';
-  const sourceUrl = book?.sourceUrl || (book?.gutenbergId ? `${GUTENBERG_HOST}/ebooks/${book.gutenbergId}` : null);
-  const sourceLabel = book?.gutenbergId
-    ? `Project Gutenberg (eBook #${book.gutenbergId})`
-    : (book?.source ? `${String(book.source).charAt(0).toUpperCase()}${String(book.source).slice(1)}` : 'Source');
 
   const chapterHtmlForPagination = useMemo(() => {
     if (!activeChapter) return '';
@@ -840,7 +835,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
             <div className="settings-panel-header">
               <div>
                 <span className="settings-label">{activeControlPanel === 'goto' ? 'Navigate' : 'Reading settings'}</span>
-                <h3 className="font-serif">{activeControlPanel === 'goto' ? 'Jump to chapter or page.' : 'Tune the page, then let it disappear.'}</h3>
+                <h3 className="font-serif">{activeControlPanel === 'goto' ? 'Jump to chapter or page.' : 'Adjust your reading experience.'}</h3>
               </div>
               <button type="button" className="settings-close" onClick={() => setActiveControlPanel(null)}>
                 Done
@@ -960,14 +955,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
               </>
             )}
 
-            {sourceUrl && (
-              <div className="settings-group">
-                <span className="settings-label">Source</span>
-                <a className="settings-link" href={sourceUrl} target="_blank" rel="noreferrer">
-                  {sourceLabel}
-                </a>
-              </div>
-            )}
           </div>
         </div>
       )}

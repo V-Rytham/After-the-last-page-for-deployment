@@ -563,9 +563,9 @@ const MeetingHub = () => {
             <h2 className="font-serif text-center mb-2">How would you like to connect?</h2>
             <p className="text-muted text-center mb-8">Select your preferred medium to discuss <em>{book.title}</em>. Your identity remains anonymous.</p>
             <div className="pref-options">
-              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><MessageSquare size={26} strokeWidth={2.1} /></div><h3>Text Chat</h3><p>Quiet, thoughtful discussion.</p></button>
-              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><Mic size={26} strokeWidth={2.1} /></div><h3>Voice Call</h3><p>Vocalize your thoughts securely.</p></button>
-              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}><div className="pref-icon-wrapper"><Video size={26} strokeWidth={2.1} /></div><h3>Video Call</h3><p>Face-to-face, masked connection.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><MessageSquare className="pref-icon" size={26} strokeWidth={2.1} /><h3>Text Chat</h3><p>Quiet, thoughtful discussion.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}><Mic className="pref-icon" size={26} strokeWidth={2.1} /><h3>Voice Call</h3><p>Vocalize your thoughts securely.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}><Video className="pref-icon" size={26} strokeWidth={2.1} /><h3>Video Call</h3><p>Face-to-face, masked connection.</p></button>
             </div>
             {matchNotice && <div className="meeting-notice" role="status">{matchNotice}</div>}
             <div className="mt-8 text-center flex-column-center gap-4">
@@ -585,12 +585,7 @@ const MeetingHub = () => {
         <div className="searching-container animate-fade-in">
           <div className="searching-card glass-panel">
             <div className="radar-animation" aria-hidden="true">
-              <div className="radar-circle" />
-              <div className="radar-circle delay-1" />
-              <div className="radar-circle delay-2" />
-              <div className="radar-center-icon">
-                <Waves size={22} />
-              </div>
+              <Waves size={22} className="radar-center-icon" />
             </div>
 
             <div className="searching-header">

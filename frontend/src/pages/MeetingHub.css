@@ -181,20 +181,9 @@
   transform: translateY(1px);
 }
 
-.pref-icon-wrapper {
-  width: 2.75rem;
-  height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
-  color: var(--text-muted);
-  line-height: 0;
-}
-
-.pref-icon-wrapper svg {
+.pref-icon {
   display: block;
+  color: var(--text-muted);
   stroke: currentColor;
 }
 
@@ -309,36 +298,15 @@
 }
 
 .radar-animation {
-  position: relative;
-  width: 8rem;
-  height: 8rem;
+  width: 3rem;
+  height: 3rem;
   display: grid;
   place-items: center;
 }
 
-.radar-circle {
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--border-soft);
-  border-radius: 50%;
-  animation: breathingRing 2.8s ease-in-out infinite;
-}
-
-.delay-1 {
-  animation-delay: 0.5s;
-}
-
-.delay-2 {
-  animation-delay: 1s;
-}
-
 .radar-center-icon {
-  width: 3rem;
-  height: 3rem;
-  padding: 0.7rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
-  border: 1px solid var(--border-soft);
+  width: 1.4rem;
+  height: 1.4rem;
   color: var(--text-muted);
   animation: radarPulse 1.9s ease-in-out infinite;
 }
@@ -372,19 +340,6 @@
   background: var(--surface-muted);
   color: var(--text-secondary);
   transform: translateY(-0.5px);
-}
-
-@keyframes breathingRing {
-  0%,
-  100% {
-    transform: scale(0.94);
-    opacity: 0.5;
-  }
-
-  50% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
 }
 
 .room-container {
@@ -629,11 +584,6 @@
     text-align: left;
     gap: 0.75rem 0.9rem;
     padding: 0.9rem 0.9rem;
-  }
-
-  .pref-icon-wrapper {
-    width: 2.6rem;
-    height: 2.6rem;
   }
 
   .pref-card h3 {
