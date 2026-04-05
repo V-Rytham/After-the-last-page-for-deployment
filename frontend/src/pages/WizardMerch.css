@@ -89,9 +89,9 @@
 
 .type-btn.active,
 .type-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-  color: var(--accent-ink);
+  background: var(--intent-btn-bg);
+  border-color: var(--intent-btn-border);
+  color: var(--intent-btn-text);
 }
 
 .color-picker {

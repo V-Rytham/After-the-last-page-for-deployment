@@ -454,12 +454,12 @@ html[data-theme='dark'] .current-reading-card__resume {
 }
 
 .desk-btn {
-  border-radius: 999px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
+  border-radius: 9999px;
+  border: 1px solid var(--intent-btn-border, var(--accent));
+  background: var(--intent-btn-bg, var(--accent));
+  color: var(--intent-btn-text, var(--accent-contrast));
   min-height: 34px;
-  padding: 0 14px;
+  padding: 10px 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
