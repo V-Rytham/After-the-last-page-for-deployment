@@ -74,12 +74,24 @@ export const getThreadsByBook = async (req, res) => {
       return res.status(accessCheck.status).json({ message: accessCheck.message });
     }
 
-    const threads = await Thread.find({ bookId })
-      .sort(buildSortQuery(req.query.sort))
-      .skip((safePage - 1) * safeLimit)
-      .limit(safeLimit);
+    const [threads, total] = await Promise.all([
+      Thread.find({ bookId })
+        .sort(buildSortQuery(req.query.sort))
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
+        .lean(),
+      Thread.countDocuments({ bookId }),
+    ]);
 
-    res.json(threads);
+    res.json({
+      items: threads,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+      },
+    });
   } catch (error) {
     const status = error.statusCode || 500;
     res.status(status).json({ message: status >= 500 ? 'Error fetching threads' : (error.message || 'Request failed.') });

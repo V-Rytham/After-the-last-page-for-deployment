@@ -1,6 +1,17 @@
 import { Book } from '../models/Book.js';
 import { canonicalizeTag } from '../utils/tags.js';
 
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const BOOK_CACHE_TTL_MS = parsePositiveInt(process.env.RECOMMENDER_BOOK_CACHE_MS, 30_000);
+let booksCache = {
+  expiresAt: 0,
+  books: null,
+};
+
 const normalizeTag = (tag) => {
   const canonical = canonicalizeTag(tag);
   return canonical ? canonical.toLowerCase() : '';
@@ -196,9 +207,20 @@ export const recommendForContext = (books, options = {}) => {
 
 // Thin wrapper: loads only the fields needed for lightweight, content-based recs.
 export const recommendFromDatabase = async (options = {}) => {
-  const books = await Book.find({})
-    .select('_id title author tags series seriesIndex gutenbergId')
-    .lean();
+  const now = Date.now();
+  const canUseCache = Array.isArray(booksCache.books) && booksCache.expiresAt > now;
+  const books = canUseCache
+    ? booksCache.books
+    : await Book.find({})
+      .select('_id title author tags series seriesIndex gutenbergId')
+      .lean();
+
+  if (!canUseCache) {
+    booksCache = {
+      books,
+      expiresAt: now + BOOK_CACHE_TTL_MS,
+    };
+  }
 
   return recommendForContext(books, options);
 };

@@ -262,7 +262,11 @@ export default function BookThread() {
       }
 
       if (threadsResult.status === 'fulfilled') {
-        setThreads(threadsResult.value.data);
+        const payload = threadsResult.value.data;
+        const normalized = Array.isArray(payload?.items)
+          ? payload.items
+          : (Array.isArray(payload) ? payload : []);
+        setThreads(normalized);
       } else {
         const status = threadsResult.reason?.response?.status;
         if (status === 401 || status === 403) {

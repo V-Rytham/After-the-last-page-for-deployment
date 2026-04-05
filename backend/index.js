@@ -143,6 +143,9 @@ app.use('/api/users/signup', rateLimit({ windowMs: 60_000, max: 15 }));
 app.use('/api/users/anonymous', rateLimit({ windowMs: 60_000, max: 40 }));
 app.use('/api/quiz', rateLimit({ windowMs: 60_000, max: 60 }));
 app.use('/api/access', rateLimit({ windowMs: 60_000, max: 90 }));
+app.use('/api/threads', rateLimit({ windowMs: 60_000, max: 90 }));
+app.use('/api/recommender', rateLimit({ windowMs: 60_000, max: 90 }));
+app.use('/api/agent', rateLimit({ windowMs: 60_000, max: 75 }));
 
 const sessionManager = new RealtimeSessionManager(io);
 // Register Socket Events
