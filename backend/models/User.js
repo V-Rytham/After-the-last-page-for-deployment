@@ -58,6 +58,16 @@ const userSchema = new mongoose.Schema({
     theme: { type: String, default: 'dark' },
     defaultMatchMedium: { type: String, enum: ['text', 'voice', 'video'], default: 'text' },
   },
+  profileImageUrl: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  profileImagePath: {
+    type: String,
+    trim: true,
+    default: '',
+  },
 }, { timestamps: true });
 
 userSchema.pre('save', async function save() {

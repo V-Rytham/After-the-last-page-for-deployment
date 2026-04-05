@@ -3,8 +3,11 @@ import { Thread } from '../models/Thread.js';
 import { UserProgress } from '../models/UserProgress.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import fs from 'fs/promises';
 import { generateToken } from '../utils/generateToken.js';
 import { buildSafeErrorBody } from '../utils/runtime.js';
+import { ensureProfileUploadDir, getImagePublicUrl, profileImageConfig, safeUnlink } from '../utils/profileImage.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -83,6 +86,7 @@ const buildUserResponse = (user, extra = {}) => ({
   rating: user.rating,
   joinedAt: user.createdAt,
   preferences: user.preferences,
+  profileImageUrl: user.profileImageUrl || '',
   stats: extra.stats || {
     booksCompleted: 0,
     discussionsParticipated: 0,
@@ -101,8 +105,66 @@ const buildProfileResponse = async (user) => ({
   rating: user.rating,
   joinedAt: user.createdAt,
   preferences: user.preferences,
+  profileImageUrl: user.profileImageUrl || '',
   stats: await buildProfileStats(user),
 });
+
+const parseProfileImagePayload = (payload = {}) => {
+  const dataUri = String(payload?.profileImageData || '').trim();
+  if (!dataUri) {
+    return null;
+  }
+
+  const matched = dataUri.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!matched) {
+    return { error: 'Image payload must be a valid base64 data URL.' };
+  }
+
+  const mimeType = matched[1].toLowerCase();
+  if (!profileImageConfig.allowedMimeTypes.has(mimeType)) {
+    return { error: 'Please upload a valid image file (JPEG, PNG, WEBP, or GIF).' };
+  }
+
+  const buffer = Buffer.from(matched[2], 'base64');
+  if (!buffer?.length) {
+    return { error: 'Image payload is empty.' };
+  }
+
+  if (buffer.length > profileImageConfig.maxSizeBytes) {
+    return { error: 'Profile image must be 5MB or smaller.' };
+  }
+
+  const extension = mimeType === 'image/png'
+    ? 'png'
+    : mimeType === 'image/webp'
+      ? 'webp'
+      : mimeType === 'image/gif'
+        ? 'gif'
+        : 'jpg';
+
+  return { buffer, extension };
+};
+
+const writeProfileImageFile = async (parsedImage) => {
+  await ensureProfileUploadDir();
+  const filename = `${Date.now()}-${crypto.randomUUID()}.${parsedImage.extension}`;
+  const absolutePath = path.resolve(profileImageConfig.uploadDir, filename);
+  await fs.writeFile(absolutePath, parsedImage.buffer);
+  return { filename, absolutePath };
+};
+
+const setUserProfileImage = async ({ req, user, absolutePath, filename }) => {
+  if (!user || !absolutePath || !filename) {
+    return;
+  }
+
+  const relativePath = `/uploads/profiles/${filename}`;
+  const oldAbsolutePath = user.profileImagePath || '';
+  user.profileImagePath = absolutePath;
+  user.profileImageUrl = getImagePublicUrl(req, relativePath);
+  await user.save();
+  await safeUnlink(oldAbsolutePath);
+};
 
 const generateAnonymousId = async () => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -224,6 +286,16 @@ export const registerUser = async (req, res) => {
       },
     });
 
+    const parsedImage = parseProfileImagePayload(req.body);
+    if (parsedImage?.error) {
+      return res.status(400).json({ message: parsedImage.error });
+    }
+
+    if (parsedImage) {
+      const { filename, absolutePath } = await writeProfileImageFile(parsedImage);
+      await setUserProfileImage({ req, user, filename, absolutePath });
+    }
+
     res.status(201).json(buildUserResponse(user));
   } catch (error) {
     if (error?.code === 11000 && error?.keyPattern?.usernameLower) {
@@ -316,6 +388,57 @@ export const updateUserProfile = async (req, res) => {
       return res.status(400).json({ message: 'That username is already taken.' });
     }
 
+    res.status(500).json(buildSafeErrorBody('Server error', error));
+  }
+};
+
+export const updateUserProfileImage = async (req, res) => {
+  try {
+    if (!req.user || req.user.isAnonymous) {
+      return res.status(403).json({ message: 'Only members can edit a profile.' });
+    }
+
+    const parsedImage = parseProfileImagePayload(req.body);
+    if (parsedImage?.error) {
+      return res.status(400).json({ message: parsedImage.error });
+    }
+
+    if (!parsedImage) {
+      return res.status(400).json({ message: 'Please select an image to upload.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const { filename, absolutePath } = await writeProfileImageFile(parsedImage);
+    await setUserProfileImage({ req, user, filename, absolutePath });
+    res.json(await buildProfileResponse(user));
+  } catch (error) {
+    res.status(500).json(buildSafeErrorBody('Server error', error));
+  }
+};
+
+export const removeUserProfileImage = async (req, res) => {
+  try {
+    if (!req.user || req.user.isAnonymous) {
+      return res.status(403).json({ message: 'Only members can edit a profile.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const oldAbsolutePath = user.profileImagePath || '';
+    user.profileImagePath = '';
+    user.profileImageUrl = '';
+    await user.save();
+    await safeUnlink(oldAbsolutePath);
+
+    res.json(await buildProfileResponse(user));
+  } catch (error) {
     res.status(500).json(buildSafeErrorBody('Server error', error));
   }
 };

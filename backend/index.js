@@ -3,6 +3,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import path from 'path';
 import { connectDB } from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
 import bookRoutes from './routes/bookRoutes.js';
@@ -127,8 +128,12 @@ app.use(cors({
 }));
 app.use(securityHeaders);
 app.use(requestTracing);
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '7mb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'backend', 'uploads'), {
+  fallthrough: true,
+  maxAge: isProd() ? '7d' : 0,
+}));
 
 // Baseline abuse protection for all endpoints.
 app.use(rateLimit({ windowMs: 15 * 60_000, max: 100 }));
