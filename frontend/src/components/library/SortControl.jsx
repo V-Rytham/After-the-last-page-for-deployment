@@ -10,9 +10,6 @@ const SortControl = ({ sort, onSortChange }) => (
         <option value="title">Title</option>
       </select>
     </label>
-    <button type="button" className="library-compact-toggle" aria-label="Compact view">
-      Compact
-    </button>
   </div>
 );
 

@@ -1,35 +1,75 @@
 import React from 'react';
-import { Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
-const SearchBar = ({ value, onChange, onClear, onSubmit, loading = false }) => {
-  const hasValue = Boolean(String(value || '').trim());
-
+const SearchBar = ({ value, onChange, onSubmit, loading = false, categories = [], activeCategory, onCategoryChange }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit?.();
   };
 
+  const handleStepCategory = (direction) => {
+    if (!categories.length) return;
+    const currentIndex = categories.findIndex((item) => item.value === activeCategory);
+    const safeIndex = currentIndex === -1 ? 0 : currentIndex;
+    const nextIndex = (safeIndex + direction + categories.length) % categories.length;
+    onCategoryChange?.(categories[nextIndex]?.value);
+  };
+
   return (
-    <form className="library-search" role="search" onSubmit={handleSubmit}>
-      <Search size={18} aria-hidden="true" className="library-search-icon" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Search by title, author, genre, or Gutenberg ID"
-        aria-label="Search by title, author, genre, or Gutenberg ID"
-        autoComplete="off"
-      />
-      <div className="library-search-actions">
-        {hasValue ? (
-          <button type="button" className="library-search-clear" onClick={onClear} aria-label="Clear search">
-            <X size={15} />
-          </button>
-        ) : null}
-        <button type="submit" className="library-search-submit-icon" aria-label="Search library" disabled={loading}>
-          <Search size={15} />
+    <div className="search-wrapper">
+      <form className="search-container" role="search" onSubmit={handleSubmit}>
+        <button
+          type="button"
+          className="search-arrow-btn"
+          onClick={() => handleStepCategory(-1)}
+          aria-label="Previous category"
+        >
+          <ChevronLeft size={16} />
         </button>
-      </div>
-    </form>
+
+        <div className="search-input-wrap">
+          <Search size={16} aria-hidden="true" className="search-input-icon" />
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="Search by title, author, genre, or Gutenberg ID"
+            aria-label="Search by title, author, genre, or Gutenberg ID"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="search-category-pills" role="tablist" aria-label="Book categories">
+          {categories.map((category) => {
+            const isActive = activeCategory === category.value;
+            return (
+              <button
+                key={category.value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`search-category-pill${isActive ? ' is-active' : ''}`}
+                onClick={() => onCategoryChange?.(category.value)}
+              >
+                {category.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          className="search-arrow-btn"
+          onClick={() => handleStepCategory(1)}
+          aria-label="Next category"
+        >
+          <ChevronRight size={16} />
+        </button>
+
+        <button type="submit" className="search-submit-btn" aria-label="Search library" disabled={loading}>
+          <Search size={16} />
+        </button>
+      </form>
+    </div>
   );
 };
 

@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import SearchBar from '../components/library/SearchBar';
-import FilterPills from '../components/library/FilterPills';
 import SortControl from '../components/library/SortControl';
 import BookGrid from '../components/library/BookGrid';
 import { fetchLibraryBooks } from '../utils/libraryApi';
@@ -92,12 +91,6 @@ const Library = () => {
     setSubmittedSearch(next);
   };
 
-  const handleClearSearch = () => {
-    setSearch('');
-    setValidationError('');
-    setSubmittedSearch('');
-  };
-
   const notFoundMessage = (!loading && !error && submittedSearch && books.length === 0)
     ? (/^\d+$/.test(submittedSearch)
       ? `No Gutenberg book found for ID ${submittedSearch}.`
@@ -115,15 +108,16 @@ const Library = () => {
             setSearch(value);
             if (validationError) setValidationError('');
           }}
-          onClear={handleClearSearch}
           onSubmit={handleSubmitSearch}
           loading={loading}
+          categories={FILTER_OPTIONS}
+          activeCategory={category}
+          onCategoryChange={setCategory}
         />
         {validationError ? <p className="library-inline-message" role="status">{validationError}</p> : null}
       </header>
 
       <section className="library-controls-row" aria-label="Library controls">
-        <FilterPills options={FILTER_OPTIONS} active={category} onChange={setCategory} />
         <SortControl sort={sort} onSortChange={setSort} />
       </section>
 

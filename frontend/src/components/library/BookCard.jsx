@@ -25,9 +25,7 @@ const BookCard = ({ book, loading = false }) => {
   const id = book?.id || `${source}:${sourceId}`;
   const title = String(book?.title || 'Untitled');
   const author = String(book?.author || 'Unknown author');
-  const tags = Array.isArray(book?.tags) ? book.tags.filter(Boolean) : [];
-  const visibleTags = tags.slice(0, 2);
-  if (tags.length > 2) visibleTags.push(`+${tags.length - 2}`);
+  const genreText = book?.genres?.length ? book.genres.join(', ') : 'Unknown';
   const coverSrc = imageError
     ? PLACEHOLDER_COVER
     : (book?.cover_url || book?.coverImage || (source === 'gutenberg' ? getGutenbergCoverUrl(sourceId) : PLACEHOLDER_COVER));
@@ -44,9 +42,7 @@ const BookCard = ({ book, loading = false }) => {
       </Link>
       <h3 className="library-book-title" title={title}>{title}</h3>
       <p className="library-book-author">{author}</p>
-      <div className="library-book-tags" aria-label="Book tags">
-        {visibleTags.map((tag) => <span key={`${id}-${tag}`}>{tag}</span>)}
-      </div>
+      <p className="library-book-genre" aria-label="Book genres">{genreText}</p>
       <Link className="library-book-cta" to={readPath}>Read</Link>
     </article>
   );

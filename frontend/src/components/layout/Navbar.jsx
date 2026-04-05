@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight, Moon, Sun, X } from 'lucide-react';
 import { UI_THEMES } from '../../utils/uiThemes';
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
 const THEME_SWATCH = {
   light: '#ffffff',
   sepia: '#E8DCC7',
-  dark: '#121212',
+  dark: '#1E2230',
 };
 
 const ProfileAvatar = ({ user, className = '', onClick, label = 'Open profile' }) => {
@@ -43,18 +43,10 @@ const ProfileAvatar = ({ user, className = '', onClick, label = 'Open profile' }
     <span className="nav-avatar-fallback" aria-hidden="true">{initials}</span>
   );
 
-  if (onClick) {
-    return (
-      <button type="button" className={`nav-avatar-btn ${className}`.trim()} onClick={onClick} aria-label={label}>
-        {avatarContent}
-      </button>
-    );
-  }
-
   return (
-    <span className={`nav-avatar-btn ${className}`.trim()} aria-label={label}>
+    <button type="button" className={`nav-avatar-btn ${className}`.trim()} onClick={onClick} aria-label={label}>
       {avatarContent}
-    </span>
+    </button>
   );
 };
 
@@ -62,6 +54,8 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
 
   const activeTheme = useMemo(() => UI_THEMES.find((theme) => theme.id === uiTheme) || UI_THEMES[0], [uiTheme]);
 
@@ -72,10 +66,40 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
     };
   }, [drawerOpen]);
 
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [profileMenuOpen]);
+
   const handleSignOut = () => {
     onLogout?.();
     setDrawerOpen(false);
-    navigate('/');
+    setProfileMenuOpen(false);
+    navigate('/auth');
+  };
+
+  const handleViewProfile = () => {
+    setProfileMenuOpen(false);
+    navigate('/profile');
   };
 
   return (
@@ -109,9 +133,20 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             {uiTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          <Link to="/profile" className="navbar-profile-link" aria-label="Go to profile">
-            <ProfileAvatar user={currentUser} label="Go to profile" />
-          </Link>
+          <div className="profile-menu-wrap" ref={profileMenuRef}>
+            <ProfileAvatar
+              user={currentUser}
+              label="Open profile menu"
+              onClick={() => setProfileMenuOpen((open) => !open)}
+            />
+            {profileMenuOpen ? (
+              <div className="profile-dropdown" role="menu" aria-label="Profile menu">
+                <button type="button" className="profile-dropdown-item" role="menuitem" onClick={handleViewProfile}>View profile</button>
+                <button type="button" className="profile-dropdown-item is-danger" role="menuitem" onClick={handleSignOut}>Sign out</button>
+              </div>
+            ) : null}
+          </div>
+
           <ProfileAvatar user={currentUser} className="mobile-menu-avatar" onClick={() => setDrawerOpen(true)} label="Open navigation menu" />
         </div>
       </header>
