@@ -495,7 +495,7 @@
   overflow-x: hidden;
   max-width: min(100%, 74ch);
   margin: 0 auto;
-  padding: clamp(1.35rem, 3.2vh, 2.1rem) calc(clamp(1rem, 3.2vw, 2.6rem) * var(--reader-margin-scale)) clamp(4rem, 7vh, 4.9rem);
+  padding: clamp(0.7rem, 2.3vh, 1.35rem) calc(clamp(1rem, 3.2vw, 2.6rem) * var(--reader-margin-scale)) clamp(4rem, 7vh, 4.9rem);
   font-family: var(--font-reading);
   letter-spacing: 0.01em;
   white-space: normal;
@@ -539,13 +539,13 @@
 }
 
 .chapter-heading {
-  margin: 0 auto 3rem;
+  margin: 0 auto 1.6rem;
   text-align: center;
-  padding-top: clamp(0.5rem, 2.2vw, 1.25rem);
+  padding-top: clamp(0rem, 0.4vh, 0.2rem);
 }
 
 .chapter-kicker {
-  margin-bottom: 3rem;
+  margin-bottom: 1.2rem;
   font-size: 0.72rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -566,13 +566,34 @@
 }
 
 .chapter-title {
-  font-size: clamp(2rem, 4.4vw, 3.05rem);
-  line-height: 1.06;
+  font-size: clamp(1.45rem, 3vw, 2.3rem);
+  line-height: 1.18;
   max-width: 100%;
   margin: 0 auto 1.5rem;
   white-space: normal;
   overflow-wrap: break-word;
   text-wrap: balance;
+}
+
+.reader-preview-notice {
+  width: min(100%, 62rem);
+  margin: 0.35rem auto 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+
+.reader-preview-notice p {
+  margin: 0;
+  line-height: 1.45;
+  font-size: 0.86rem;
 }
 
 .reading-column p {
@@ -724,7 +745,7 @@
 
   .chapter-heading {
     padding-top: 0.25rem;
-    margin-bottom: 2.1rem;
+    margin-bottom: 1.3rem;
   }
 
   .chapter-kicker {
@@ -733,7 +754,7 @@
   }
 
   .chapter-title {
-    font-size: 2.02rem;
+    font-size: 1.68rem;
     line-height: 1.14;
   }
 

@@ -27,7 +27,8 @@
 .meeting-access-hero {
   display: grid;
   gap: 0.4rem;
-  max-width: 680px;
+  width: 100%;
+  max-width: none;
 }
 
 .meeting-access-hero-row {
@@ -42,10 +43,13 @@
   display: grid;
   gap: 0.4rem;
   min-width: min(30rem, 100%);
+  flex: 1 1 28rem;
 }
 
 .meeting-access-search {
   width: clamp(14rem, 28vw, 20rem);
+  margin-left: auto;
+  flex: 0 0 auto;
   max-width: 100%;
   display: inline-flex;
   align-items: center;
@@ -232,6 +236,15 @@
 }
 
 @media (max-width: 719px) {
+  .meeting-access-hero-row {
+    align-items: stretch;
+  }
+
+  .meeting-access-search {
+    margin-left: 0;
+    width: 100%;
+  }
+
   .meeting-access-hero h1,
   .meeting-access-gate h1 {
     white-space: normal;
