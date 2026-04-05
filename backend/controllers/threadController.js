@@ -25,10 +25,10 @@ const findCommentById = (comments, commentId) => {
   return null;
 };
 
-const ensureQuizAccess = async ({ userId, bookId }) => {
+const ensureThreadAccess = async ({ userId, bookId }) => {
   const result = await checkQuizAccess({ userId, bookId });
   if (!result.access) {
-    return { ok: false, status: 403, message: 'Quiz access is required for this book.' };
+    return { ok: false, status: 403, message: 'Thread access is locked for this book.' };
   }
 
   return { ok: true };
@@ -69,7 +69,7 @@ export const getThreadsByBook = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(bookId)) {
       return res.status(400).json({ message: 'Invalid book reference.' });
     }
-    const accessCheck = await ensureQuizAccess({ userId: req.user?._id, bookId });
+    const accessCheck = await ensureThreadAccess({ userId: req.user?._id, bookId });
     if (!accessCheck.ok) {
       return res.status(accessCheck.status).json({ message: accessCheck.message });
     }
@@ -118,7 +118,7 @@ export const createThread = async (req, res) => {
       return res.status(400).json({ message: 'Thread content must be 3000 characters or fewer.' });
     }
 
-    const accessCheck = await ensureQuizAccess({ userId: req.user?._id, bookId });
+    const accessCheck = await ensureThreadAccess({ userId: req.user?._id, bookId });
     if (!accessCheck.ok) {
       return res.status(accessCheck.status).json({ message: accessCheck.message });
     }
@@ -154,7 +154,7 @@ export const addComment = async (req, res) => {
       return res.status(404).json({ message: 'Thread not found' });
     }
 
-    const accessCheck = await ensureQuizAccess({ userId: req.user?._id, bookId: thread.bookId });
+    const accessCheck = await ensureThreadAccess({ userId: req.user?._id, bookId: thread.bookId });
     if (!accessCheck.ok) {
       return res.status(accessCheck.status).json({ message: accessCheck.message });
     }
@@ -205,7 +205,7 @@ export const likeThread = async (req, res) => {
       return res.status(404).json({ message: 'Thread not found' });
     }
 
-    const accessCheck = await ensureQuizAccess({ userId: req.user?._id, bookId: thread.bookId });
+    const accessCheck = await ensureThreadAccess({ userId: req.user?._id, bookId: thread.bookId });
     if (!accessCheck.ok) {
       return res.status(accessCheck.status).json({ message: accessCheck.message });
     }
@@ -232,7 +232,7 @@ export const likeComment = async (req, res) => {
       return res.status(404).json({ message: 'Thread not found' });
     }
 
-    const accessCheck = await ensureQuizAccess({ userId: req.user?._id, bookId: thread.bookId });
+    const accessCheck = await ensureThreadAccess({ userId: req.user?._id, bookId: thread.bookId });
     if (!accessCheck.ok) {
       return res.status(accessCheck.status).json({ message: accessCheck.message });
     }
