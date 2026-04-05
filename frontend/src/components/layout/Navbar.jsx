@@ -5,6 +5,7 @@ import {
   BookOpenText,
   Check,
   ChevronDown,
+  LayoutDashboard,
   LogIn,
   LogOut,
   Menu,
@@ -221,6 +222,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
   const primaryNavLinks = useMemo(
     () => [
       ...(isMember ? [
+        { path: '/desk', icon: <LayoutDashboard {...navIconProps} />, label: 'Your Desk' },
         { path: '/library', icon: <BookOpen {...navIconProps} />, label: 'Library' }
       ] : []),
       { path: '/meet', icon: <UsersRound {...navIconProps} />, label: 'Meet' },
