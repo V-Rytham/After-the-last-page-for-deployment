@@ -7,18 +7,23 @@
   --desk-shadow: var(--shadow-panel);
   --desk-progress-bg: var(--surface-muted);
   --desk-progress-fill: var(--accent);
+  --desk-card-hover-shadow: var(--shadow-panel);
+  --desk-card-finished-dot: var(--accent);
 }
 
 html[data-theme='light'] .editorial-theme {
   --desk-hero-gradient: linear-gradient(140deg, rgba(255, 255, 255, 0.96) 0%, rgba(236, 243, 255, 0.82) 100%);
+  --desk-card-hover-shadow: 0 10px 20px rgba(20, 28, 42, 0.14);
 }
 
 html[data-theme='dark'] .editorial-theme {
   --desk-hero-gradient: linear-gradient(140deg, rgba(23, 26, 38, 0.95) 0%, rgba(37, 35, 54, 0.9) 100%);
+  --desk-card-hover-shadow: 0 12px 24px rgba(0, 0, 0, 0.42);
 }
 
 html[data-theme='sepia'] .editorial-theme {
   --desk-hero-gradient: linear-gradient(140deg, rgba(245, 235, 211, 0.94) 0%, rgba(226, 208, 170, 0.9) 100%);
+  --desk-card-hover-shadow: 0 10px 20px rgba(88, 69, 33, 0.2);
 }
 
 .desk-page {
@@ -190,38 +195,49 @@ html[data-theme='sepia'] .editorial-theme {
 .desk-btn:hover,
 .editorial-book-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--desk-card-hover-shadow);
 }
 
 .editorial-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .editorial-grid--recent,
 .editorial-grid--shelf,
 .editorial-grid--recommendations {
-  grid-template-columns: repeat(auto-fill, minmax(166px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .editorial-book-card {
   display: grid;
   gap: 6px;
+  align-content: start;
   background: var(--desk-card-bg);
   border: 1px solid var(--desk-border);
   border-radius: 12px;
   padding: 8px;
+  min-width: 0;
+  cursor: pointer;
+  text-decoration: none;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
 .editorial-book-card h3 {
   font-size: 0.84rem;
-  line-height: 1.2;
+  line-height: 1.25;
+  color: var(--desk-text);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .editorial-book-card p,
 .editorial-book-card__status {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
+  margin: 0;
 }
 
 .editorial-book-card__cover {
@@ -235,6 +251,42 @@ html[data-theme='sepia'] .editorial-theme {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.editorial-book-card__progress-block {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.editorial-book-card__progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--desk-progress-bg);
+  overflow: hidden;
+}
+
+.editorial-book-card__progress > div {
+  height: 100%;
+  background: var(--desk-progress-fill);
+  border-radius: inherit;
+}
+
+.editorial-book-card__status--finished {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editorial-book-card__finished-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--desk-card-finished-dot);
+}
+
+.editorial-book-card__status--subtle {
+  opacity: 0.8;
 }
 
 .shelf-empty {
@@ -265,22 +317,23 @@ html[data-theme='sepia'] .editorial-theme {
   to { background-position: -100% 0; }
 }
 
-@media (max-width: 1150px) {
+@media (max-width: 1280px) {
+  .editorial-grid--recent,
+  .editorial-grid--shelf,
+  .editorial-grid--recommendations {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
   .desk-page {
     padding: 18px 18px 52px;
   }
 
   .editorial-grid--recent,
+  .editorial-grid--shelf,
   .editorial-grid--recommendations {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(160px, 22vw);
-    grid-template-columns: none;
-    overflow-x: auto;
-    padding-bottom: 3px;
-  }
-
-  .editorial-grid--shelf {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -289,8 +342,10 @@ html[data-theme='sepia'] .editorial-theme {
     width: 100%;
   }
 
-  .editorial-grid--shelf {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .editorial-grid--recent,
+  .editorial-grid--shelf,
+  .editorial-grid--recommendations {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -313,7 +368,9 @@ html[data-theme='sepia'] .editorial-theme {
   }
 
   .editorial-grid--recent,
+  .editorial-grid--shelf,
   .editorial-grid--recommendations {
-    grid-auto-columns: minmax(145px, 64vw);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 }

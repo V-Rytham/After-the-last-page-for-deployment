@@ -35,6 +35,14 @@ const withRetry = async (fn, retries = 2, attempt = 0) => {
 
 const getBookKey = (book) => String(book?._id || book?.id || book?.gutenbergId || `${book?.title || 'book'}-${book?.author || 'unknown'}`);
 const getBookObjectId = (book) => String(book?._id || book?.id || '');
+const getBookSession = (sessions, book) => {
+  if (!book) return null;
+  const sessionByKey = sessions[getBookKey(book)] || sessions[getBookObjectId(book)];
+  if (sessionByKey) return sessionByKey;
+  const gutenbergSession = sessions[String(book?.gutenbergId || '')];
+  return gutenbergSession || null;
+};
+
 
 const normalizeRecommendationPayload = (payload) => {
   const recommendations = payload?.recommendations ?? payload?.data?.recommendations ?? payload;
@@ -62,19 +70,12 @@ const getDisplayName = (currentUser) => {
   return rawName.split(' ')[0];
 };
 
-const getStatusLabel = (session) => {
-  const progress = Number(session?.progressPercent || 0);
-  if (progress >= 100 || session?.isFinished) return 'Completed';
-  if (progress > 0) return `${Math.round(progress)}% read`;
-  return 'Opened';
-};
 
 const toUserCacheKey = (currentUser) => String(currentUser?._id || currentUser?.email || currentUser?.username || currentUser?.anonymousId || 'guest');
 
 const getRecentActivity = (books, sessions) => books
   .map((book) => {
-    const key = getBookKey(book);
-    const session = sessions[key] || sessions[String(book?.gutenbergId || '')];
+    const session = getBookSession(sessions, book);
     if (!session) return null;
     return { book, session };
   })
@@ -91,7 +92,7 @@ const getShelfBooks = (books, sessions) => {
   const saved = books.filter((book) => shelfIds.has(getBookKey(book)) || shelfIds.has(getBookObjectId(book)) || shelfIds.has(String(book?.gutenbergId || '')));
 
   const completed = books.filter((book) => {
-    const session = sessions[getBookKey(book)] || sessions[String(book?.gutenbergId || '')];
+    const session = getBookSession(sessions, book);
     return Boolean(session?.isFinished || Number(session?.progressPercent || 0) >= 100);
   });
 
@@ -248,6 +249,7 @@ const BooksLibrary = ({ currentUser }) => {
   const currentReading = useMemo(() => getLastActiveBook(books, sessions), [books, sessions]);
   const recentActivity = useMemo(() => getRecentActivity(books, sessions), [books, sessions]);
   const shelfBooks = useMemo(() => getShelfBooks(books, sessions), [books, sessions]);
+  const sessionForBook = useCallback((book) => getBookSession(sessions, book), [sessions]);
   const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
 
   return (
@@ -274,7 +276,7 @@ const BooksLibrary = ({ currentUser }) => {
           ) : recentActivity.length > 0 ? (
             <div className="editorial-grid editorial-grid--recent">
               {recentActivity.map(({ book, session }) => (
-                <BookCardEditorial key={getBookKey(book)} book={book} subtitle={getStatusLabel(session)} />
+                <BookCardEditorial key={getBookKey(book)} book={book} session={session} />
               ))}
             </div>
           ) : (
@@ -295,7 +297,7 @@ const BooksLibrary = ({ currentUser }) => {
                 <BookCardEditorial
                   key={getBookKey(book)}
                   book={book}
-                  subtitle={getStatusLabel(sessions[getBookKey(book)] || sessions[String(book?.gutenbergId || '')])}
+                  session={sessionForBook(book)}
                 />
               ))}
             </div>
@@ -319,6 +321,7 @@ const BooksLibrary = ({ currentUser }) => {
             title={recommendationTitle}
             subtitle="Stories with similar tags and themes."
             books={recommendations}
+            getSessionForBook={sessionForBook}
           />
         )}
 

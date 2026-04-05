@@ -1,7 +1,7 @@
 import React from 'react';
 import BookCardEditorial from './BookCardEditorial';
 
-const RecommendationRow = ({ title, subtitle, books }) => (
+const RecommendationRow = ({ title, subtitle, books, getSessionForBook }) => (
   <section className="desk-section" aria-label="Recommendations">
     <div className="desk-section__heading">
       <h2>{title}</h2>
@@ -12,7 +12,7 @@ const RecommendationRow = ({ title, subtitle, books }) => (
         <BookCardEditorial
           key={String(book?._id || book?.gutenbergId || book?.title)}
           book={book}
-          tags={Array.isArray(book?.tags) ? book.tags : []}
+          session={getSessionForBook(book)}
         />
       ))}
     </div>
