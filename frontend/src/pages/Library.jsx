@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import SearchBar from '../components/library/SearchBar';
 import FilterPills from '../components/library/FilterPills';
 import SortControl from '../components/library/SortControl';
-import SectionHeader from '../components/library/SectionHeader';
 import BookGrid from '../components/library/BookGrid';
 import { fetchLibraryBooks } from '../utils/libraryApi';
 import './Library.css';
@@ -15,17 +14,6 @@ const FILTER_OPTIONS = [
   { label: 'Classic', value: 'classic' },
   { label: 'Philosophy', value: 'philosophy' },
 ];
-
-const useDebouncedValue = (value, delay = 320) => {
-  const [debounced, setDebounced] = React.useState(value);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setDebounced(value), delay);
-    return () => window.clearTimeout(timer);
-  }, [value, delay]);
-
-  return debounced;
-};
 
 const queryCache = new Map();
 
@@ -52,9 +40,10 @@ const useLibraryQuery = (params) => {
         queryCache.set(key, data);
         setState({ data, loading: false, error: '' });
       })
-      .catch(() => {
+      .catch((requestError) => {
         if (controller.signal.aborted) return;
-        setState((previous) => ({ ...previous, loading: false, error: 'Unable to load books right now. Please try again.' }));
+        const message = String(requestError?.message || '').trim() || 'Unable to load books right now. Please try again.';
+        setState((previous) => ({ ...previous, loading: false, error: message }));
       });
 
     return () => controller.abort();
@@ -65,30 +54,72 @@ const useLibraryQuery = (params) => {
 
 const Library = () => {
   const [search, setSearch] = useState('');
+  const [submittedSearch, setSubmittedSearch] = useState('');
+  const [validationError, setValidationError] = useState('');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('popular');
-  const debouncedSearch = useDebouncedValue(search);
 
   const queryParams = useMemo(() => ({
-    search: debouncedSearch,
+    search: submittedSearch,
     category,
     sort,
     page: 1,
     perPage: 24,
-  }), [debouncedSearch, category, sort]);
+  }), [submittedSearch, category, sort]);
 
   const { data, loading, error } = useLibraryQuery(queryParams);
 
   const books = data?.books ?? [];
-  const total = data?.total ?? books.length;
-  const showingLabel = useMemo(() => `Showing ${books.length} of ${total}`, [books.length, total]);
+  const normalizedSearch = String(search || '').trim();
+
+  const handleSubmitSearch = () => {
+    const next = normalizedSearch;
+    if (!next) {
+      setValidationError('');
+      setSubmittedSearch('');
+      return;
+    }
+
+    if (/^\d+$/.test(next)) {
+      const parsed = Number(next);
+      if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+        setValidationError('Please enter a valid positive Gutenberg ID.');
+        return;
+      }
+    }
+
+    setValidationError('');
+    setSubmittedSearch(next);
+  };
+
+  const handleClearSearch = () => {
+    setSearch('');
+    setValidationError('');
+    setSubmittedSearch('');
+  };
+
+  const notFoundMessage = (!loading && !error && submittedSearch && books.length === 0)
+    ? (/^\d+$/.test(submittedSearch)
+      ? `No Gutenberg book found for ID ${submittedSearch}.`
+      : 'No books matched your search.')
+    : '';
+  const statusMessage = validationError || error || notFoundMessage;
 
   return (
     <main className="library-page content-container">
       <header className="library-page-header">
         <h1>Library</h1>
-        <p>Explore 100 curated classics and timeless reads</p>
-        <SearchBar value={search} onChange={setSearch} onClear={() => setSearch('')} />
+        <SearchBar
+          value={search}
+          onChange={(value) => {
+            setSearch(value);
+            if (validationError) setValidationError('');
+          }}
+          onClear={handleClearSearch}
+          onSubmit={handleSubmitSearch}
+          loading={loading}
+        />
+        {validationError ? <p className="library-inline-message" role="status">{validationError}</p> : null}
       </header>
 
       <section className="library-controls-row" aria-label="Library controls">
@@ -96,9 +127,7 @@ const Library = () => {
         <SortControl sort={sort} onSortChange={setSort} />
       </section>
 
-      <SectionHeader title="All Books" showingLabel={showingLabel} />
-
-      <BookGrid books={books} loading={loading} error={error} />
+      <BookGrid books={books} loading={loading} error={statusMessage} />
     </main>
   );
 };
