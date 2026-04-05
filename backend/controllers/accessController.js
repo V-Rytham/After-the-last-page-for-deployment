@@ -1,8 +1,7 @@
 import { checkMeetAccess, checkQuizAccess, grantMeetFallback } from '../services/accessService.js';
 import mongoose from 'mongoose';
-import { UserProgress } from '../models/UserProgress.js';
 import { buildSafeErrorBody } from '../utils/runtime.js';
-import { getDegradedAllowedBookIds, getDegradedQuizProgress, isDegradedMode } from '../utils/degradedMode.js';
+import { isDegradedMode } from '../utils/degradedMode.js';
 
 export const checkAccess = async (req, res) => {
   try {
@@ -18,8 +17,7 @@ export const checkAccess = async (req, res) => {
         return res.json({ access: false, mode: 'degraded', fallback: true, message: 'Meet is unavailable in degraded mode.' });
       }
 
-      const progress = getDegradedQuizProgress({ userId: req.user?._id, bookId });
-      return res.json({ access: Boolean(progress?.quizPassed), mode: progress?.quizPassed ? 'quiz' : 'none', fallback: true });
+      return res.json({ access: true, mode: 'completed', fallback: true });
     }
 
     if (context === 'meet') {
@@ -28,7 +26,7 @@ export const checkAccess = async (req, res) => {
     }
 
     const result = await checkQuizAccess({ userId: req.user?._id, bookId });
-    return res.json({ access: result.access, mode: result.access ? 'quiz' : 'none' });
+    return res.json({ access: result.access, mode: result.access ? 'completed' : 'none' });
   } catch (error) {
     const status = error.statusCode || 500;
     return res.status(status).json(buildSafeErrorBody('Failed to check access.', error));
@@ -76,10 +74,7 @@ export const checkAccessBatch = async (req, res) => {
         return res.json({ allowedBookIds: [], fallback: true, message: 'Meet is unavailable in degraded mode.' });
       }
 
-      return res.json({
-        allowedBookIds: getDegradedAllowedBookIds({ userId: req.user?._id, bookIds: normalized }),
-        fallback: true,
-      });
+      return res.json({ allowedBookIds: normalized, fallback: true });
     }
 
     let allowedBookIds = [];
@@ -96,14 +91,7 @@ export const checkAccessBatch = async (req, res) => {
         .map((entry) => (entry.status === 'fulfilled' ? entry.value : null))
         .filter(Boolean);
     } else {
-      const records = await UserProgress.find({
-        userId: req.user?._id,
-        bookId: { $in: normalized },
-        quizAttempted: true,
-        quizPassed: true,
-      }).select('bookId');
-
-      allowedBookIds = records.map((rec) => String(rec.bookId));
+      allowedBookIds = normalized;
     }
 
     return res.json({ allowedBookIds });

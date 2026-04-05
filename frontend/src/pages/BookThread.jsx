@@ -268,12 +268,6 @@ export default function BookThread() {
           : (Array.isArray(payload) ? payload : []);
         setThreads(normalized);
       } else {
-        const status = threadsResult.reason?.response?.status;
-        if (status === 401 || status === 403) {
-          navigate(`/quiz/${encodeURIComponent(bookId)}`, { replace: true, state: { from: `/thread/${bookId}` } });
-          return;
-        }
-
         console.error('Failed to fetch thread data:', threadsResult.reason);
         setThreads([]);
         setError('The discussion room is unavailable right now.');

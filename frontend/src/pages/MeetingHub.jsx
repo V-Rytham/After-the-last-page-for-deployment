@@ -89,12 +89,6 @@ const MeetingHub = () => {
           return;
         }
 
-        const access = await api.get(`/access/check?bookId=${encodeURIComponent(bookId)}&context=meet`);
-        if (!access?.data?.access) {
-          navigate(`/quiz/${encodeURIComponent(bookId)}`, { replace: true, state: { from: `/meet/${bookId}` } });
-          return;
-        }
-
         const { data } = await api.get(`/books/${bookId}`);
         setBook(data);
       } catch (error) {
@@ -139,7 +133,7 @@ const MeetingHub = () => {
     });
 
     socketRef.current.on('access_denied', () => {
-      navigate(`/quiz/${encodeURIComponent(bookId)}`, { replace: true, state: { from: `/meet/${bookId}` } });
+      setMatchNotice('Unable to join matchmaking for this book right now.');
     });
 
     socketRef.current.on('match_stats', (payload) => {

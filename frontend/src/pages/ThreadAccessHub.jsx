@@ -83,7 +83,7 @@ const ThreadAccessHub = ({ currentUser }) => {
         {!isMember && (
           <div className="thread-access-loading glass-panel">
             <LockKeyhole size={18} />
-            <p>Sign in to unlock reader-only threads after passing each quiz.</p>
+            <p>Sign in to unlock reader-only threads.</p>
             <button className="btn-primary sm thread-access-button" onClick={() => navigate('/auth')}>
               Sign in
             </button>
@@ -107,7 +107,7 @@ const ThreadAccessHub = ({ currentUser }) => {
 
         {isMember && !loading && !error && !hasThreadAccess && (
           <div className="thread-access-loading glass-panel">
-            <p>No unlocked thread rooms yet. Finish a book and pass its quiz to enter.</p>
+            <p>No thread rooms available yet.</p>
           </div>
         )}
 
@@ -133,7 +133,7 @@ const ThreadAccessHub = ({ currentUser }) => {
             <div className="thread-access-card-body">
               <h3 className="thread-access-title font-serif">{book.title || 'Untitled Book'}</h3>
               <p className="thread-access-author">{book.author || 'Unknown author'}</p>
-              <span className="thread-status unlocked">Quiz-passed thread unlocked</span>
+              <span className="thread-status unlocked">Thread unlocked</span>
             </div>
             <div className="thread-access-actions">
               <button className="btn-primary sm thread-access-button" onClick={() => navigate(`/thread/${encodeURIComponent(book._id)}`)}>

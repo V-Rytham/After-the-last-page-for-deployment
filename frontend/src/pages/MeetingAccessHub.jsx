@@ -131,7 +131,7 @@ const MeetingAccessHub = ({ currentUser }) => {
       {!loading && !error && !hasRooms && (
         <section className="meeting-access-empty glass-panel">
           <h2 className="font-serif">No unlocked rooms yet.</h2>
-          <p>Finish a book and pass its quiz to unlock Meet access.</p>
+          <p>No meeting rooms are available right now.</p>
         </section>
       )}
 

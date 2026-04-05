@@ -38,9 +38,8 @@ export const checkQuizAccess = async ({ userId, bookId }) => {
   }
 
   await resolveBookOrThrow(bookId);
-
   const progress = await UserProgress.findOne({ userId, bookId }).select('quizAttempted quizPassed score attemptedAt');
-  const access = Boolean(progress?.quizAttempted && progress?.quizPassed);
+  const access = true;
 
   return {
     access,
@@ -58,7 +57,7 @@ export const checkQuizAccess = async ({ userId, bookId }) => {
 export const checkMeetAccess = async ({ userId, bookId }) => {
   const quiz = await checkQuizAccess({ userId, bookId });
   if (quiz.access) {
-    return { access: true, mode: 'quiz' };
+    return { access: true, mode: 'completed' };
   }
 
   if (!isMeetFallbackEnabled()) {
