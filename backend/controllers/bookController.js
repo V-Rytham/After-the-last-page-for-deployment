@@ -3,11 +3,18 @@ import mongoose from 'mongoose';
 import {
   parseStrictGutenbergId,
   readGutenbergBookStateless,
+  fetchGutenbergMetadata,
 } from '../utils/gutenbergReader.js';
 import { gutenbergCatalog } from '../seed/gutenbergCatalog.js';
 import { isDegradedMode } from '../utils/degradedMode.js';
 
 const BACKEND_TIMEOUT_MS = 70_000;
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const SEARCH_THROTTLE_MS = 450;
+let lastRemoteSearchAt = 0;
+const searchCache = new Map();
+const metadataCache = new Map();
+const inflightMetadata = new Map();
 const fallbackBooks = [
   { gutenbergId: 1342, title: 'Pride and Prejudice', author: 'Jane Austen' },
   { gutenbergId: 11, title: 'Alice in Wonderland', author: 'Lewis Carroll' },
@@ -55,6 +62,63 @@ const mapReadErrorMessage = (statusCode) => {
   if (statusCode === 404) return 'Unable to fetch this book. Check the ID.';
   if (statusCode === 504) return 'This book is large and taking longer than expected.';
   return 'Unable to fetch this book right now. Please retry.';
+};
+
+const readFreshCache = (cache, key) => {
+  const cached = cache.get(key);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return cached.value;
+};
+
+const writeCache = (cache, key, value) => {
+  cache.set(key, { value, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const normalizeSearchResult = (book) => toStableBookShape({
+  ...book,
+  gutenbergId: Number(book?.gutenbergId || book?.id),
+});
+
+const fetchMetadataSingleFlight = async (gutenbergId) => {
+  const id = Number(gutenbergId);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    const error = new Error('Invalid Gutenberg ID.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const cached = readFreshCache(metadataCache, id);
+  if (cached) return cached;
+
+  const existing = inflightMetadata.get(id);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const waitMs = Math.max(0, SEARCH_THROTTLE_MS - (Date.now() - lastRemoteSearchAt));
+    if (waitMs > 0) await sleep(waitMs);
+    lastRemoteSearchAt = Date.now();
+
+    const payload = await fetchGutenbergMetadata(id, { timeoutMs: 15_000 });
+    const normalized = normalizeSearchResult(payload);
+    if (!normalized) {
+      const error = new Error('Unable to fetch this Gutenberg book.');
+      error.statusCode = 404;
+      throw error;
+    }
+    writeCache(metadataCache, id, normalized);
+    return normalized;
+  })().finally(() => {
+    inflightMetadata.delete(id);
+  });
+
+  inflightMetadata.set(id, request);
+  return request;
 };
 
 const fetchBookByObjectId = async (routeId, projection = null) => {
@@ -107,18 +171,37 @@ export const searchGutenbergBooks = async (req, res) => {
       return res.json({ results: [] });
     }
 
+    const cached = readFreshCache(searchCache, query);
+    if (cached) return res.json({ results: cached });
+
     const source = Array.isArray(gutenbergCatalog) && gutenbergCatalog.length > 0
       ? gutenbergCatalog
       : fallbackBooks;
-    const results = source
+    let results = source
       .filter((book) => {
+        const idString = String(book?.gutenbergId || '');
         const title = String(book?.title || '').toLowerCase();
         const author = String(book?.author || '').toLowerCase();
-        return title.includes(query) || author.includes(query);
+        return title.includes(query) || author.includes(query) || idString === query;
       })
       .slice(0, 30)
       .map((book) => toStableBookShape(book))
       .filter(Boolean);
+
+    if (results.length === 0 && /^\d+$/.test(query)) {
+      try {
+        const remoteBook = await fetchMetadataSingleFlight(Number(query));
+        if (remoteBook) results = [remoteBook];
+      } catch (error) {
+        if (Number(error?.statusCode) === 404 || Number(error?.statusCode) === 400) {
+          results = [];
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    writeCache(searchCache, query, results);
 
     return res.json({ results });
   } catch (error) {
@@ -199,19 +282,23 @@ export const getGutenbergPreview = async (req, res) => {
     const catalogEntry = (Array.isArray(gutenbergCatalog) ? gutenbergCatalog : [])
       .find((book) => Number(book?.gutenbergId) === gutenbergId);
 
-    if (!catalogEntry) {
-      res.status(404).json({ message: 'Book preview not found for this Gutenberg ID.' });
-      return;
+    if (catalogEntry) {
+      return res.json({
+        gutenbergId,
+        title: catalogEntry.title || 'Untitled',
+        author: catalogEntry.author || 'Unknown author',
+      });
     }
 
-    res.json({
-      gutenbergId,
-      title: catalogEntry.title || 'Untitled',
-      author: catalogEntry.author || 'Unknown author',
-    });
+    const remoteBook = await fetchMetadataSingleFlight(gutenbergId);
+    return res.json(remoteBook);
   } catch (error) {
+    const statusCode = Number(error?.statusCode);
+    if (statusCode === 404) {
+      return res.status(404).json({ message: 'Book preview not found for this Gutenberg ID.' });
+    }
     console.error('[BOOK] Failed to fetch Gutenberg preview:', error?.message || error);
-    res.status(500).json({ message: 'Server error fetching Gutenberg preview.' });
+    return res.status(500).json({ message: 'Server error fetching Gutenberg preview.' });
   }
 };
 

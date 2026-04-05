@@ -142,36 +142,47 @@ const fetchWithRetry = async (fetcher, retries = 1) => {
   throw lastError;
 };
 
+const searchCache = new Map();
+const searchInflight = new Map();
+const idLookupCache = new Map();
+const idLookupInflight = new Map();
+let lastSearchAt = 0;
+const SEARCH_THROTTLE_MS = 550;
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const readFreshCache = (cache, key) => {
+  const existing = cache.get(key);
+  if (!existing) return null;
+  if (Date.now() > existing.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return existing.value;
+};
+
 export const fetchBookByGutenbergId = async (gutenbergId) => {
   const id = Number(gutenbergId);
   if (!Number.isFinite(id) || id <= 0) throw new Error('Invalid Gutenberg ID.');
 
-  const request = async () => {
-    try {
-      const { data } = await api.get(`/books/gutenberg/${id}`);
-      const normalized = normalizeBook(data);
-      if (normalized) return normalized;
-    } catch {
-      // Continue to compatible endpoints
-    }
+  const cached = readFreshCache(idLookupCache, id);
+  if (cached) return cached;
+  const inflight = idLookupInflight.get(id);
+  if (inflight) return inflight;
 
-    try {
-      const { data } = await api.get(`/books/gutenberg/${id}/preview`);
-      const normalized = normalizeBook(data);
-      if (normalized) return normalized;
-    } catch {
-      // Continue to fallback endpoint
-    }
-
-    const { data } = await api.get(`/books/gutenberg/${id}/read`, {
-      params: { maxChapters: 1, processingBudgetMs: 12000 },
-    });
+  const request = fetchWithRetry(async () => {
+    const { data } = await api.get(`/books/gutenberg/${id}/preview`);
     const normalized = normalizeBook(data);
     if (!normalized) throw new Error('Unable to fetch this Gutenberg book.');
+    idLookupCache.set(id, { value: normalized, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
     return normalized;
-  };
+  }, 0).finally(() => {
+    idLookupInflight.delete(id);
+  });
 
-  return fetchWithRetry(request, 1);
+  idLookupInflight.set(id, request);
+  return request;
 };
 
 export const fetchBooksByIds = async (ids = []) => {
@@ -186,18 +197,35 @@ export const fetchBooksByIds = async (ids = []) => {
 export const searchBooks = async (query, signal) => {
   const term = String(query || '').trim();
   if (!term) return [];
+  const cacheKey = term.toLowerCase();
+  const cached = readFreshCache(searchCache, cacheKey);
+  if (cached) return cached;
+  const inflight = searchInflight.get(cacheKey);
+  if (inflight) return inflight;
 
-  try {
-    const { data } = await api.get('/books/gutenberg/search', { params: { q: term }, signal });
-    const books = Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
-    return books.map((book) => normalizeBook(book)).filter(Boolean).slice(0, 24);
-  } catch {
-    const response = await fetch(`https://gutendex.com/books/?search=${encodeURIComponent(term)}`, { signal });
-    if (!response.ok) throw new Error('Search is currently unavailable.');
-    const payload = await response.json();
-    const results = Array.isArray(payload?.results) ? payload.results : [];
-    return results.map((book) => normalizeBook(book)).filter(Boolean).slice(0, 24);
-  }
+  const request = (async () => {
+    const waitMs = Math.max(0, SEARCH_THROTTLE_MS - (Date.now() - lastSearchAt));
+    if (waitMs > 0) await sleep(waitMs);
+    lastSearchAt = Date.now();
+
+    try {
+      const { data } = await api.get('/books/gutenberg/search', { params: { q: term }, signal });
+      const books = Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
+      const normalized = books.map((book) => normalizeBook(book)).filter(Boolean).slice(0, 24);
+      searchCache.set(cacheKey, { value: normalized, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
+      return normalized;
+    } catch (error) {
+      const statusCode = Number(error?.response?.status);
+      if (statusCode === 429) throw new Error('Too many search requests. Please wait a moment and try again.');
+      if (statusCode >= 500) throw new Error('Search is temporarily unavailable. Please try again.');
+      throw error;
+    }
+  })().finally(() => {
+    searchInflight.delete(cacheKey);
+  });
+
+  searchInflight.set(cacheKey, request);
+  return request;
 };
 
 export { normalizeBook, PLACEHOLDER_COVER };
@@ -243,7 +271,24 @@ export const fetchLibraryBooks = async ({ search = '', category = 'all', sort = 
 
   let normalized = [];
   if (normalizedSearch) {
-    normalized = await searchBooks(normalizedSearch, signal);
+    if (/^\d+$/.test(normalizedSearch)) {
+      try {
+        normalized = [await fetchBookByGutenbergId(normalizedSearch)];
+      } catch (error) {
+        const statusCode = Number(error?.response?.status);
+        if (statusCode === 404) {
+          normalized = [];
+        } else if (statusCode === 400) {
+          throw new Error('Please enter a valid Gutenberg ID.');
+        } else if (statusCode === 429) {
+          throw new Error('Too many search requests. Please wait a moment and try again.');
+        } else {
+          throw new Error('Gutenberg is currently unavailable. Please try again shortly.');
+        }
+      }
+    } else {
+      normalized = await searchBooks(normalizedSearch, signal);
+    }
   } else {
     try {
       const { data } = await api.get('/books', { signal });
