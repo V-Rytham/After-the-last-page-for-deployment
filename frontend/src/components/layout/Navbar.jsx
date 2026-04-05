@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, Moon, Sun, X } from 'lucide-react';
+import { ChevronRight, Moon, Palette, Sun, X } from 'lucide-react';
 import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
 
@@ -50,7 +50,7 @@ const ProfileAvatar = ({ user, className = '', onClick, label = 'Open profile' }
   );
 };
 
-const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
+const Navbar = ({ currentUser, uiTheme, onThemeChange }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -90,16 +90,16 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
     };
   }, [profileMenuOpen]);
 
-  const handleSignOut = () => {
-    onLogout?.();
-    setDrawerOpen(false);
-    setProfileMenuOpen(false);
-    navigate('/auth');
-  };
-
   const handleViewProfile = () => {
     setProfileMenuOpen(false);
     navigate('/profile');
+  };
+
+  const cycleTheme = () => {
+    const themeOrder = ['dark', 'sepia', 'light'];
+    const currentIndex = Math.max(themeOrder.indexOf(uiTheme), 0);
+    const nextTheme = themeOrder[(currentIndex + 1) % themeOrder.length];
+    onThemeChange(nextTheme);
   };
 
   return (
@@ -127,10 +127,10 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             <button
               type="button"
               className="theme-icon-btn"
-              onClick={() => onThemeChange(uiTheme === 'dark' ? 'light' : 'dark')}
+              onClick={cycleTheme}
               aria-label={`Switch theme. Current theme: ${activeTheme.label}`}
             >
-              {uiTheme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+              {uiTheme === 'dark' ? <Sun size={17} /> : uiTheme === 'sepia' ? <Palette size={17} /> : <Moon size={17} />}
             </button>
 
             <div className="profile-menu-wrap" ref={profileMenuRef}>
@@ -142,7 +142,6 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               {profileMenuOpen ? (
                 <div className="profile-dropdown" role="menu" aria-label="Profile menu">
                   <button type="button" className="profile-dropdown-item" role="menuitem" onClick={handleViewProfile}>View profile</button>
-                  <button type="button" className="profile-dropdown-item is-danger" role="menuitem" onClick={handleSignOut}>Sign out</button>
                 </div>
               ) : null}
             </div>
@@ -194,7 +193,6 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             </div>
 
             <Link to="/settings" className="drawer-action-row" onClick={() => setDrawerOpen(false)}>Profile Settings</Link>
-            <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign Out</button>
           </div>
         </div>
       </aside>

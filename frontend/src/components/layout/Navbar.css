@@ -1,12 +1,17 @@
 .navbar {
   position: sticky;
-  top: 0;
+  top: 0.8rem;
   z-index: 80;
-  width: 100%;
-  height: 64px;
-  padding: 0 32px;
-  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
-  backdrop-filter: blur(8px);
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  height: 62px;
+  padding: 0 0.8rem 0 1.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--nav-capsule-border);
+  background: var(--nav-capsule-bg);
+  box-shadow: var(--nav-capsule-shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,31 +43,39 @@
 .center-nav {
   display: inline-flex;
   align-items: center;
-  gap: 32px;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--nav-group-border);
+  background: var(--nav-group-bg);
 }
 
 .center-nav-link {
   min-height: 2rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: 0.94rem;
   font-weight: 400;
-  border-bottom: 2px solid transparent;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  border: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .center-nav-link:hover,
 .center-nav-link:focus-visible {
   color: var(--text-primary);
+  background: var(--nav-link-hover-bg);
   outline: none;
 }
 
 .center-nav-link.is-active {
   color: var(--accent);
   font-weight: 500;
-  border-bottom-color: var(--accent);
+  border-color: var(--nav-link-active-border);
+  background: var(--nav-link-active-bg);
 }
 
 .right-controls {
@@ -135,7 +148,10 @@
 
 @media (max-width: 767px) {
   .navbar {
-    padding: 0 1rem;
+    top: 0.5rem;
+    width: calc(100% - 1rem);
+    padding: 0 0.8rem;
+    height: 58px;
   }
 
   .center-nav,
@@ -242,8 +258,9 @@
 
 @media (min-width: 768px) and (max-width: 1080px) {
   .navbar {
-    padding: 0 1.25rem;
+    width: calc(100% - 1.5rem);
+    padding: 0 0.8rem 0 1rem;
   }
 
-  .center-nav { gap: 20px; }
+  .center-nav-link { padding: 0 0.72rem; }
 }
