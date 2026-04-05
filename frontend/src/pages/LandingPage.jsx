@@ -1,146 +1,217 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Check, Users } from 'lucide-react';
+import { getBestCoverUrl } from '../utils/openLibraryCovers';
 import api from '../utils/api';
+import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
 import './LandingPage.css';
 
-const howItWorksSteps = [
-  { key: 'read', title: 'Read in silence', description: 'A quiet reading space designed for focus.', icon: BookOpen },
-  { key: 'finish', title: 'Mark the moment', description: 'Finish the book to unlock its discussion room.', icon: Check },
-  { key: 'discuss', title: 'Enter the room', description: 'Join conversations with readers who finished it too.', icon: Users },
+const featureCards = [
+  {
+    key: 'immersive-reading',
+    title: 'Immersive Reading',
+    description: 'Distraction-free chapters with fluid progress tracking.',
+    lightVariant: 'reading-experience',
+    darkVariant: 'wide',
+  },
+  {
+    key: 'shared-margins',
+    title: 'Shared Margins',
+    description: 'Leave thoughtful notes and revisit meaningful passages together.',
+    lightVariant: 'shared-margins',
+    darkVariant: 'small',
+  },
+  {
+    key: 'insights',
+    title: 'Insights',
+    description: 'Spot themes and motifs surfaced from your reading journey.',
+    lightVariant: 'shared-margins',
+    darkVariant: 'small',
+  },
+  {
+    key: 'community',
+    title: 'Community',
+    description: 'Join readers who reached the same ending, then unpack it deeply.',
+    lightVariant: 'reading-experience',
+    darkVariant: 'large',
+  },
 ];
 
+const getProgressCandidate = (books, sessions) => {
+  if (!Array.isArray(books) || !sessions || typeof sessions !== 'object') return null;
+
+  return books
+    .map((book) => {
+      const keys = [
+        String(book?._id || ''),
+        String(book?.id || ''),
+        String(book?.gutenbergId || ''),
+      ].filter(Boolean);
+
+      const session = keys.map((key) => sessions[key]).find(Boolean);
+      if (!session) return null;
+
+      const progress = Number(session?.progressPercent || 0);
+      if (!Number.isFinite(progress) || progress <= 0 || progress >= 100 || session?.isFinished) {
+        return null;
+      }
+
+      return {
+        book,
+        session,
+        progress: Math.max(1, Math.min(99, Math.round(progress))),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.session?.lastOpenedAt || 0).getTime() - new Date(a.session?.lastOpenedAt || 0).getTime())[0] || null;
+};
+
 export default function LandingPage({ currentUser }) {
-  const supportsIntersectionObserver = typeof window !== 'undefined' && typeof window.IntersectionObserver === 'function';
-  const [isHowVisible, setIsHowVisible] = useState(() => !supportsIntersectionObserver);
-  const [isHowAnimReady] = useState(() => supportsIntersectionObserver);
-  const [recentBooks, setRecentBooks] = useState([]);
-  const howItWorksRef = useRef(null);
+  const [books, setBooks] = useState([]);
+  const [uiTheme, setUiTheme] = useState(() => (typeof document !== 'undefined' ? document.documentElement.getAttribute('data-theme') || 'dark' : 'dark'));
 
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+  const isDarkTheme = uiTheme === 'dark';
+
 
   useEffect(() => {
-    const section = howItWorksRef.current;
-    if (!section) {
-      return undefined;
-    }
+    if (typeof document === 'undefined') return undefined;
 
-    if (!supportsIntersectionObserver) {
-      return undefined;
-    }
+    const root = document.documentElement;
+    const syncTheme = () => setUiTheme(root.getAttribute('data-theme') || 'dark');
+    syncTheme();
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsHowVisible(true);
-            observer.disconnect();
-          }
-        });
-      },
-      { threshold: 0.3 },
-    );
-
-    observer.observe(section);
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
     return () => observer.disconnect();
-  }, [supportsIntersectionObserver]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadRecent = async () => {
+    const loadBooks = async () => {
       try {
         const { data } = await api.get('/books');
-        if (!mounted) return;
-        setRecentBooks(Array.isArray(data) ? data.slice(0, 5) : []);
+        if (mounted) setBooks(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('[HOME] Failed to load recent books:', error);
-        if (mounted) setRecentBooks([]);
+        console.error('[HOME] Failed to load books', error);
+        if (mounted) setBooks([]);
       }
     };
 
-    loadRecent();
+    loadBooks();
     return () => {
       mounted = false;
     };
   }, []);
 
+  const activeProgress = useMemo(() => {
+    if (!isMember) return null;
+    const sessions = getReadingSessionsForCurrentUser();
+    return getProgressCandidate(books, sessions);
+  }, [books, isMember]);
+
+  const continueReadingRoute = useMemo(() => {
+    const candidate = activeProgress?.book;
+    if (!candidate) return '/desk';
+    if (candidate?._id || candidate?.id) return `/read/${candidate._id || candidate.id}`;
+    if (candidate?.gutenbergId) return `/read/gutenberg/${candidate.gutenbergId}`;
+    return '/desk';
+  }, [activeProgress]);
+
+  const heroCover = useMemo(() => {
+    const fallback = books[0] || null;
+    return getBestCoverUrl(activeProgress?.book || fallback);
+  }, [activeProgress, books]);
+
   return (
     <div className="home-page animate-fade-in">
       <div className="layout-shell home-shell">
-        <header className="layout-section home-hero" aria-label="Home">
-          <div className="layout-content home-hero-inner">
-            <div className="home-hero-copy home-hero-centered">
+        <header className="layout-section home-hero" aria-label="Home hero">
+          <div className="layout-content home-hero-layout">
+            <div className="home-hero-copy">
               <h1 className="home-title font-serif">
-                <span className="home-title-line">Finish the book.</span>
-                <span className="home-title-line">Enter the conversation.</span>
+                {isDarkTheme ? 'Read deeply. Connect meaningfully.' : "Books don't end. They echo."}
               </h1>
-
               <p className="home-subtitle">
-                Read in calm focus. Then unpack the ending with readers who finished the same book.
+                {isDarkTheme
+                  ? 'Move through every chapter with focus, then step into rich conversations with readers who truly finished the story.'
+                  : 'An editorial reading home for thoughtful readers: quiet sessions, shared notes, and conversations that begin after the final page.'}
               </p>
-
               <div className="home-hero-actions">
-                <Link to={isMember ? '/desk' : '/auth'} className="btn-primary">
-                  Start Reading
+                <Link to={isMember ? '/desk' : '/auth'} className="home-btn home-btn-primary">
+                  Start reading
                 </Link>
-                <Link to="/threads" className="btn-secondary">Explore discussions</Link>
+                <Link to="/threads" className="home-btn home-btn-secondary">
+                  Explore discussions
+                </Link>
               </div>
+            </div>
 
-              {!isMember && (
-                <p className="home-signin-hint">
-                  Rooms unlock per book after a quick 5-question check — <Link to="/auth">sign in</Link> to keep your place across visits.
-                </p>
-              )}
+            <div className="home-hero-visual" aria-hidden="true">
+              <div className="home-hero-visual-offset" />
+              <div className="home-hero-visual-card">
+                {heroCover ? (
+                  <img src={heroCover} alt="" loading="eager" decoding="async" fetchPriority="high" />
+                ) : (
+                  <div className="home-hero-visual-fallback font-serif">ATLP</div>
+                )}
+              </div>
             </div>
           </div>
         </header>
 
         <div className="layout-content home-sections">
-          <section className="home-how-it-works" aria-labelledby="recent-books-heading">
-            <h2 id="recent-books-heading" className="home-how-heading">Recent books</h2>
-            {recentBooks.length === 0 ? (
-              <p className="home-subtitle">No books yet. Enter a Gutenberg ID to start reading.</p>
-            ) : (
-              <div className="books-grid">
-                {recentBooks.map((book) => (
-                  <Link key={book._id || String(book.gutenbergId)} to={`/read/gutenberg/${book.gutenbergId}`} className="book-card">
-                    <div className="book-info">
-                      <h3 className="book-title">{book.title}</h3>
-                      <p className="book-author">{book.author}</p>
-                    </div>
-                  </Link>
-                ))}
+          {!isMember ? (
+            <section className="home-continue home-continue-guest" aria-label="Start reading">
+              <h2 className="font-serif">Start reading</h2>
+              <p>Sign in to track progress, pick up where you left off, and unlock discussion rooms.</p>
+              <Link to="/auth" className="home-btn home-btn-primary">Start reading</Link>
+            </section>
+          ) : null}
+
+          {isMember && activeProgress ? (
+            <section className="home-continue" aria-label="Continue reading">
+              <div className="home-continue-cover">
+                {getBestCoverUrl(activeProgress.book) ? (
+                  <img src={getBestCoverUrl(activeProgress.book)} alt="" loading="lazy" decoding="async" />
+                ) : (
+                  <div className="home-cover-fallback font-serif">Book</div>
+                )}
               </div>
-            )}
+              <div className="home-continue-copy">
+                <span className="home-continue-kicker">Continue reading</span>
+                <h2 className="font-serif">{activeProgress.book?.title || 'Untitled book'}</h2>
+                <p>{activeProgress.book?.author || 'Unknown author'}</p>
+                <div className="home-continue-progress-meta">
+                  <span>{activeProgress.progress}% complete</span>
+                  <span>Page {Math.max(1, Number(activeProgress.session?.currentPage || 1))}</span>
+                </div>
+                <div className="home-progress-track" role="progressbar" aria-label="Reading progress" aria-valuenow={activeProgress.progress} aria-valuemin={0} aria-valuemax={100}>
+                  <div style={{ width: `${activeProgress.progress}%` }} />
+                </div>
+              </div>
+              <Link to={continueReadingRoute} className="home-btn home-btn-secondary">Resume</Link>
+            </section>
+          ) : null}
+
+          <section className="home-features" aria-label="Features">
+            {featureCards.map((feature) => (
+              <article
+                key={feature.key}
+                className={`home-feature-card home-feature-${isDarkTheme ? feature.darkVariant : feature.lightVariant}`}
+              >
+                <h3 className="font-serif">{feature.title}</h3>
+                <p>{feature.description}</p>
+              </article>
+            ))}
           </section>
 
-          <section className="home-how-it-works" aria-labelledby="how-it-works-heading" ref={howItWorksRef}>
-            <h2 id="how-it-works-heading" className="home-how-heading">How it works</h2>
-            <div
-              className={`home-how-grid ${isHowAnimReady ? 'animate-ready' : ''} ${isHowVisible ? 'visible' : ''}`.trim()}
-              role="list"
-              aria-label="How it works steps"
-            >
-              {howItWorksSteps.map((step, index) => {
-                const StepIcon = step.icon;
-                return (
-                  <article
-                    key={step.key}
-                    className="home-how-card"
-                    role="listitem"
-                    style={{ transitionDelay: `${120 * index}ms` }}
-                  >
-                    <span className="home-how-step" aria-hidden="true">{index + 1}</span>
-                    <span className="home-how-icon" aria-hidden="true">
-                      <StepIcon size={16} strokeWidth={2.1} />
-                    </span>
-                    <h3 className="font-serif">{step.title}</h3>
-                    <p>{step.description}</p>
-                  </article>
-                );
-              })}
-            </div>
+          <section className="home-cta" aria-label="Closing call to action">
+            <h2 className="font-serif">Finish one chapter. Discover ten conversations.</h2>
+            <p>Build a reading rhythm that feels personal in light mode and cinematic in dark mode.</p>
+            <Link to={isMember ? '/desk' : '/auth'} className="home-btn home-btn-primary">
+              {isMember ? 'Open your desk' : 'Start reading'}
+            </Link>
           </section>
         </div>
       </div>
