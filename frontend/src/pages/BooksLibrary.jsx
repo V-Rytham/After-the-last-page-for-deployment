@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
-import DeskHeader from '../components/desk/DeskHeader';
+import { Search, X } from 'lucide-react';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
@@ -35,6 +35,22 @@ const withRetry = async (fn, retries = 2, attempt = 0) => {
 
 const getBookKey = (book) => String(book?._id || book?.id || book?.gutenbergId || `${book?.title || 'book'}-${book?.author || 'unknown'}`);
 const getBookObjectId = (book) => String(book?._id || book?.id || '');
+
+const getBookGenres = (book) => {
+  const values = [
+    ...(Array.isArray(book?.tags) ? book.tags : []),
+    ...(Array.isArray(book?.genres) ? book.genres : []),
+    ...(Array.isArray(book?.subjects) ? book.subjects : []),
+    ...(Array.isArray(book?.categories) ? book.categories : []),
+    ...(book?.genre ? [book.genre] : []),
+  ];
+
+  return values
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+};
+
+const normalizeFilterValue = (value) => String(value || '').trim().toLowerCase();
 
 const getBookSession = (sessions, book) => {
   if (!book || !sessions || typeof sessions !== 'object') return null;
@@ -281,6 +297,8 @@ const BooksLibrary = ({ currentUser }) => {
   const [recommendationLoading, setRecommendationLoading] = useState(true);
   const [error, setError] = useState('');
   const [recommendationError, setRecommendationError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
 
   const refreshDesk = useCallback(async ({ force = false } = {}) => {
     try {
@@ -333,12 +351,126 @@ const BooksLibrary = ({ currentUser }) => {
   const sessionForBook = useCallback((book) => getBookSession(sessions, book), [sessions]);
 
   const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
-  const hasRecommendations = contentRecommendations.length > 0 || popularRecommendations.length > 0;
+  const categoryOptions = useMemo(() => {
+    const genreCounts = new Map();
+    books.forEach((book) => {
+      getBookGenres(book).forEach((genre) => {
+        const normalized = normalizeFilterValue(genre);
+        if (!normalized) return;
+        genreCounts.set(normalized, (genreCounts.get(normalized) || 0) + 1);
+      });
+    });
+
+    const topDynamic = [...genreCounts.entries()]
+      .sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1];
+        return a[0].localeCompare(b[0]);
+      })
+      .slice(0, 6)
+      .map(([value]) => value);
+
+    const orderedValues = ['all', 'fiction', 'philosophy', ...topDynamic];
+    const uniqueValues = [...new Set(orderedValues)].filter(Boolean);
+
+    return uniqueValues.map((value) => ({
+      value,
+      label: value.charAt(0).toUpperCase() + value.slice(1),
+    }));
+  }, [books]);
+
+  useEffect(() => {
+    if (!categoryOptions.some((option) => option.value === activeCategory)) {
+      setActiveCategory('all');
+    }
+  }, [activeCategory, categoryOptions]);
+
+  const matchesSearchAndCategory = useCallback((book) => {
+    if (!book) return false;
+
+    const query = normalizeFilterValue(searchTerm);
+    const title = normalizeFilterValue(book?.title);
+    const author = normalizeFilterValue(book?.author);
+
+    if (query && !title.includes(query) && !author.includes(query)) {
+      return false;
+    }
+
+    if (activeCategory !== 'all') {
+      const genres = getBookGenres(book).map(normalizeFilterValue);
+      if (!genres.some((genre) => genre.includes(activeCategory))) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [activeCategory, searchTerm]);
+
+  const filteredRecentActivity = useMemo(
+    () => recentActivity.filter(({ book }) => matchesSearchAndCategory(book)),
+    [matchesSearchAndCategory, recentActivity],
+  );
+
+  const filteredContentRecommendations = useMemo(
+    () => contentRecommendations.filter(matchesSearchAndCategory),
+    [contentRecommendations, matchesSearchAndCategory],
+  );
+
+  const filteredPopularRecommendations = useMemo(
+    () => popularRecommendations.filter(matchesSearchAndCategory),
+    [matchesSearchAndCategory, popularRecommendations],
+  );
+
+  const hasRecommendations = filteredContentRecommendations.length > 0 || filteredPopularRecommendations.length > 0;
+  const hasNoFilterResults = !loading
+    && !recommendationLoading
+    && Boolean(searchTerm.trim() || activeCategory !== 'all')
+    && filteredRecentActivity.length === 0
+    && filteredContentRecommendations.length === 0
+    && filteredPopularRecommendations.length === 0;
 
   return (
     <div className="desk-page editorial-theme">
       <div className="desk-shell">
-        <DeskHeader />
+        <section className="desk-search-panel" aria-label="Filter books on desk">
+          <form className="desk-search" role="search" onSubmit={(event) => event.preventDefault()}>
+            <Search size={18} aria-hidden="true" className="desk-search__icon" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by title or author"
+              aria-label="Search by title or author"
+              autoComplete="off"
+            />
+            {searchTerm.trim() ? (
+              <button
+                type="button"
+                className="desk-search__clear"
+                onClick={() => setSearchTerm('')}
+                aria-label="Clear search"
+              >
+                <X size={15} />
+              </button>
+            ) : null}
+          </form>
+
+          <div className="desk-filter-pills" role="tablist" aria-label="Desk categories">
+            {categoryOptions.map((option) => {
+              const isActive = option.value === activeCategory;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`desk-filter-pill${isActive ? ' is-active' : ''}`}
+                  onClick={() => setActiveCategory(option.value)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="desk-hero" aria-label="Current reading">
           <h2>{greeting}</h2>
@@ -350,20 +482,20 @@ const BooksLibrary = ({ currentUser }) => {
         <section className="desk-section" aria-label="Recent activity">
           <div className="desk-section__heading">
             <h2>Recent activity</h2>
-            <p>Your latest opens and completions.</p>
+            <p>Recently opened and completed books.</p>
           </div>
           {loading ? (
             <div className="card-row card-row--recent" role="status" aria-label="Loading recent activity">
               {Array.from({ length: MAX_RECENT_ACTIVITY }).map((_, index) => <div key={`activity-skeleton-${index}`} className="desk-skeleton desk-skeleton--card" />)}
             </div>
-          ) : recentActivity.length > 0 ? (
+          ) : filteredRecentActivity.length > 0 ? (
             <div className="card-row card-row--recent" role="list">
-              {recentActivity.map(({ book, session }) => (
+              {filteredRecentActivity.map(({ book, session }) => (
                 <BookCardEditorial key={getBookKey(book)} book={book} session={session} />
               ))}
             </div>
           ) : (
-            <p className="desk-empty-copy">No recent activity yet. Open a book to start your reading timeline.</p>
+            <p className="desk-empty-copy">No recent activity for this filter.</p>
           )}
         </section>
 
@@ -381,24 +513,28 @@ const BooksLibrary = ({ currentUser }) => {
 
         {!recommendationLoading && hasRecommendations && (
           <>
-            {contentRecommendations.length > 0 && (
+            {filteredContentRecommendations.length > 0 && (
               <RecommendationRow
                 title={recommendationTitle}
-                subtitle="Content-based picks from your reading patterns"
-                books={contentRecommendations}
+                books={filteredContentRecommendations}
                 getSessionForBook={sessionForBook}
               />
             )}
 
-            {popularRecommendations.length > 0 && (
+            {filteredPopularRecommendations.length > 0 && (
               <RecommendationRow
                 title="Trending now"
-                subtitle="Popular books readers are opening right now"
-                books={popularRecommendations}
+                books={filteredPopularRecommendations}
                 getSessionForBook={sessionForBook}
               />
             )}
           </>
+        )}
+
+        {hasNoFilterResults && (
+          <section className="desk-section" aria-label="No matching books">
+            <p className="desk-empty-copy">No books match your current search and category filters.</p>
+          </section>
         )}
 
         {!recommendationLoading && !hasRecommendations && (
