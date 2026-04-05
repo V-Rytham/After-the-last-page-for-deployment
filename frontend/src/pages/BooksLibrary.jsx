@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser, getUserShelf } from '../utils/readingSession';
 import DeskHeader from '../components/desk/DeskHeader';
@@ -9,8 +9,8 @@ import RecommendationRow from '../components/desk/RecommendationRow';
 import './BooksLibrary.css';
 
 const deskDataCache = {
-  books: null,
-  recommendations: null,
+  byUser: new Map(),
+  inflightByUser: new Map(),
 };
 
 const getBookKey = (book) => String(book?._id || book?.gutenbergId || `${book?.title || 'book'}-${book?.author || 'unknown'}`);
@@ -58,99 +58,134 @@ const getRecentActivity = (books, sessions) => books
   .sort((a, b) => new Date(b.session?.lastOpenedAt || 0).getTime() - new Date(a.session?.lastOpenedAt || 0).getTime())
   .slice(0, 4);
 
-const requestRecommendations = async ({ book, readBookIds, currentBookId, limitPerShelf }) => {
-  const payloads = [
-    { book, readBookIds, currentBookId, limitPerShelf },
-    { book, readBookIds, currentBookId, currentlyReadingBookId: currentBookId, readBooksIds: readBookIds, limitPerShelf },
-  ];
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning, Reader.';
+  if (hour < 18) return 'Good afternoon, Reader.';
+  return 'Good evening, Reader.';
+};
 
-  let lastError = null;
-  for (const payload of payloads) {
-    try {
-      const response = await api.post('/recommender', payload);
-      return response?.data || null;
-    } catch (error) {
-      lastError = error;
-      if (error?.statusCode && error.statusCode < 500) throw error;
-    }
+const toUserCacheKey = (currentUser) => String(currentUser?._id || currentUser?.email || currentUser?.username || currentUser?.anonymousId || 'guest');
+
+const loadDeskData = async (currentUser) => {
+  const userKey = toUserCacheKey(currentUser);
+  const cached = deskDataCache.byUser.get(userKey);
+  if (cached) {
+    return cached;
   }
 
-  throw lastError;
+  const inflight = deskDataCache.inflightByUser.get(userKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    const sessions = getReadingSessionsForCurrentUser();
+    const { data } = await api.get('/books');
+    const allBooks = Array.isArray(data) ? data : [];
+    const recentActivity = getRecentActivity(allBooks, sessions);
+    const active = getLastActiveBook(allBooks, sessions);
+    const recommendationBase = active?.book || recentActivity[0]?.book || allBooks[0] || null;
+    const readBookIds = Object.keys(sessions).filter(Boolean);
+    const candidateReadIds = readBookIds.length > 0 ? readBookIds : allBooks.map((book) => String(book?._id || '')).filter(Boolean);
+    let recBooks = [];
+    let recommendationError = '';
+
+    if (recommendationBase && candidateReadIds.length > 0) {
+      try {
+        const response = await api.post('/recommender', {
+          book: {
+            gutenbergId: recommendationBase?.gutenbergId,
+            title: recommendationBase?.title,
+            author: recommendationBase?.author,
+          },
+          readBookIds: candidateReadIds,
+          currentBookId: String(active?.book?._id || recommendationBase?._id || ''),
+          limitPerShelf: 12,
+        });
+
+        const seen = new Set(candidateReadIds);
+        recBooks = getRecommendationsFromResponse(response?.data)
+          .filter((book) => {
+            const key = getBookKey(book);
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .slice(0, 8);
+      } catch (error) {
+        recommendationError = String(error?.uiMessage || error?.message || 'Recommendations are unavailable right now.');
+      }
+    }
+
+    const payload = {
+      books: allBooks,
+      recommendations: recBooks,
+      sessions,
+      recommendationBase,
+      recommendationError,
+    };
+    deskDataCache.byUser.set(userKey, payload);
+    return payload;
+  })().finally(() => {
+    deskDataCache.inflightByUser.delete(userKey);
+  });
+
+  deskDataCache.inflightByUser.set(userKey, request);
+  return request;
 };
 
 const BooksLibrary = ({ currentUser }) => {
   const [books, setBooks] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [sessions, setSessions] = useState({});
+  const [recommendationBase, setRecommendationBase] = useState(null);
+  const [error, setError] = useState('');
+  const [recommendationError, setRecommendationError] = useState('');
   const [loading, setLoading] = useState(true);
-  const loadedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
     const loadDesk = async () => {
       try {
-        if (deskDataCache.books && deskDataCache.recommendations) {
-          setBooks(deskDataCache.books);
-          setRecommendations(deskDataCache.recommendations);
-          setSessions(getReadingSessionsForCurrentUser());
-          return;
-        }
-
-        const { data } = await api.get('/books');
-        const allBooks = Array.isArray(data) ? data : [];
-        const readBookIds = allBooks.map((book) => String(book?._id || '')).filter(Boolean);
-        const baseBook = allBooks[0] || null;
-        const currentBookId = baseBook?._id ? String(baseBook._id) : undefined;
-        let recBooks = [];
-
-        if (readBookIds.length && baseBook) {
-          try {
-            const recData = await requestRecommendations({
-              book: { gutenbergId: baseBook.gutenbergId, title: baseBook.title, author: baseBook.author },
-              readBookIds,
-              currentBookId,
-              limitPerShelf: 8,
-            });
-
-            const seen = new Set(readBookIds);
-            recBooks = getRecommendationsFromResponse(recData)
-              .filter((book) => {
-                const key = getBookKey(book);
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-              })
-              .slice(0, 4);
-          } catch (error) {
-            console.warn('[DESK] recommendations unavailable', error);
-          }
-        }
-
+        setLoading(true);
+        setError('');
+        const loaded = await loadDeskData(currentUser);
         if (!mounted) return;
-        deskDataCache.books = allBooks;
-        deskDataCache.recommendations = recBooks;
-        setBooks(allBooks);
-        setRecommendations(recBooks);
-        setSessions(getReadingSessionsForCurrentUser());
+        setBooks(loaded.books);
+        setRecommendations(loaded.recommendations);
+        setSessions(loaded.sessions);
+        setRecommendationBase(loaded.recommendationBase);
+        setRecommendationError(loaded.recommendationError);
       } catch (error) {
-        console.error('[DESK] Failed to load desk data:', error);
         if (!mounted) return;
-        setBooks(Array.isArray(deskDataCache.books) ? deskDataCache.books : []);
-        setRecommendations(Array.isArray(deskDataCache.recommendations) ? deskDataCache.recommendations : []);
+        setError(String(error?.uiMessage || error?.message || 'Unable to load your desk right now.'));
+        setBooks([]);
+        setRecommendations([]);
         setSessions(getReadingSessionsForCurrentUser());
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    if (!loadedRef.current) {
-      loadedRef.current = true;
-      loadDesk();
-    }
+    loadDesk();
 
     return () => {
       mounted = false;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      setSessions(getReadingSessionsForCurrentUser());
+    };
+
+    window.addEventListener('storage', handleRefresh);
+    window.addEventListener('focus', handleRefresh);
+    return () => {
+      window.removeEventListener('storage', handleRefresh);
+      window.removeEventListener('focus', handleRefresh);
     };
   }, []);
 
@@ -162,7 +197,7 @@ const BooksLibrary = ({ currentUser }) => {
     return books.filter((book) => shelfIds.has(String(book?._id || book?.id || book?.gutenbergId || ''))).slice(0, 8);
   }, [books]);
 
-  const recommendationTitle = `Because you read ${currentReading?.book?.title || 'your recent books'}`;
+  const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
 
   return (
     <div className="desk-page editorial-theme">
@@ -170,7 +205,7 @@ const BooksLibrary = ({ currentUser }) => {
         <DeskHeader currentUser={currentUser} />
 
         <section className="desk-hero" aria-label="Current reading">
-          <h2>Good evening, Reader.</h2>
+          <h2>{getGreeting()}</h2>
           {loading ? <div className="desk-skeleton desk-skeleton--hero" /> : <CurrentReadingCard book={currentReading?.book} session={currentReading?.session} />}
         </section>
 
@@ -200,7 +235,7 @@ const BooksLibrary = ({ currentUser }) => {
           {shelfBooks.length === 0 ? (
             <ShelfEmptyState />
           ) : (
-            <div className="editorial-grid editorial-grid--recent">
+            <div className="editorial-grid editorial-grid--shelf">
               {shelfBooks.slice(0, 4).map((book) => <BookCardEditorial key={getBookKey(book)} book={book} subtitle={getStatusLabel(sessions[String(book?._id || book?.id || book?.gutenbergId || '')])} />)}
             </div>
           )}
@@ -213,6 +248,15 @@ const BooksLibrary = ({ currentUser }) => {
             books={recommendations}
           />
         )}
+        {!loading && recommendations.length === 0 && recommendationError && (
+          <section className="desk-section" aria-label="Recommendations unavailable">
+            <div className="desk-section__heading">
+              <h2>{recommendationTitle}</h2>
+            </div>
+            <p className="desk-empty-copy">{recommendationError}</p>
+          </section>
+        )}
+        {!loading && error && <p className="desk-empty-copy">{error}</p>}
       </div>
     </div>
   );

@@ -27,7 +27,8 @@ const CurrentReadingCard = ({ book, session }) => {
             <div className="current-reading-card__cover-fallback" aria-hidden="true">{(book?.title || '?').slice(0, 1)}</div>
           )}
         </Link>
-        <div>
+        <div className="current-reading-card__meta">
+          <p className="current-reading-card__eyebrow">PICK UP WHERE YOU LEFT OFF</p>
           <h3>{book?.title || 'Untitled'}</h3>
           <p>{book?.author || 'Unknown author'}</p>
           <span>Continue from page {currentPage > 0 ? currentPage : 1}</span>
