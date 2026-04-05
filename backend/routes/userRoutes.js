@@ -5,6 +5,8 @@ import {
   loginUser,
   getUserProfile,
   updateUserProfile,
+  updateUserProfileImage,
+  removeUserProfileImage,
   checkUsernameAvailability,
 } from '../controllers/userController.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -17,5 +19,7 @@ router.post('/signup', registerUser);
 router.post('/login', loginUser);
 router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
+router.put('/profile/image', protect, updateUserProfileImage);
+router.delete('/profile/image', protect, removeUserProfileImage);
 
 export default router;

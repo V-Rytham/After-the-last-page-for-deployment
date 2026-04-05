@@ -76,6 +76,7 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [usernameState, setUsernameState] = useState({ status: 'idle', message: '' });
+  const [imageFailed, setImageFailed] = useState(false);
 
   const normalizedUsername = normalizeUsername(editForm.username);
   const currentNormalizedUsername = normalizeUsername(profile?.username);
@@ -188,6 +189,11 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
   const bio = profile?.bio || 'No bio yet. Add a short note so people know how you read.';
   const joinedDate = formatJoinedDate(profile?.joinedAt);
   const stats = profile?.stats || EMPTY_STATS;
+  const profileImageUrl = profile?.profileImageUrl || '';
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [profileImageUrl]);
 
   const handleEditChange = (event) => {
     const { name, value } = event.target;
@@ -291,7 +297,11 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
       <section className="profile-hero glass-panel" aria-label="Public profile overview">
         <div className="profile-identity">
           <div className="profile-avatar-shell" aria-hidden="true">
-            <span>{displayName.charAt(0).toUpperCase()}</span>
+            {profileImageUrl && !imageFailed ? (
+              <img src={profileImageUrl} alt="" onError={() => setImageFailed(true)} loading="lazy" />
+            ) : (
+              <span>{displayName.charAt(0).toUpperCase()}</span>
+            )}
           </div>
 
           <div className="profile-identity-copy">
