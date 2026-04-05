@@ -7,7 +7,7 @@ const RecommendationRow = ({ title, subtitle, books, getSessionForBook }) => (
       <h2>{title}</h2>
       <p>{subtitle}</p>
     </div>
-    <div className="editorial-grid editorial-grid--recommendations">
+    <div className="card-row card-row--recommendations">
       {books.map((book) => (
         <BookCardEditorial
           key={String(book?._id || book?.gutenbergId || book?.title)}
