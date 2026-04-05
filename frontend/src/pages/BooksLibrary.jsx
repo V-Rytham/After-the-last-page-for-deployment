@@ -73,67 +73,6 @@ const loadDeskData = async (currentUser) => {
   if (cached) {
     return cached;
   }
-  throw lastError || new Error('Unable to load recommendations.');
-};
-
-const loadDeskData = async (currentUser) => {
-  const userKey = toUserCacheKey(currentUser);
-  const cached = deskDataCache.byUser.get(userKey);
-  if (cached) {
-    return cached;
-  }
-
-  const inflight = deskDataCache.inflightByUser.get(userKey);
-  if (inflight) {
-    return inflight;
-  }
-
-  const request = (async () => {
-    const sessions = getReadingSessionsForCurrentUser();
-    const { data } = await api.get('/books');
-    const allBooks = Array.isArray(data) ? data : [];
-    const recentActivity = getRecentActivity(allBooks, sessions);
-    const active = getLastActiveBook(allBooks, sessions);
-    const recommendationBase = active?.book || recentActivity[0]?.book || allBooks[0] || null;
-    const readBookIds = Object.keys(sessions).filter(Boolean);
-    const candidateReadIds = readBookIds.length > 0 ? readBookIds : allBooks.map((book) => String(book?._id || '')).filter(Boolean);
-    let recBooks = [];
-    let recommendationError = '';
-
-    if (recommendationBase && candidateReadIds.length > 0) {
-      try {
-        const response = await requestRecommendations({
-          recommendationBase,
-          candidateReadIds,
-          currentBookId: String(active?.book?._id || recommendationBase?._id || ''),
-        });
-
-        const seen = new Set(candidateReadIds);
-        recBooks = getRecommendationsFromResponse(response)
-          .filter((book) => {
-            const key = getBookKey(book);
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .slice(0, 8);
-      } catch (error) {
-        recommendationError = String(error?.uiMessage || error?.message || 'Recommendations are unavailable right now.');
-      }
-    }
-
-    const payload = {
-      books: allBooks,
-      recommendations: recBooks,
-      sessions,
-      recommendationBase,
-      recommendationError,
-    };
-    deskDataCache.byUser.set(userKey, payload);
-    return payload;
-  })().finally(() => {
-    deskDataCache.inflightByUser.delete(userKey);
-  });
 
   const inflight = deskDataCache.inflightByUser.get(userKey);
   if (inflight) {
@@ -204,6 +143,7 @@ const BooksLibrary = ({ currentUser }) => {
   const [error, setError] = useState('');
   const [recommendationError, setRecommendationError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [recommendationLoading, setRecommendationLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -211,6 +151,7 @@ const BooksLibrary = ({ currentUser }) => {
     const loadDesk = async () => {
       try {
         setLoading(true);
+        setRecommendationLoading(true);
         setError('');
         const loaded = await loadDeskData(currentUser);
         if (!mounted) return;
