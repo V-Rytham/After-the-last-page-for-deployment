@@ -14,34 +14,58 @@ const CurrentReadingCard = ({ book, session }) => {
 
   const totalPages = Math.max(0, Number(session?.totalPages || 0));
   const currentPage = Math.max(1, Number(session?.currentPage || 1));
-  const sessionProgress = Number(session?.progressPercent || 0);
+  const hasSessionProgress = Number.isFinite(Number(session?.progressPercent));
+  const sessionProgress = hasSessionProgress ? Number(session?.progressPercent) : null;
   const computedProgress = totalPages > 0 ? (currentPage / totalPages) * 100 : sessionProgress;
-  const progress = Math.max(0, Math.min(100, Number.isFinite(computedProgress) ? computedProgress : 0));
+  const hasProgress = Number.isFinite(computedProgress);
+  const progress = hasProgress
+    ? Math.max(0, Math.min(100, Number(computedProgress)))
+    : 0;
   const progressRounded = Math.round(progress);
   const route = book?.gutenbergId ? `/read/gutenberg/${book.gutenbergId}` : '/library';
   const coverUrl = getBestCoverUrl(book);
+  const pageLabel = totalPages > 0 ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`;
 
   return (
     <article className="current-reading-card">
-      <div className="current-reading-card__left">
-        <Link to={route} className="current-reading-card__cover-link" aria-label={`Open ${book?.title || 'book'}`}>
-          {coverUrl ? (
-            <img src={coverUrl} alt={`${book?.title || 'Book'} cover`} loading="lazy" decoding="async" />
-          ) : (
-            <div className="current-reading-card__cover-fallback" aria-hidden="true">{(book?.title || '?').slice(0, 1)}</div>
-          )}
-        </Link>
+      {coverUrl ? (
+        <div className="current-reading-card__bg" aria-hidden="true">
+          <img src={coverUrl} alt="" loading="lazy" decoding="async" />
+        </div>
+      ) : (
+        <div className="current-reading-card__bg current-reading-card__bg--fallback" aria-hidden="true" />
+      )}
+      <div className="current-reading-card__overlay" aria-hidden="true" />
+      <div className="current-reading-card__content">
         <div className="current-reading-card__meta">
           <p className="current-reading-card__eyebrow">CONTINUE READING</p>
           <h3>{book?.title || 'Untitled'}</h3>
           <p>{book?.author || 'Unknown author'}</p>
-          <span>Page {currentPage}{totalPages > 0 ? ` of ${totalPages}` : ''} · {progressRounded}% complete</span>
-          <div className="reading-progress" role="progressbar" aria-valuenow={progressRounded} aria-valuemin="0" aria-valuemax="100" aria-label="Reading progress">
-            <div style={{ width: `${progress}%` }} />
+        </div>
+        <div className="current-reading-card__footer">
+          <Link className="current-reading-card__resume" to={route}>
+            Resume
+          </Link>
+          <div className="current-reading-card__progress-wrap">
+            <div className="current-reading-card__progress-row">
+              <span>{pageLabel}</span>
+              {hasProgress ? <span>{progressRounded}%</span> : null}
+            </div>
+            {hasProgress ? (
+              <div
+                className="reading-progress"
+                role="progressbar"
+                aria-valuenow={progressRounded}
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-label="Reading progress"
+              >
+                <div style={{ width: `${progress}%` }} />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
-      <Link className="desk-btn" to={route}>Resume reading</Link>
     </article>
   );
 };
