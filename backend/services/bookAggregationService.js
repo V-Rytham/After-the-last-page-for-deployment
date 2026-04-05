@@ -201,6 +201,8 @@ const readGutenberg = async ({ sourceId, readGutenbergBookStateless, buildReader
     title: payload?.title,
     author: payload?.author,
     chapters: Array.isArray(payload?.chapters) ? payload.chapters : [],
+    availability: 'full',
+    availabilityNote: 'Full text from Project Gutenberg.',
     meta: payload,
   };
 };
@@ -255,6 +257,8 @@ const readOpenLibrary = async ({ sourceId }) => {
     author,
     chapters: textToSingleChapter(previewLines.join('\n\n'), 'OpenLibrary Preview'),
     sourceUrl: `${OPEN_LIBRARY_HOST}/works/${workId}`,
+    availability: 'preview',
+    availabilityNote: 'OpenLibrary API does not expose full plaintext for this work in-app. Open source link for borrowing/preview.',
   };
 };
 
@@ -294,6 +298,10 @@ const readInternetArchive = async ({ sourceId }) => {
     author,
     chapters,
     sourceUrl: `${INTERNET_ARCHIVE_HOST}/details/${identifier}`,
+    availability: txtFile?.name ? 'full' : 'preview',
+    availabilityNote: txtFile?.name
+      ? 'Loaded from Internet Archive plaintext file.'
+      : 'Only preview metadata is available in-app for this Internet Archive entry.',
   };
 };
 

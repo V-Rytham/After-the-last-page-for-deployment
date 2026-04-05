@@ -89,6 +89,7 @@ export const convertTextToChapters = (cleanText) => {
   const chapters = [];
   let currentTitle = null;
   let buffer = [];
+  let headingContinuationLines = 0;
 
   const flush = () => {
     if (!currentTitle) {
@@ -118,6 +119,14 @@ export const convertTextToChapters = (cleanText) => {
       const n = String(match[1] || chapters.length + 1);
       const suffix = String(match[2] || '').trim();
       currentTitle = suffix ? `Chapter ${n}: ${suffix}` : `Chapter ${n}`;
+      headingContinuationLines = 0;
+      continue;
+    }
+
+    const trimmed = line.trim();
+    if (currentTitle && buffer.length === 0 && headingContinuationLines < 3 && shouldAppendHeadingContinuation(currentTitle, trimmed)) {
+      currentTitle = `${currentTitle} ${trimmed}`.replace(/\s+/g, ' ').trim();
+      headingContinuationLines += 1;
       continue;
     }
 
@@ -154,6 +163,18 @@ const buildChapterTitle = (match, fallbackIndex) => {
   return suffix ? `Chapter ${n}: ${suffix}` : `Chapter ${n}`;
 };
 
+const shouldAppendHeadingContinuation = (title, candidateLine) => {
+  const line = String(candidateLine || '').trim();
+  if (!line || line.length > 180) return false;
+
+  const normalizedTitle = String(title || '').trim();
+  const titleEndsWithContinuationPunctuation = /[,:;\-–—]\s*$/.test(normalizedTitle);
+  const startsLowercase = /^[a-z]/.test(line);
+  const isAllCapsLine = line.length > 4 && line === line.toUpperCase() && /[A-Z]/.test(line);
+
+  return titleEndsWithContinuationPunctuation || startsLowercase || isAllCapsLine;
+};
+
 export const processGutenbergTextProgressive = (
   rawText,
   {
@@ -176,6 +197,7 @@ export const processGutenbergTextProgressive = (
   const chapters = [];
   let completed = true;
   let nextCursor = lines.length;
+  let headingContinuationLines = 0;
 
   const flush = () => {
     if (!currentTitle) {
@@ -225,6 +247,13 @@ export const processGutenbergTextProgressive = (
       foundAnyChapterHeading = true;
       flush();
       currentTitle = buildChapterTitle(headingMatch, processedChapters + 1);
+      headingContinuationLines = 0;
+      continue;
+    }
+
+    if (currentTitle && buffer.length === 0 && headingContinuationLines < 3 && shouldAppendHeadingContinuation(currentTitle, trimmed)) {
+      currentTitle = `${currentTitle} ${trimmed}`.replace(/\s+/g, ' ').trim();
+      headingContinuationLines += 1;
       continue;
     }
 

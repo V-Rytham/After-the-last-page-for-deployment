@@ -43,6 +43,8 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const [nextCursor, setNextCursor] = useState(null);
   const [estimatedChapters, setEstimatedChapters] = useState(null);
   const [loadingMoreChapters, setLoadingMoreChapters] = useState(false);
+  const [availability, setAvailability] = useState('unknown');
+  const [availabilityNote, setAvailabilityNote] = useState('');
 
   const [fontSize, setFontSize] = useState(1.1875);
   const [fontFamily, setFontFamily] = useState('serif');
@@ -123,6 +125,8 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       setNextCursor(null);
       setEstimatedChapters(null);
       setLoadingMoreChapters(false);
+      setAvailability('unknown');
+      setAvailabilityNote('');
 
       try {
         if (isGutenbergRoute) {
@@ -171,6 +175,8 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
             sourceId: parsedSourceRoute.sourceId,
             sourceUrl: readData?.sourceUrl || null,
           });
+          setAvailability(payload?.availability || readData?.availability || 'unknown');
+          setAvailabilityNote(payload?.availabilityNote || readData?.availabilityNote || '');
           setChapters(nextChapters);
           setCurrentChapter(1);
           return;
@@ -455,7 +461,8 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     && currentPageIndex >= totalPages - 1,
   );
 
-  const isAtEndOfBook = Boolean(book && isLastChapter && isAtEndOfChapter);
+  const isPreviewOnly = availability === 'preview';
+  const isAtEndOfBook = Boolean(book && isLastChapter && isAtEndOfChapter && !isPreviewOnly);
 
   useEffect(() => {
     if (!readerPositionStorageKey) return;
@@ -826,6 +833,17 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
           <button type="button" className="goto-submit" onClick={fetchMoreChapters} disabled={loadingMoreChapters}>
             {loadingMoreChapters ? 'Loading…' : 'Retry loading remaining chapters'}
           </button>
+        </div>
+      )}
+
+      {isPreviewOnly && (
+        <div className="reader-preview-notice" role="status" aria-live="polite">
+          <p>{availabilityNote || 'This title currently provides preview text only in-app.'}</p>
+          {book?.sourceUrl ? (
+            <a href={book.sourceUrl} target="_blank" rel="noreferrer" className="goto-submit">
+              Open source page to continue reading
+            </a>
+          ) : null}
         </div>
       )}
 
