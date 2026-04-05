@@ -5,7 +5,7 @@ import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
 
 const NAV_ITEMS = [
-  { path: '/desk', label: 'Your Desk' },
+  { path: '/desk', label: 'Desk' },
   { path: '/library', label: 'Library' },
   { path: '/meet', label: 'Meet' },
   { path: '/threads', label: 'Threads' },
