@@ -218,6 +218,22 @@
   text-align: center;
 }
 
+
+.meeting-hub .btn-primary,
+.meeting-hub .btn-secondary,
+.meeting-hub .send-btn {
+  background: #5B6CFF;
+  color: #FFFFFF;
+  border-color: #5B6CFF;
+}
+
+.meeting-hub .btn-primary:hover,
+.meeting-hub .btn-secondary:hover,
+.meeting-hub .send-btn:hover {
+  background: #4f60ff;
+  border-color: #4f60ff;
+}
+
 .searching-container {
   display: grid;
   justify-items: center;
