@@ -58,7 +58,7 @@ html[data-theme='light'] {
   --btn-bg: #edf3ff;
   --accent-contrast: #ffffff;
   --btn-text: #1f3a75;
-  --btn-hover: #dbe7ff;
+  --btn-hover: #c9dafb;
   --accent-primary: #5b85d6;
   --book-card-overlay: rgba(255, 255, 255, 0.45);
   --book-card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(238, 245, 255, 0.14));
@@ -94,7 +94,7 @@ html[data-theme='light'] {
   --nav-capsule-shadow: 0 8px 22px rgba(23, 36, 58, 0.06), 0 1px 0 rgba(255, 255, 255, 0.48) inset;
   --nav-group-bg: var(--surface-muted);
   --nav-group-border: var(--border-soft);
-  --nav-link-hover-bg: var(--surface-muted);
+  --nav-link-hover-bg: color-mix(in srgb, var(--accent-soft) 58%, var(--surface-muted));
   --nav-link-active-bg: var(--accent-soft);
   --nav-link-active-border: var(--accent-border);
 }
@@ -103,7 +103,7 @@ html[data-theme='sepia'] {
   --btn-bg: #6f8060;
   --accent-contrast: #f6efd8;
   --btn-text: #f6efd8;
-  --btn-hover: #7c8e6b;
+  --btn-hover: #6b7e5e;
   --accent-primary: #8e6a3a;
   --book-card-overlay: rgba(83, 64, 39, 0.08);
   --book-card-gradient: linear-gradient(180deg, rgba(255, 249, 235, 0.35), rgba(176, 138, 84, 0.12));
@@ -139,7 +139,7 @@ html[data-theme='sepia'] {
   --nav-capsule-shadow: 0 10px 24px rgba(58, 43, 23, 0.12), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
   --nav-group-bg: var(--surface-muted);
   --nav-group-border: var(--border-soft);
-  --nav-link-hover-bg: var(--surface-muted);
+  --nav-link-hover-bg: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-muted));
   --nav-link-active-bg: var(--accent-soft);
   --nav-link-active-border: var(--accent-border);
 }
@@ -148,7 +148,7 @@ html[data-theme='dark'] {
   --btn-bg: rgba(162, 134, 90, 0.34);
   --accent-contrast: #f6ecda;
   --btn-text: #f6ecda;
-  --btn-hover: rgba(162, 134, 90, 0.46);
+  --btn-hover: rgba(203, 171, 120, 0.42);
   --accent-primary: #a2865a;
   --book-card-overlay: rgba(10, 12, 17, 0.75);
   --book-card-gradient: linear-gradient(180deg, rgba(175, 147, 102, 0.12), rgba(15, 18, 28, 0.3));
@@ -186,7 +186,7 @@ html[data-theme='dark'] {
   --nav-capsule-shadow: 0 14px 32px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 250, 242, 0.05) inset;
   --nav-group-bg: var(--surface-muted);
   --nav-group-border: rgba(187, 154, 103, 0.2);
-  --nav-link-hover-bg: rgba(187, 154, 103, 0.16);
+  --nav-link-hover-bg: rgba(203, 171, 120, 0.18);
   --nav-link-active-bg: rgba(187, 154, 103, 0.24);
   --nav-link-active-border: rgba(187, 154, 103, 0.36);
 }
@@ -366,7 +366,7 @@ li {
 .auth-link-primary:hover,
 .send-btn:hover,
 .wizard-send-btn:hover {
-  background: var(--accent-soft-strong);
+  background: color-mix(in srgb, var(--btn-hover) 78%, var(--accent-soft-strong));
   color: var(--accent-ink);
 }
 
@@ -384,7 +384,7 @@ html[data-theme='dark'] .btn-secondary {
 
 .btn-secondary:hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--btn-hover) 24%, var(--surface-muted));
 }
 
 .btn-primary.sm,

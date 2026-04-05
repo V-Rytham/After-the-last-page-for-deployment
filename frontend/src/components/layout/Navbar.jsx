@@ -50,7 +50,7 @@ const ProfileAvatar = ({ user, className = '', onClick, label = 'Open profile' }
   );
 };
 
-const Navbar = ({ currentUser, uiTheme, onThemeChange }) => {
+const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -93,6 +93,14 @@ const Navbar = ({ currentUser, uiTheme, onThemeChange }) => {
   const handleViewProfile = () => {
     setProfileMenuOpen(false);
     navigate('/profile');
+  };
+  const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+
+  const handleSignOut = async () => {
+    setProfileMenuOpen(false);
+    setDrawerOpen(false);
+    await onLogout?.();
+    navigate('/');
   };
 
   const cycleTheme = () => {
@@ -142,6 +150,11 @@ const Navbar = ({ currentUser, uiTheme, onThemeChange }) => {
               {profileMenuOpen ? (
                 <div className="profile-dropdown" role="menu" aria-label="Profile menu">
                   <button type="button" className="profile-dropdown-item" role="menuitem" onClick={handleViewProfile}>View profile</button>
+                  {isMember ? (
+                    <button type="button" className="profile-dropdown-item is-danger" role="menuitem" onClick={handleSignOut}>
+                      Sign out
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -193,6 +206,9 @@ const Navbar = ({ currentUser, uiTheme, onThemeChange }) => {
             </div>
 
             <Link to="/settings" className="drawer-action-row" onClick={() => setDrawerOpen(false)}>Profile Settings</Link>
+            {isMember ? (
+              <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign out</button>
+            ) : null}
           </div>
         </div>
       </aside>

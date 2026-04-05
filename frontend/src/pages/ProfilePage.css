@@ -338,6 +338,31 @@
   margin-top: 0.15rem;
 }
 
+.profile-image-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.2rem;
+}
+
+.profile-image-upload-btn {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.profile-image-upload-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.profile-image-remove-btn {
+  border-color: color-mix(in srgb, var(--danger-border) 65%, var(--border-soft));
+  color: var(--danger-ink);
+}
+
 .profile-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

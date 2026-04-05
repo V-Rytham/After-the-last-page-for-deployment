@@ -60,6 +60,7 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [usernameState, setUsernameState] = useState({ status: 'idle', message: '' });
@@ -260,6 +261,52 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
     }
   };
 
+  const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Could not read this image file.'));
+    reader.readAsDataURL(file);
+  });
+
+  const handleProfileImageChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError('');
+    setSuccess('');
+    setUploadingImage(true);
+
+    try {
+      const profileImageData = await fileToDataUrl(file);
+      const { data } = await api.put('/users/profile/image', { profileImageData });
+      setProfile({ ...data, stats: data.stats || EMPTY_STATS });
+      onUserUpdate?.(data);
+      setSuccess('Profile image updated.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || requestError.message || 'Could not upload profile image right now.');
+    } finally {
+      setUploadingImage(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveProfileImage = async () => {
+    setError('');
+    setSuccess('');
+    setUploadingImage(true);
+
+    try {
+      const { data } = await api.delete('/users/profile/image');
+      setProfile({ ...data, stats: data.stats || EMPTY_STATS });
+      onUserUpdate?.(data);
+      setSuccess('Profile image removed.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not remove profile image right now.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   return (
     <div className="profile-page animate-fade-in">
       <header className="profile-head">
@@ -374,11 +421,28 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
                 </label>
                 <div className="profile-character-count">{editForm.bio.length}/160</div>
 
+                <div className="profile-image-controls">
+                  <label className="btn-secondary profile-image-upload-btn">
+                    {uploadingImage ? 'Uploading image…' : 'Upload profile image'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleProfileImageChange}
+                      disabled={uploadingImage || saving}
+                    />
+                  </label>
+                  {profileImageUrl ? (
+                    <button type="button" className="btn-secondary profile-image-remove-btn" onClick={handleRemoveProfileImage} disabled={uploadingImage || saving}>
+                      Remove image
+                    </button>
+                  ) : null}
+                </div>
+
                 <div className="profile-form-actions">
-                  <button type="submit" className="btn-primary" disabled={saving || usernameState.status === 'checking'}>
+                  <button type="submit" className="btn-primary" disabled={saving || uploadingImage || usernameState.status === 'checking'}>
                     {saving ? 'Saving…' : 'Save changes'}
                   </button>
-                  <button type="button" className="btn-secondary" onClick={handleCancelEditing} disabled={saving}>
+                  <button type="button" className="btn-secondary" onClick={handleCancelEditing} disabled={saving || uploadingImage}>
                     <X size={16} /> Cancel
                   </button>
                 </div>

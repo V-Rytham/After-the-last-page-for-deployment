@@ -11,6 +11,7 @@
   display: grid;
   gap: 0.85rem;
   margin-bottom: 1.45rem;
+  justify-items: center;
 }
 
 .library-page-header h1 {
@@ -64,6 +65,7 @@
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
 }
 
@@ -126,7 +128,7 @@
 .library-controls-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 1rem;
   margin-top: 0.55rem;
   margin-bottom: 1.45rem;
@@ -135,8 +137,14 @@
 .library-sort-controls {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.9rem;
   flex-shrink: 0;
+}
+
+.library-sort-label {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
 }
 
 .library-sort-select {
@@ -272,7 +280,7 @@
 
   .search-wrapper {
     max-width: 500px;
-    margin-inline: 0;
+    margin-inline: auto;
   }
 
   .search-category-pills {
