@@ -12,8 +12,10 @@ const CurrentReadingCard = ({ book, session }) => {
     );
   }
 
-  const progress = Math.max(0, Math.min(100, Number(session?.progressPercent || 0)));
+  const totalPages = Number(session?.totalPages || 0);
   const currentPage = Number(session?.currentPage || 0);
+  const computedProgress = totalPages > 0 ? (currentPage / totalPages) * 100 : Number(session?.progressPercent || 0);
+  const progress = Math.max(0, Math.min(100, computedProgress));
   const route = book?.gutenbergId ? `/read/gutenberg/${book.gutenbergId}` : '/library';
   const coverUrl = getBestCoverUrl(book);
 
@@ -27,7 +29,8 @@ const CurrentReadingCard = ({ book, session }) => {
             <div className="current-reading-card__cover-fallback" aria-hidden="true">{(book?.title || '?').slice(0, 1)}</div>
           )}
         </Link>
-        <div>
+        <div className="current-reading-card__meta">
+          <p className="current-reading-card__eyebrow">PICK UP WHERE YOU LEFT OFF</p>
           <h3>{book?.title || 'Untitled'}</h3>
           <p>{book?.author || 'Unknown author'}</p>
           <span>Continue from page {currentPage > 0 ? currentPage : 1}</span>
