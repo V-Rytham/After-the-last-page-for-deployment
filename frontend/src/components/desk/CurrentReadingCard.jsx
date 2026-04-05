@@ -25,6 +25,7 @@ const CurrentReadingCard = ({ book, session }) => {
   const route = book?.gutenbergId ? `/read/gutenberg/${book.gutenbergId}` : '/library';
   const coverUrl = getBestCoverUrl(book);
   const pageLabel = totalPages > 0 ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`;
+  const fallbackInitial = String(book?.title || 'Book').trim().charAt(0).toUpperCase();
 
   return (
     <article className="current-reading-card">
@@ -37,32 +38,43 @@ const CurrentReadingCard = ({ book, session }) => {
       )}
       <div className="current-reading-card__overlay" aria-hidden="true" />
       <div className="current-reading-card__content">
-        <div className="current-reading-card__meta">
-          <p className="current-reading-card__eyebrow">CONTINUE READING</p>
-          <h3>{book?.title || 'Untitled'}</h3>
-          <p>{book?.author || 'Unknown author'}</p>
-        </div>
-        <div className="current-reading-card__footer">
-          <Link className="current-reading-card__resume" to={route}>
-            Resume
-          </Link>
-          <div className="current-reading-card__progress-wrap">
-            <div className="current-reading-card__progress-row">
-              <span>{pageLabel}</span>
-              {hasProgress ? <span>{progressRounded}%</span> : null}
+        <div className="current-reading-card__layout">
+          <div className="current-reading-card__main">
+            <div className="current-reading-card__meta">
+              <p className="current-reading-card__eyebrow">CONTINUE READING</p>
+              <h3 title={book?.title || 'Untitled'}>{book?.title || 'Untitled'}</h3>
+              <p title={book?.author || 'Unknown author'}>{book?.author || 'Unknown author'}</p>
             </div>
-            {hasProgress ? (
-              <div
-                className="reading-progress"
-                role="progressbar"
-                aria-valuenow={progressRounded}
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-label="Reading progress"
-              >
-                <div style={{ width: `${progress}%` }} />
+            <div className="current-reading-card__footer">
+              <Link className="current-reading-card__resume" to={route}>
+                Resume
+              </Link>
+              <div className="current-reading-card__progress-wrap">
+                <div className="current-reading-card__progress-row">
+                  <span>{pageLabel}</span>
+                  {hasProgress ? <span>{progressRounded}%</span> : null}
+                </div>
+                {hasProgress ? (
+                  <div
+                    className="reading-progress"
+                    role="progressbar"
+                    aria-valuenow={progressRounded}
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-label="Reading progress"
+                  >
+                    <div style={{ width: `${progress}%` }} />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            </div>
+          </div>
+          <div className="current-reading-card__cover" aria-hidden="true">
+            {coverUrl ? (
+              <img src={coverUrl} alt="" loading="lazy" decoding="async" />
+            ) : (
+              <div className="current-reading-card__cover-fallback">{fallbackInitial || 'B'}</div>
+            )}
           </div>
         </div>
       </div>

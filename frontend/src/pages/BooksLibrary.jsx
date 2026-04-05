@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
-import { Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
@@ -51,6 +51,7 @@ const getBookGenres = (book) => {
 };
 
 const normalizeFilterValue = (value) => String(value || '').trim().toLowerCase();
+const normalizeCategoryValue = (value) => normalizeFilterValue(value).replace(/[^a-z0-9]/g, '');
 
 const getBookSession = (sessions, book) => {
   if (!book || !sessions || typeof sessions !== 'object') return null;
@@ -351,32 +352,14 @@ const BooksLibrary = ({ currentUser }) => {
   const sessionForBook = useCallback((book) => getBookSession(sessions, book), [sessions]);
 
   const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
-  const categoryOptions = useMemo(() => {
-    const genreCounts = new Map();
-    books.forEach((book) => {
-      getBookGenres(book).forEach((genre) => {
-        const normalized = normalizeFilterValue(genre);
-        if (!normalized) return;
-        genreCounts.set(normalized, (genreCounts.get(normalized) || 0) + 1);
-      });
-    });
-
-    const topDynamic = [...genreCounts.entries()]
-      .sort((a, b) => {
-        if (b[1] !== a[1]) return b[1] - a[1];
-        return a[0].localeCompare(b[0]);
-      })
-      .slice(0, 6)
-      .map(([value]) => value);
-
-    const orderedValues = ['all', 'fiction', 'philosophy', ...topDynamic];
-    const uniqueValues = [...new Set(orderedValues)].filter(Boolean);
-
-    return uniqueValues.map((value) => ({
-      value,
-      label: value.charAt(0).toUpperCase() + value.slice(1),
-    }));
-  }, [books]);
+  const categoryOptions = useMemo(() => ([
+    { value: 'all', label: 'All' },
+    { value: 'fiction', label: 'Fiction' },
+    { value: 'philosophy', label: 'Philosophy' },
+    { value: 'adventure', label: 'Adventure' },
+    { value: 'sci-fi', label: 'Sci-Fi' },
+  ]), []);
+  const pillScrollerRef = useRef(null);
 
   useEffect(() => {
     if (!categoryOptions.some((option) => option.value === activeCategory)) {
@@ -396,8 +379,9 @@ const BooksLibrary = ({ currentUser }) => {
     }
 
     if (activeCategory !== 'all') {
-      const genres = getBookGenres(book).map(normalizeFilterValue);
-      if (!genres.some((genre) => genre.includes(activeCategory))) {
+      const normalizedCategory = normalizeCategoryValue(activeCategory);
+      const genres = getBookGenres(book).map((genre) => normalizeCategoryValue(genre));
+      if (!genres.some((genre) => genre.includes(normalizedCategory) || normalizedCategory.includes(genre))) {
         return false;
       }
     }
@@ -432,43 +416,63 @@ const BooksLibrary = ({ currentUser }) => {
     <div className="desk-page editorial-theme">
       <div className="desk-shell">
         <section className="desk-search-panel" aria-label="Filter books on desk">
-          <form className="desk-search" role="search" onSubmit={(event) => event.preventDefault()}>
-            <Search size={18} aria-hidden="true" className="desk-search__icon" />
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search by title or author"
-              aria-label="Search by title or author"
-              autoComplete="off"
-            />
-            {searchTerm.trim() ? (
+          <div className="desk-search-shell">
+            <form className="desk-search desk-search--modern" role="search" onSubmit={(event) => event.preventDefault()}>
+              <Search size={18} aria-hidden="true" className="desk-search__icon" />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by title or author"
+                aria-label="Search by title or author"
+                autoComplete="off"
+              />
+              {searchTerm.trim() ? (
+                <button
+                  type="button"
+                  className="desk-search__clear"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Clear search"
+                >
+                  <X size={15} />
+                </button>
+              ) : null}
+            </form>
+
+            <div className="desk-filter-row">
               <button
                 type="button"
-                className="desk-search__clear"
-                onClick={() => setSearchTerm('')}
-                aria-label="Clear search"
+                className="desk-filter-nav"
+                aria-label="Scroll categories left"
+                onClick={() => pillScrollerRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}
               >
-                <X size={15} />
+                <ChevronLeft size={16} />
               </button>
-            ) : null}
-          </form>
-
-          <div className="desk-filter-pills" role="tablist" aria-label="Desk categories">
-            {categoryOptions.map((option) => {
-              const isActive = option.value === activeCategory;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`desk-filter-pill${isActive ? ' is-active' : ''}`}
-                  onClick={() => setActiveCategory(option.value)}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+              <div ref={pillScrollerRef} className="desk-filter-pills" role="tablist" aria-label="Desk categories">
+                {categoryOptions.map((option) => {
+                  const isActive = option.value === activeCategory;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      className={`desk-filter-pill${isActive ? ' is-active' : ''}`}
+                      onClick={() => setActiveCategory(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className="desk-filter-nav"
+                aria-label="Scroll categories right"
+                onClick={() => pillScrollerRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </section>
 
@@ -482,7 +486,6 @@ const BooksLibrary = ({ currentUser }) => {
         <section className="desk-section" aria-label="Recent activity">
           <div className="desk-section__heading">
             <h2>Recent activity</h2>
-            <p>Recently opened and completed books.</p>
           </div>
           {loading ? (
             <div className="card-row card-row--recent" role="status" aria-label="Loading recent activity">

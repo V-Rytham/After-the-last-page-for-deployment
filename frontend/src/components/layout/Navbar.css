@@ -4,7 +4,6 @@
   z-index: 80;
   width: 100%;
   padding: 0.45rem var(--page-gutter);
-  border-bottom: 1px solid var(--border-soft);
   background: var(--nav-bg);
   backdrop-filter: blur(6px);
   display: grid;
@@ -26,16 +25,16 @@
   justify-self: center;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.16rem;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 80%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-muted) 75%, transparent);
+  gap: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .navbar-pill {
   min-height: 2.1rem;
-  padding: 0 0.82rem;
+  padding: 0;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -45,15 +44,15 @@
 
 .navbar-pill:hover,
 .navbar-pill:focus-visible {
-  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+  background: transparent;
   color: var(--text-primary);
   outline: none;
 }
 
 .navbar-pill.is-active {
-  background: var(--surface-1);
+  background: transparent;
   color: var(--text-primary);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-soft) 75%, transparent);
+  box-shadow: none;
 }
 
 .navbar-right { justify-self: end; display: inline-flex; align-items: center; gap: 0.5rem; }
@@ -206,5 +205,5 @@
     gap: 0.75rem;
   }
 
-  .navbar-pill { padding-inline: 0.72rem; }
+  .navbar-center { gap: 2rem; }
 }
