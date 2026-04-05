@@ -18,8 +18,8 @@ const THEME_SWATCH = {
   dark: '#121212',
 };
 
-const ProfileAvatar = ({ user, className = '', onClick }) => {
-  const [imageFailed, setImageFailed] = useState(false);
+const ProfileAvatar = ({ user, className = '', onClick, label = 'Open profile' }) => {
+  const [failedImageUrl, setFailedImageUrl] = useState('');
   const profileImageUrl = user?.profileImageUrl || '';
   const displayName = user?.name || user?.username || user?.email || user?.anonymousId || 'Reader';
   const initials = displayName
@@ -29,24 +29,32 @@ const ProfileAvatar = ({ user, className = '', onClick }) => {
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'R';
 
-  useEffect(() => {
-    setImageFailed(false);
-  }, [profileImageUrl]);
+  const imageFailed = Boolean(profileImageUrl) && failedImageUrl === profileImageUrl;
+
+  const avatarContent = profileImageUrl && !imageFailed ? (
+    <img
+      src={profileImageUrl}
+      alt={`${displayName} profile`}
+      className="nav-avatar-image"
+      onError={() => setFailedImageUrl(profileImageUrl)}
+      loading="lazy"
+    />
+  ) : (
+    <span className="nav-avatar-fallback" aria-hidden="true">{initials}</span>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className={`nav-avatar-btn ${className}`.trim()} onClick={onClick} aria-label={label}>
+        {avatarContent}
+      </button>
+    );
+  }
 
   return (
-    <button type="button" className={`nav-avatar-btn ${className}`.trim()} onClick={onClick} aria-label="Open navigation menu">
-      {profileImageUrl && !imageFailed ? (
-        <img
-          src={profileImageUrl}
-          alt={`${displayName} profile`}
-          className="nav-avatar-image"
-          onError={() => setImageFailed(true)}
-          loading="lazy"
-        />
-      ) : (
-        <span className="nav-avatar-fallback" aria-hidden="true">{initials}</span>
-      )}
-    </button>
+    <span className={`nav-avatar-btn ${className}`.trim()} aria-label={label}>
+      {avatarContent}
+    </span>
   );
 };
 
@@ -56,10 +64,6 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const activeTheme = useMemo(() => UI_THEMES.find((theme) => theme.id === uiTheme) || UI_THEMES[0], [uiTheme]);
-
-  useEffect(() => {
-    setDrawerOpen(false);
-  }, [location.pathname]);
 
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : '';
@@ -76,7 +80,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
 
   return (
     <>
-      <nav className="navbar-redesign" aria-label="Global">
+      <header className="navbar-redesign" aria-label="Global">
         <div className="navbar-left">
           <Link to="/" className="navbar-brand-link" aria-label="After the Last Page home">
             <span className="navbar-title font-serif">After the Last Page</span>
@@ -105,9 +109,12 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             {uiTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          <ProfileAvatar user={currentUser} onClick={() => setDrawerOpen(true)} />
+          <Link to="/profile" className="navbar-profile-link" aria-label="Go to profile">
+            <ProfileAvatar user={currentUser} label="Go to profile" />
+          </Link>
+          <ProfileAvatar user={currentUser} className="mobile-menu-avatar" onClick={() => setDrawerOpen(true)} label="Open navigation menu" />
         </div>
-      </nav>
+      </header>
 
       <aside className={`mobile-drawer ${drawerOpen ? 'is-open' : ''}`} aria-hidden={!drawerOpen}>
         <div className="mobile-drawer-panel" role="dialog" aria-modal="true" aria-label="Navigation drawer">
@@ -126,7 +133,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             {NAV_ITEMS.map((item) => {
               const active = location.pathname.startsWith(item.path);
               return (
-                <Link key={item.path} to={item.path} className={`drawer-nav-row ${active ? 'is-active' : ''}`}>
+                <Link key={item.path} to={item.path} className={`drawer-nav-row ${active ? 'is-active' : ''}`} onClick={() => setDrawerOpen(false)}>
                   <span>{item.label}</span>
                   <ChevronRight size={18} aria-hidden="true" />
                 </Link>
@@ -150,7 +157,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               ))}
             </div>
 
-            <Link to="/settings" className="drawer-action-row">Profile Settings</Link>
+            <Link to="/settings" className="drawer-action-row" onClick={() => setDrawerOpen(false)}>Profile Settings</Link>
             <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign Out</button>
           </div>
         </div>
