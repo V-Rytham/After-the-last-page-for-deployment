@@ -179,7 +179,7 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
     setSignupForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const completeAuthSession = async (token, fallbackUser = null) => {
+  const completeAuthSession = async (token, fallbackUser = null, options = {}) => {
     if (token || fallbackUser) {
       saveAuthSession({ ...(fallbackUser || {}), token: token || '' });
     }
@@ -187,6 +187,10 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
     const { data: me } = await api.get('/auth/me');
     const user = saveAuthSession({ ...me, token: token || '' });
     onAuthSuccess(user);
+    if (options.redirectToOnboarding) {
+      navigate('/onboarding/genres', { replace: true });
+      return;
+    }
     navigate(redirectPath, { replace: true });
   };
 
@@ -272,7 +276,7 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
 
     try {
       const { data } = await api.post('/auth/verify-otp', otpForm);
-      await completeAuthSession(data.token, data.user);
+      await completeAuthSession(data.token, data.user, { redirectToOnboarding: true });
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to verify OTP right now.');
     } finally {

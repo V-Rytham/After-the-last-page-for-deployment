@@ -19,6 +19,7 @@ import SettingsPage from './pages/SettingsPage';
 import BookQuiz from './pages/BookQuiz';
 import RequestBookPage from './pages/RequestBookPage';
 import ReadEntryPage from './pages/ReadEntryPage';
+import GenreOnboardingPage from './pages/GenreOnboardingPage';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
@@ -81,6 +82,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
           <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
           <Route path="/desk" element={<PrivateRoute><BooksLibrary currentUser={currentUser} /></PrivateRoute>} />
           <Route path="/library" element={<PrivateRoute><Library /></PrivateRoute>} />
+          <Route path="/onboarding/genres" element={<PrivateRoute><GenreOnboardingPage onUserUpdate={onUserUpdate} /></PrivateRoute>} />
           <Route path="/books" element={<Navigate to="/desk" replace />} />
           <Route path="/request-book" element={<PrivateRoute><RequestBookPage /></PrivateRoute>} />
           <Route path="/read" element={<PrivateRoute><Navigate to="/request-book" replace /></PrivateRoute>} />

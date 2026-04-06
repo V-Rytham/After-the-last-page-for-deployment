@@ -389,6 +389,32 @@
   font-size: var(--font-size-0);
 }
 
+.profile-genre-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.profile-genre-chip {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  padding: 0.4rem 0.85rem;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: var(--text-secondary);
+  transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.profile-genre-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-border);
+}
+
+.profile-genre-chip.active {
+  background: color-mix(in srgb, var(--accent-soft) 82%, transparent);
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
 @keyframes profile-spin {
   to {
     transform: rotate(360deg);

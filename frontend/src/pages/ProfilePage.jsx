@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, LoaderCircle, PencilLine, X } from 'lucide-react';
 import api from '../utils/api';
 import { getStoredUser } from '../utils/auth';
+import { GENRE_OPTIONS } from '../utils/libraryApi';
 import './ProfilePage.css';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
@@ -65,6 +66,8 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
   const [success, setSuccess] = useState('');
   const [usernameState, setUsernameState] = useState({ status: 'idle', message: '' });
   const [imageFailed, setImageFailed] = useState(false);
+  const [genreSelection, setGenreSelection] = useState([]);
+  const [savingGenres, setSavingGenres] = useState(false);
 
   const normalizedUsername = normalizeUsername(editForm.username);
   const currentNormalizedUsername = normalizeUsername(profile?.username);
@@ -102,6 +105,7 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
           username: data.username || '',
           bio: data.bio || '',
         });
+        setGenreSelection(Array.isArray(data.preferredGenres) ? data.preferredGenres : []);
         onUserUpdate?.(data);
       } catch (requestError) {
         if (!cancelled) {
@@ -188,6 +192,34 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
     setEditForm((prev) => ({ ...prev, [name]: value }));
     setError('');
     setSuccess('');
+  };
+
+  const toggleGenre = (genre) => {
+    setGenreSelection((prev) => (
+      prev.includes(genre) ? prev.filter((item) => item !== genre) : [...prev, genre]
+    ));
+    setError('');
+    setSuccess('');
+  };
+
+  const handleSaveGenres = async (skip = false) => {
+    setError('');
+    setSuccess('');
+    setSavingGenres(true);
+    try {
+      const { data } = await api.put('/users/preferences/genres', {
+        skip,
+        preferredGenres: skip ? [] : genreSelection,
+      });
+      setProfile({ ...data, stats: data.stats || EMPTY_STATS });
+      setGenreSelection(Array.isArray(data.preferredGenres) ? data.preferredGenres : []);
+      onUserUpdate?.(data);
+      setSuccess(skip ? 'Personalization skipped. Using top 50 books.' : 'Preferred genres updated.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not update preferred genres right now.');
+    } finally {
+      setSavingGenres(false);
+    }
   };
 
   const handleStartEditing = () => {
@@ -466,6 +498,41 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
                 <strong>{loading ? '…' : stats.discussionsParticipated}</strong>
                 <span>Discussions participated</span>
               </article>
+            </div>
+          </section>
+          <section className="profile-card glass-panel" aria-label="Preferred genres">
+            <div className="profile-card-head">
+              <h2 className="font-serif">Preferred genres</h2>
+            </div>
+            <div className="profile-genre-cloud">
+              {GENRE_OPTIONS.map((genre) => {
+                const active = genreSelection.includes(genre);
+                return (
+                  <button
+                    key={genre}
+                    type="button"
+                    className={`profile-genre-chip ${active ? 'active' : ''}`}
+                    onClick={() => toggleGenre(genre)}
+                    aria-pressed={active}
+                    disabled={savingGenres}
+                  >
+                    {genre}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="profile-form-actions">
+              <button type="button" className="btn-secondary" onClick={() => handleSaveGenres(true)} disabled={savingGenres}>
+                Skip personalization
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => handleSaveGenres(false)}
+                disabled={savingGenres || genreSelection.length === 0}
+              >
+                {savingGenres ? 'Updating…' : 'Update genres'}
+              </button>
             </div>
           </section>
 

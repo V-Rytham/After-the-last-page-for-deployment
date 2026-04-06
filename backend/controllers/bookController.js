@@ -13,6 +13,8 @@ import {
   splitCompositeSourceId,
   SOURCE_NAMES,
 } from '../services/bookAggregationService.js';
+import { User } from '../models/User.js';
+import { getDefaultTopBooks } from '../services/personalizedLibraryService.js';
 
 const BACKEND_TIMEOUT_MS = 70_000;
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -167,6 +169,32 @@ export const getBooks = async (req, res) => {
   } catch (error) {
     console.error('[BOOK] Failed to fetch books list:', error?.message || error);
     res.status(500).json({ message: 'Server error fetching books.' });
+  }
+};
+
+export const getLibraryFeed = async (req, res) => {
+  try {
+    const defaultBooks = getDefaultTopBooks();
+    if (!req.user?._id) {
+      return res.json({ books: defaultBooks, personalized: false, fallback: true });
+    }
+
+    const user = await User.findById(req.user._id)
+      .select('preferredGenres hasPersonalization recommendedBooks recommendationsGeneratedAt')
+      .lean();
+    const personalizedBooks = Array.isArray(user?.recommendedBooks) ? user.recommendedBooks : [];
+    const usePersonalized = Boolean(user?.hasPersonalization) && personalizedBooks.length > 0;
+
+    return res.json({
+      books: usePersonalized ? personalizedBooks.slice(0, 50) : defaultBooks,
+      preferredGenres: Array.isArray(user?.preferredGenres) ? user.preferredGenres : [],
+      personalized: usePersonalized,
+      fallback: !usePersonalized,
+      generatedAt: user?.recommendationsGeneratedAt || null,
+    });
+  } catch (error) {
+    console.error('[BOOK] Failed to fetch library feed:', error?.message || error);
+    return res.json({ books: getDefaultTopBooks(), personalized: false, fallback: true });
   }
 };
 

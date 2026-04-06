@@ -15,6 +15,8 @@ const sanitizeAuthUser = (user) => ({
   isAnonymous: Boolean(user.isAnonymous),
   isVerified: Boolean(user.isVerified),
   provider: user.provider || 'local',
+  preferredGenres: Array.isArray(user.preferredGenres) ? user.preferredGenres : [],
+  hasPersonalization: Boolean(user.hasPersonalization),
   createdAt: user.createdAt,
 });
 

@@ -91,6 +91,28 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  preferredGenres: {
+    type: [String],
+    default: [],
+  },
+  hasPersonalization: {
+    type: Boolean,
+    default: false,
+  },
+  recommendedBooks: {
+    type: [{
+      title: { type: String, required: true, trim: true },
+      author: { type: String, required: true, trim: true },
+      gutenbergId: { type: Number, default: null },
+      source: { type: String, default: 'gutenberg', trim: true },
+      sourceId: { type: String, default: '', trim: true },
+      genres: { type: [String], default: [] },
+    }],
+    default: [],
+  },
+  recommendationsGeneratedAt: {
+    type: Date,
+  },
 }, { timestamps: true });
 
 userSchema.pre('save', async function save() {

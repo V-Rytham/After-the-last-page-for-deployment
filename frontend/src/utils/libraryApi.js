@@ -2,6 +2,20 @@ import api from './api';
 
 const RECENT_BOOKS_KEY = 'atlpg:recent-gutenberg-books:v2';
 const PLACEHOLDER_COVER = 'https://placehold.co/420x630?text=No+Cover';
+export const GENRE_OPTIONS = [
+  'Classic',
+  'Mystery',
+  'Science Fiction',
+  'Fantasy',
+  'Philosophy',
+  'Romance',
+  'Adventure',
+  'Historical Fiction',
+  'Horror',
+  'Poetry',
+  'Drama',
+  'Satire',
+];
 
 export const fallbackBooks = [
   { gutenbergId: 84, title: 'Frankenstein', author: 'Mary Shelley' },
@@ -321,7 +335,7 @@ export const fetchLibraryBooks = async ({ search = '', category = 'all', sort = 
     }
   } else {
     try {
-      const { data } = await api.get('/books', { signal });
+      const { data } = await api.get('/books/library', { signal });
       const list = Array.isArray(data?.items)
         ? data.items
         : Array.isArray(data?.results)
@@ -335,10 +349,13 @@ export const fetchLibraryBooks = async ({ search = '', category = 'all', sort = 
       normalized = list
         .map((entry) => normalizeBook({
           id: entry?.id,
-          gutenbergId: entry?.gutenbergId ?? entry?.id,
+          source: entry?.source,
+          sourceId: entry?.sourceId,
+          gutenbergId: entry?.gutenbergId ?? entry?.id ?? entry?.sourceId,
           title: entry?.title,
           author: entry?.author,
           tags: Array.isArray(entry?.tags) ? entry.tags : [],
+          genres: Array.isArray(entry?.genres) ? entry.genres : [],
           coverImage: entry?.cover_url ?? entry?.coverImage,
         }))
         .filter(Boolean);
