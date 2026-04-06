@@ -64,16 +64,17 @@ export const checkAccessBatch = async (req, res) => {
       return res.status(400).json({ message: 'Too many bookIds in one request.' });
     }
 
-    const normalized = bookIds.map((id) => String(id || '').trim());
-    if (normalized.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+    const normalized = bookIds.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!normalized.length) {
+      return res.status(400).json({ message: 'bookIds must be a non-empty array.' });
+    }
+
+    if (context !== 'meet' && normalized.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
       return res.status(400).json({ message: 'One or more bookIds are invalid.' });
     }
 
     if (isDegradedMode()) {
-      if (context === 'meet') {
-        return res.json({ allowedBookIds: [], fallback: true, message: 'Meet is unavailable in degraded mode.' });
-      }
-
+      // In degraded mode we still report the requested ids, but the caller may choose to disable live matching.
       return res.json({ allowedBookIds: normalized, fallback: true });
     }
 

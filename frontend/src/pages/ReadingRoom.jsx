@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   List,
   RotateCcw,
+  Sparkles,
   Settings2,
 } from 'lucide-react';
 import api from '../utils/api';
@@ -13,6 +14,9 @@ import { trackBookOpened, updateReadingSession } from '../utils/readingSession';
 import { UI_THEMES } from '../utils/uiThemes';
 import { PaginationEngine } from '../components/reader/PaginationEngine';
 import PageRenderer from '../components/reader/PageRenderer';
+import useOnboarding from '../hooks/useOnboarding';
+import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
+import UnavailableBookState from '../components/reader/UnavailableBookState';
 import './ReadingRoom.css';
 
 const READ_REQUEST_TIMEOUT_MS = 120000;
@@ -61,6 +65,8 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const [goToDraft, setGoToDraft] = useState('1');
   const [goToPageDraft, setGoToPageDraft] = useState('1');
   const [restoreSnapshot, setRestoreSnapshot] = useState(null);
+
+  const { step: onboardingStep, completed: onboardingCompleted, nextStep: nextOnboardingStep } = useOnboarding();
 
   const chromeTimeoutRef = useRef(null);
   const pointerDownRef = useRef(null);
@@ -797,9 +803,36 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   if (!book) return <div className="text-center p-10 mt-20">Book not found.</div>;
   if (contentError) return <div className="text-center p-10 mt-20">{contentErrorMessage}</div>;
   if (!activeChapter) return <div className="text-center p-10 mt-20">Book content not available.</div>;
+  if (isPreviewOnly) {
+    const raw = String(availabilityNote || '').trim();
+    const lowered = raw.toLowerCase();
+    const safeHint = raw && !(lowered.includes('source link') || lowered.includes('lending/preview'))
+      ? raw.slice(0, 160)
+      : '';
+
+    return (
+      <UnavailableBookState
+        title={book?.title}
+        author={book?.author}
+        sourceUrl={book?.sourceUrl}
+        sourceLabel={book?.source}
+        hint={safeHint}
+        onExternalClick={(url) => {
+          console.log('[READ] External source click:', { url, bookId: resolvedBookId });
+        }}
+      />
+    );
+  }
 
   return (
     <div className={`reader-root theme-${uiTheme} animate-fade-in`}>
+      {!onboardingCompleted && onboardingStep === 3 ? (
+        <OnboardingTooltip
+          targetSelector='[data-onboarding="ai-insights-btn"]'
+          placement="bottom"
+          text="Generate insights using AI"
+        />
+      ) : null}
       <div className={`reader-toolbar ${chromeVisible ? 'is-visible' : ''} ${activeControlPanel ? 'settings-open' : ''}`}>
         <button type="button" onClick={handleDeskNavigation} className="back-btn">
           <ChevronLeft size={18} /> The Desk
@@ -810,6 +843,21 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
         </div>
 
         <div className="toolbar-actions">
+          <button
+            type="button"
+            onClick={() => {
+              if (!onboardingCompleted && onboardingStep === 3) {
+                nextOnboardingStep();
+              }
+              navigate(`/quiz/${encodeURIComponent(String(resolvedBookId))}`);
+            }}
+            className={`settings-btn${!onboardingCompleted && onboardingStep === 3 ? ' onboarding-target-glow' : ''}`}
+            title="AI insights"
+            data-onboarding="ai-insights-btn"
+          >
+            <Sparkles size={17} />
+          </button>
+
           <button type="button" onClick={openGoTo} className="settings-btn" title="Navigate">
             <List size={17} />
           </button>
@@ -833,17 +881,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
           <button type="button" className="goto-submit" onClick={fetchMoreChapters} disabled={loadingMoreChapters}>
             {loadingMoreChapters ? 'Loading…' : 'Retry loading remaining chapters'}
           </button>
-        </div>
-      )}
-
-      {isPreviewOnly && (
-        <div className="reader-preview-notice" role="status" aria-live="polite">
-          <p>{availabilityNote || 'This title currently provides preview text only in-app.'}</p>
-          {book?.sourceUrl ? (
-            <a href={book.sourceUrl} target="_blank" rel="noreferrer" className="goto-submit">
-              Open source page to continue reading
-            </a>
-          ) : null}
         </div>
       )}
 

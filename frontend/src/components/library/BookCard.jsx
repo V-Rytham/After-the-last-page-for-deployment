@@ -1,23 +1,29 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getGutenbergCoverUrl, PLACEHOLDER_COVER } from '../../utils/libraryApi';
+import { getUserShelf, toggleBookOnShelf } from '../../utils/readingSession';
+import { getStep, setHighlightBookId } from '../../onboardingManager';
 
-const sanitizeGenres = (book) => {
-  const values = [
-    ...(Array.isArray(book?.genres) ? book.genres : []),
-    ...(Array.isArray(book?.genre) ? book.genre : []),
-    ...(typeof book?.genre === 'string' ? [book.genre] : []),
-    ...(Array.isArray(book?.tags) ? book.tags : []),
-  ]
-    .flatMap((value) => String(value || '').split(','))
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
+const PLACEHOLDER_COVER = 'https://placehold.co/420x630?text=No+Cover';
 
-  return Array.from(new Set(values)).slice(0, 6);
+const getGutenbergCoverUrl = (gutenbergId) => {
+  const id = String(gutenbergId || '').trim();
+  if (!/^\d+$/.test(id)) return null;
+  return `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
 };
 
-const BookCard = ({ book, loading = false }) => {
+const normalizeGenre = (value) => String(value || '').trim();
+
+const BookCard = ({ book, loading = false, onboardingHighlight = false }) => {
   const [imageError, setImageError] = useState(false);
+
+  const shelfKey = useMemo(() => {
+    if (!book) return '';
+    const source = String(book?.source || (book?.gutenbergId ? 'gutenberg' : '')).trim().toLowerCase();
+    const sourceId = String(book?.sourceId || book?.gutenbergId || '').trim();
+    return source && sourceId ? `${source}:${sourceId}` : '';
+  }, [book]);
+
+  const [isSaved, setIsSaved] = useState(() => (shelfKey ? getUserShelf().includes(shelfKey) : false));
 
   if (loading) {
     return (
@@ -34,21 +40,34 @@ const BookCard = ({ book, loading = false }) => {
     );
   }
 
-  const source = String(book?.source || (book?.gutenbergId ? 'gutenberg' : 'gutenberg')).toLowerCase();
-  const sourceId = String(book?.sourceId || book?.gutenbergId || book?.id || '');
-  const id = book?.id || `${source}:${sourceId}`;
-  const title = String(book?.title || 'Untitled');
-  const author = String(book?.author || 'Unknown author');
-  const genres = sanitizeGenres(book);
+  const title = String(book?.title || '').trim();
+  const author = String(book?.author || '').trim();
+  const genres = Array.isArray(book?.genres) ? book.genres.map(normalizeGenre).filter(Boolean).slice(0, 6) : [];
+  if (!title || !author || genres.length === 0) {
+    return null;
+  }
+
+  const gutenbergId = book?.gutenbergId != null ? Number(book.gutenbergId) : null;
+  const source = String(book?.source || (Number.isFinite(gutenbergId) ? 'gutenberg' : '')).trim().toLowerCase();
+  const sourceId = String(book?.sourceId || (Number.isFinite(gutenbergId) ? gutenbergId : '') || '').trim();
+  const compositeId = source && sourceId ? `${source}:${sourceId}` : '';
+
   const coverSrc = imageError
     ? PLACEHOLDER_COVER
-    : (book?.cover_url || book?.coverImage || (source === 'gutenberg' ? getGutenbergCoverUrl(sourceId) : PLACEHOLDER_COVER));
-  const readPath = source === 'gutenberg'
-    ? `/read/gutenberg/${sourceId}`
-    : `/read/${encodeURIComponent(id)}`;
+    : (String(book?.coverImage || '').trim() || (source === 'gutenberg' ? (getGutenbergCoverUrl(sourceId) || PLACEHOLDER_COVER) : PLACEHOLDER_COVER));
+
+  const readPath = source === 'gutenberg' && Number.isFinite(Number(sourceId))
+    ? `/read/gutenberg/${encodeURIComponent(sourceId)}`
+    : `/read/${encodeURIComponent(compositeId)}`;
+
+  const resolvedShelfKey = shelfKey || compositeId;
 
   return (
-    <article className="library-book-card">
+    <article
+      className={`library-book-card${onboardingHighlight ? ' is-onboarding-highlight onboarding-target-glow' : ''}`}
+      data-onboarding={onboardingHighlight ? 'added-book-card' : undefined}
+      data-onboarding-book-id={resolvedShelfKey}
+    >
       <Link className="library-cover-link" to={readPath} aria-label={`Read ${title}`}>
         <div className="library-book-cover">
           <img src={coverSrc} alt={`${title} cover`} loading="lazy" decoding="async" onError={() => setImageError(true)} />
@@ -57,11 +76,31 @@ const BookCard = ({ book, loading = false }) => {
       <h3 className="library-book-title" title={title}>{title}</h3>
       <p className="library-book-author">{author}</p>
       <div className="library-book-genres" aria-label="Book genres">
-        {genres.length > 0
-          ? genres.map((genre) => <span key={`${id}-${genre}`} className="library-book-genre-pill">{genre}</span>)
-          : <span className="library-book-genre-pill">Unknown</span>}
+        {genres.map((genre) => <span key={`${resolvedShelfKey}-${genre}`} className="library-book-genre-pill">{genre}</span>)}
       </div>
-      <Link className="library-book-cta" to={readPath}>Read</Link>
+
+      <div className="library-book-actions">
+        <Link className="library-book-cta" to={readPath}>Read</Link>
+        <button
+          type="button"
+          className={`library-book-save${isSaved ? ' is-saved' : ''}`}
+          aria-label={isSaved ? `Remove ${title} from your shelf` : `Add ${title} to your shelf`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const wasSaved = isSaved;
+            const nextShelf = toggleBookOnShelf(resolvedShelfKey);
+            const nextSaved = nextShelf.includes(resolvedShelfKey);
+            setIsSaved(nextSaved);
+
+            if (!wasSaved && nextSaved && Number(getStep()) === 2) {
+              setHighlightBookId(resolvedShelfKey);
+            }
+          }}
+        >
+          {isSaved ? 'Saved' : 'Add'}
+        </button>
+      </div>
     </article>
   );
 };

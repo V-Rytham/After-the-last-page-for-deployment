@@ -5,6 +5,18 @@ import { issueAuthToken } from '../utils/generateToken.js';
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
+const generateAnonymousId = async () => {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = `Reader #${Math.floor(1000 + Math.random() * 9000)}`;
+    const existing = await User.findOne({ anonymousId: candidate }).select('_id');
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  return `Reader #${Date.now().toString().slice(-6)}`;
+};
+
 export const configurePassport = () => {
   const clientID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
@@ -32,7 +44,7 @@ export const configurePassport = () => {
       let user = await User.findOne({ email: normalizedEmail });
       if (!user) {
         user = await User.create({
-          anonymousId: `Reader #${Math.floor(1000 + Math.random() * 9000)}`,
+          anonymousId: await generateAnonymousId(),
           email: normalizedEmail,
           provider: 'google',
           isVerified: true,
@@ -52,7 +64,7 @@ export const configurePassport = () => {
         await user.save();
       }
 
-      const token = issueAuthToken(user._id);
+      const token = issueAuthToken(user._id, { isAnonymous: user.isAnonymous, anonymousId: user.anonymousId });
       return done(null, { userId: user._id, token });
     } catch (error) {
       return done(error);

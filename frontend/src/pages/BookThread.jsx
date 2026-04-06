@@ -17,6 +17,13 @@ import './BookThread.css';
 const initialThreadForm = { title: '', chapterReference: '', content: '' };
 const MAX_VISUAL_REPLY_DEPTH = 3;
 const COLLAPSE_REPLY_DEPTH = 4;
+const BOOK_READ_TIMEOUT_MS = 120000;
+
+const canonicalizeThreadKey = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return raw.replace(/\s+/g, ' ').slice(0, 120);
+};
 
 const SORT_OPTIONS = [
   { id: 'new', label: 'Newest notes' },
@@ -225,6 +232,30 @@ export default function BookThread() {
   const { bookId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const parsedSourceRoute = useMemo(() => {
+    if (!bookId) return null;
+    const decoded = decodeURIComponent(String(bookId));
+    const separator = decoded.indexOf(':');
+    if (separator <= 0) return null;
+    const source = decoded.slice(0, separator).trim().toLowerCase();
+    const sourceId = decoded.slice(separator + 1).trim();
+    if (!source || !sourceId) return null;
+    return { source, sourceId, composite: decoded };
+  }, [bookId]);
+  const isCustomThread = useMemo(() => parsedSourceRoute?.source === 'custom', [parsedSourceRoute]);
+  const customThreadTitle = useMemo(() => {
+    const fromState = String(location?.state?.customTitle || '').trim();
+    if (fromState) return fromState.slice(0, 160);
+    if (isCustomThread) return String(parsedSourceRoute?.sourceId || '').trim();
+    return '';
+  }, [isCustomThread, location?.state?.customTitle, parsedSourceRoute?.sourceId]);
+  const threadBookKey = useMemo(() => {
+    if (isCustomThread) {
+      const key = canonicalizeThreadKey(customThreadTitle);
+      return key ? `custom:${key}` : String(bookId || '').trim();
+    }
+    return parsedSourceRoute ? parsedSourceRoute.composite : String(bookId || '').trim();
+  }, [bookId, customThreadTitle, isCustomThread, parsedSourceRoute]);
   const actorId = useMemo(() => {
     const stored = getStoredUser();
     return stored?._id ? String(stored._id) : null;
@@ -249,13 +280,59 @@ export default function BookThread() {
       setLoading(true);
       setError('');
 
+      const bookRequest = (() => {
+        if (isCustomThread) {
+          const title = customThreadTitle || 'Untitled';
+          const key = canonicalizeThreadKey(title);
+          setBook({
+            _id: threadBookKey,
+            id: threadBookKey,
+            title,
+            author: '',
+            source: 'custom',
+            sourceId: key,
+            coverImage: null,
+          });
+          return Promise.resolve({ data: null });
+        }
+
+        const fromState = location?.state?.book;
+        if (fromState && typeof fromState === 'object' && fromState.title) {
+          setBook((prev) => ({ ...(prev || {}), ...fromState }));
+        }
+
+        if (parsedSourceRoute) {
+          return api.get('/books/read', {
+            timeout: BOOK_READ_TIMEOUT_MS,
+            params: {
+              source: parsedSourceRoute.source,
+              id: parsedSourceRoute.sourceId,
+              maxChapters: 1,
+              processingBudgetMs: 7000,
+            },
+          });
+        }
+
+        return api.get(`/books/${encodeURIComponent(bookId)}`);
+      })();
+
       const [bookResult, threadsResult] = await Promise.allSettled([
-        api.get(`/books/${bookId}`),
-        api.get(`/threads/${bookId}?sort=${activeTab}`),
+        bookRequest,
+        api.get(`/threads/${encodeURIComponent(threadBookKey)}?sort=${activeTab}`),
       ]);
 
       if (bookResult.status === 'fulfilled') {
-        setBook(bookResult.value.data);
+        if (!isCustomThread) {
+          const payload = bookResult.value?.data?.data || bookResult.value?.data;
+          if (payload && typeof payload === 'object') {
+            setBook((prev) => ({
+              ...(prev || {}),
+              ...payload,
+              title: String(payload?.title || prev?.title || 'Untitled'),
+              author: String(payload?.author || prev?.author || ''),
+            }));
+          }
+        }
       } else {
         console.error('Failed to fetch book:', bookResult.reason);
         setBook(null);
@@ -277,7 +354,7 @@ export default function BookThread() {
     };
 
     fetchData();
-  }, [bookId, activeTab, navigate]);
+  }, [activeTab, bookId, customThreadTitle, isCustomThread, location?.state?.book, navigate, parsedSourceRoute, threadBookKey]);
 
   useEffect(() => {
     if (location.state?.notice) {
@@ -369,7 +446,7 @@ export default function BookThread() {
 
     try {
       const { data } = await api.post('/threads', {
-        bookId: book._id || book.id,
+        bookKey: threadBookKey,
         title: threadForm.title,
         chapterReference: threadForm.chapterReference,
         content: threadForm.content,
@@ -436,7 +513,7 @@ export default function BookThread() {
   };
 
   const handleShareThread = async (threadId) => {
-    const shareUrl = `${window.location.origin}/#/thread/${bookId}?thread=${threadId}`;
+    const shareUrl = `${window.location.origin}/#/thread/${encodeURIComponent(threadBookKey)}?thread=${threadId}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);

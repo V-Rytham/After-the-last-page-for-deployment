@@ -189,18 +189,25 @@ export default function LandingPage({ currentUser }) {
   const activeReading = useMemo(() => getCurrentReading(books, readingSessions), [books, readingSessions]);
 
   const timeLeft = useMemo(() => estimateTimeLeft(activeReading?.session), [activeReading]);
+  const todayLabel = useMemo(() => (
+    new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date())
+  ), []);
 
   return (
     <div className="home2-page animate-fade-in">
       <div className="layout-shell home2-shell">
         <section className="layout-content">
-          {!isMember ? <HeroSection /> : null}
+          <HeroSection
+            primaryHref={isMember ? '/desk' : '/auth'}
+            secondaryHref="/meet"
+            primaryLabel={isMember ? 'Start Reading' : 'Start Reading'}
+          />
 
           {isMember ? (
             <section className="home2-desk" aria-label="Your Desk">
               <header className="home2-section-head">
-                <p className="home2-kicker">Home</p>
-                <h1 className="font-serif">Your Desk</h1>
+                <h2 className="font-serif">Your Desk</h2>
+                <p className="home2-section-date">{todayLabel}</p>
               </header>
               <div className="home2-desk-grid">
                 <CurrentReadingCard

@@ -1,7 +1,7 @@
 import React from 'react';
 import BookCard from './BookCard';
 
-const BookGrid = ({ books = [], loading = false, error = '' }) => {
+const BookGrid = ({ books = [], loading = false, error = '', onboardingHighlightBookId = '' }) => {
   if (loading) {
     return (
       <div className="library-grid" role="status" aria-label="Loading books">
@@ -18,9 +18,27 @@ const BookGrid = ({ books = [], loading = false, error = '' }) => {
     return <div className="library-empty" role="status">No books found</div>;
   }
 
+  const visibleBooks = books.filter((book) => (
+    Boolean(book)
+    && String(book?.title || '').trim()
+    && String(book?.author || '').trim()
+    && Array.isArray(book?.genres)
+    && book.genres.length > 0
+  ));
+
+  if (visibleBooks.length === 0) {
+    return <div className="library-empty" role="status">No books found</div>;
+  }
+
   return (
     <div className="library-grid" role="list">
-      {books.map((book) => <BookCard key={book.id || book.gutenbergId} book={book} />)}
+      {visibleBooks.map((book) => (
+        <BookCard
+          key={`${book?.source || 'book'}:${book?.sourceId || book?.gutenbergId || book?.title}`}
+          book={book}
+          onboardingHighlight={Boolean(onboardingHighlightBookId) && String(`${book?.source || ''}:${book?.sourceId || book?.gutenbergId || ''}`) === String(onboardingHighlightBookId)}
+        />
+      ))}
     </div>
   );
 };

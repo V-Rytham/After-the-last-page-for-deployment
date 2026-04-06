@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
+import { readSelectedGenres } from '../utils/genrePreferences';
 import './BooksLibrary.css';
 
 const deskDataCache = {
@@ -93,97 +94,6 @@ const getLastActiveBook = (books, sessions) => getRecentActivity(books, sessions
   .find(({ session }) => Number(session?.progressPercent || 0) > 0 && Number(session?.progressPercent || 0) < 100 && !session?.isFinished)
   || null;
 
-const normalizeTitleTokens = (title) => String(title || '')
-  .toLowerCase()
-  .replace(/[^a-z0-9\s]/g, ' ')
-  .split(/\s+/)
-  .filter((token) => token.length >= 4);
-
-const scoreBookSimilarity = (candidate, contextBooks = []) => {
-  if (!candidate || contextBooks.length === 0) return 0;
-  let score = 0;
-
-  for (const baseBook of contextBooks) {
-    if (!baseBook) continue;
-    const baseAuthor = String(baseBook?.author || '').trim().toLowerCase();
-    const candidateAuthor = String(candidate?.author || '').trim().toLowerCase();
-    if (baseAuthor && candidateAuthor && baseAuthor === candidateAuthor) {
-      score += 5;
-    }
-
-    const baseTokens = new Set(normalizeTitleTokens(baseBook?.title));
-    const candidateTokens = new Set(normalizeTitleTokens(candidate?.title));
-    for (const token of baseTokens) {
-      if (candidateTokens.has(token)) score += 1;
-    }
-  }
-
-  return score;
-};
-
-const dedupeBooks = (books = []) => {
-  const seen = new Set();
-  return books.filter((book) => {
-    const key = getBookKey(book);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};
-
-const toIdSet = (values = []) => new Set(values.map(String).filter(Boolean));
-
-const buildContentBasedRecommendations = ({ allBooks, recentActivity, readIdSet, currentBook }) => {
-  const contextBooks = [currentBook, ...recentActivity.map((entry) => entry.book)].filter(Boolean).slice(0, 5);
-
-  return dedupeBooks(allBooks)
-    .filter((book) => {
-      const key = getBookKey(book);
-      return key && !readIdSet.has(key) && String(book?._id || '') !== String(currentBook?._id || '');
-    })
-    .map((book) => ({ book, score: scoreBookSimilarity(book, contextBooks) }))
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return String(a.book?.title || '').localeCompare(String(b.book?.title || ''));
-    })
-    .map((entry) => entry.book)
-    .slice(0, MAX_RECOMMENDATIONS_PER_TYPE);
-};
-
-const buildTrendingRecommendations = ({ allBooks, excludeIdSet }) => dedupeBooks(allBooks)
-  .filter((book) => {
-    const key = getBookKey(book);
-    return key && !excludeIdSet.has(key);
-  })
-  .sort((a, b) => new Date(b?.lastAccessedAt || 0).getTime() - new Date(a?.lastAccessedAt || 0).getTime())
-  .slice(0, MAX_RECOMMENDATIONS_PER_TYPE);
-
-const normalizeRecommendationGroups = (payload) => {
-  const groups = payload?.recommendations ?? payload?.data?.recommendations ?? payload;
-
-  if (!groups) {
-    return { contentBased: [], popular: [] };
-  }
-
-  if (Array.isArray(groups)) {
-    return { contentBased: groups.filter(Boolean), popular: [] };
-  }
-
-  const contentBased = dedupeBooks([
-    ...(Array.isArray(groups.contentBased) ? groups.contentBased : []),
-    ...(Array.isArray(groups.based_on_book) ? groups.based_on_book : []),
-    ...(Array.isArray(groups.same_author) ? groups.same_author : []),
-    ...(Array.isArray(groups.genre_based) ? groups.genre_based : []),
-    ...(Array.isArray(groups.series_continuation) ? groups.series_continuation : []),
-  ]);
-
-  const popular = dedupeBooks([
-    ...(Array.isArray(groups.popular) ? groups.popular : []),
-    ...(Array.isArray(groups.trending) ? groups.trending : []),
-  ]);
-
-  return { contentBased, popular };
-};
 
 const fetchDeskData = async () => {
   const sessions = getReadingSessionsForCurrentUser();
@@ -194,63 +104,24 @@ const fetchDeskData = async () => {
   const active = getLastActiveBook(allBooks, sessions);
   const recommendationBase = active?.book || recentActivity[0]?.book || allBooks[0] || null;
 
-  const candidateReadIds = Object.keys(sessions || {})
-    .map(String)
-    .filter(Boolean)
-    .slice(0, 120);
-  const readIdSet = toIdSet(candidateReadIds);
-
   let recommendationError = '';
   let contentRecommendations = [];
   let popularRecommendations = [];
 
-  if (recommendationBase) {
+  const selectedGenres = readSelectedGenres();
+  if (selectedGenres.length > 0) {
     try {
-      const recResponse = await withRetry(() => api.post('/recommender', {
-        book: {
-          gutenbergId: recommendationBase?.gutenbergId,
-          title: recommendationBase?.title,
-          author: recommendationBase?.author,
-        },
-        readBookIds: candidateReadIds,
-        currentBookId: String(active?.book?._id || recommendationBase?._id || ''),
-        limitPerShelf: MAX_RECOMMENDATIONS_PER_TYPE,
-      }));
-
-      const normalized = normalizeRecommendationGroups(recResponse?.data);
-      contentRecommendations = normalized.contentBased
-        .filter((book) => !readIdSet.has(getBookKey(book)))
-        .slice(0, MAX_RECOMMENDATIONS_PER_TYPE);
-      popularRecommendations = normalized.popular
-        .filter((book) => !readIdSet.has(getBookKey(book)))
-        .slice(0, MAX_RECOMMENDATIONS_PER_TYPE);
+      const recResponse = await withRetry(() => api.post('/recommendations', { genres: selectedGenres }));
+      const books = Array.isArray(recResponse?.data?.books) ? recResponse.data.books : [];
+      contentRecommendations = books.slice(0, MAX_RECOMMENDATIONS_PER_TYPE);
+      popularRecommendations = [];
     } catch (error) {
       recommendationError = String(error?.uiMessage || error?.message || 'Recommendations are unavailable right now.');
     }
   }
 
   if (contentRecommendations.length === 0) {
-    contentRecommendations = buildContentBasedRecommendations({
-      allBooks,
-      recentActivity,
-      readIdSet,
-      currentBook: recommendationBase,
-    });
-  }
-
-  const popularExclude = new Set([
-    ...readIdSet,
-    ...contentRecommendations.map(getBookKey),
-  ]);
-  if (popularRecommendations.length === 0) {
-    popularRecommendations = buildTrendingRecommendations({
-      allBooks,
-      excludeIdSet: popularExclude,
-    });
-  }
-
-  if (contentRecommendations.length === 0 && popularRecommendations.length === 0) {
-    recommendationError = recommendationError || 'No recommendations available right now. Browse books to discover your next read.';
+    recommendationError = recommendationError || 'Pick genres in Profile to generate curated recommendations.';
   }
 
   return {
@@ -300,6 +171,18 @@ const BooksLibrary = ({ currentUser }) => {
   const [recommendationError, setRecommendationError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
+
+  useEffect(() => {
+    try {
+      const prefill = String(window.sessionStorage.getItem('atlp-desk-search-prefill') || '').trim();
+      if (prefill) {
+        setSearchTerm(prefill);
+        window.sessionStorage.removeItem('atlp-desk-search-prefill');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const refreshDesk = useCallback(async ({ force = false } = {}) => {
     try {

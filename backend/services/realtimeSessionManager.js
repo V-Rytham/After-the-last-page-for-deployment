@@ -33,6 +33,15 @@ export class RealtimeSessionManager {
     return this.sessions.get(userId) || { userId: normalizeId(userId), state: SESSION_STATES.IDLE };
   }
 
+  getPublicSession(userId) {
+    const session = this.getSession(userId);
+    if (!session) return null;
+    const { partnerUserId, socketId, ...rest } = session;
+    void partnerUserId;
+    void socketId;
+    return rest;
+  }
+
   ensureSession(userId, patch = {}) {
     return this.sessions.upsert(userId, patch);
   }
@@ -152,7 +161,7 @@ export class RealtimeSessionManager {
     const match = this._tryDequeueMatch(queueKey);
     if (match) {
       await this._finalizeMatch(match);
-      return { matched: true, roomId: match.roomId, partnerUserId: match.partnerUserId };
+      return { matched: true, roomId: match.roomId };
     }
 
     return { matched: false };

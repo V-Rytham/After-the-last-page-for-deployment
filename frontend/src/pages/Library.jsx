@@ -1,107 +1,130 @@
-import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SearchBar from '../components/library/SearchBar';
-import SortControl from '../components/library/SortControl';
 import BookGrid from '../components/library/BookGrid';
-import { fetchLibraryBooks } from '../utils/libraryApi';
+import useSelectedGenres from '../hooks/useSelectedGenres';
+import useRecommendations from '../hooks/useRecommendations';
+import useDebouncedValue from '../hooks/useDebouncedValue';
+import useOnboarding from '../hooks/useOnboarding';
+import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
+import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
 import './Library.css';
 
-const FILTER_OPTIONS = [
-  { label: 'All Books', value: 'all' },
-  { label: 'Fiction', value: 'fiction' },
-  { label: 'Non-fiction', value: 'non-fiction' },
-  { label: 'Mystery', value: 'mystery' },
-  { label: 'Classic', value: 'classic' },
-  { label: 'Philosophy', value: 'philosophy' },
-];
+const normalizeQuery = (value) => String(value || '').trim();
 
-const Library = () => {
+export default function Library() {
+  const selectedGenres = useSelectedGenres();
+  const { books: personalizedBooks, loading: recLoading, error: recError } = useRecommendations(selectedGenres);
+
+  const { step: onboardingStep, completed: onboardingCompleted, highlightBookId, nextStep } = useOnboarding();
+
   const [search, setSearch] = useState('');
-  const [submittedSearch, setSubmittedSearch] = useState('');
-  const [validationError, setValidationError] = useState('');
-  const [category, setCategory] = useState('all');
-  const [sort, setSort] = useState('popular');
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [searchState, setSearchState] = useState({ loading: false, error: '', books: [] });
+  const abortRef = useRef(null);
 
-  const queryParams = useMemo(() => ({
-    search: submittedSearch,
-    category,
-    sort,
-    page: 1,
-    perPage: 24,
-  }), [submittedSearch, category, sort]);
+  const normalizedSearch = useMemo(() => normalizeQuery(debouncedSearch), [debouncedSearch]);
 
-  const fetchLibrary = React.useCallback(async () => fetchLibraryBooks(queryParams), [queryParams]);
+  useEffect(() => {
+    const q = normalizedSearch;
 
-  const { data, isLoading: loading, error, refetch } = useQuery({
-    queryKey: ['library'],
-    queryFn: fetchLibrary,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-  });
+    if (abortRef.current) abortRef.current.abort();
 
-  const books = data?.books || [];
-
-  React.useEffect(() => {
-    refetch();
-  }, [refetch, queryParams]);
-  const normalizedSearch = String(search || '').trim();
-
-  const handleSubmitSearch = () => {
-    const next = normalizedSearch;
-    if (!next) {
-      setValidationError('');
-      setSubmittedSearch('');
+    if (!q) {
+      Promise.resolve().then(() => setSearchState({ loading: false, error: '', books: [] }));
       return;
     }
 
-    if (/^\d+$/.test(next)) {
-      const parsed = Number(next);
-      if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-        setValidationError('Please enter a valid positive Gutenberg ID.');
-        return;
-      }
+    const cached = getCachedSearch(q);
+    if (cached) {
+      Promise.resolve().then(() => setSearchState({ loading: false, error: '', books: cached }));
+      return;
     }
 
-    setValidationError('');
-    setSubmittedSearch(next);
-  };
+    const controller = new AbortController();
+    abortRef.current = controller;
+    Promise.resolve().then(() => setSearchState((prev) => ({ ...prev, loading: true, error: '' })));
 
-  const resolvedError = String(error?.message || '').trim();
-  const notFoundMessage = (!loading && !resolvedError && submittedSearch && books.length === 0)
-    ? (/^\d+$/.test(submittedSearch)
-      ? `No Gutenberg book found for ID ${submittedSearch}.`
-      : 'No books matched your search.')
-    : '';
-  const statusMessage = validationError || resolvedError || notFoundMessage;
+    fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const books = Array.isArray(data?.books) ? data.books : [];
+        setCachedSearch(q, books);
+        Promise.resolve().then(() => setSearchState({ loading: false, error: '', books }));
+
+        if (!onboardingCompleted && onboardingStep === 1) {
+          nextStep();
+        }
+      })
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        Promise.resolve().then(() => setSearchState({ loading: false, error: err?.message || 'Search failed.', books: [] }));
+      });
+
+    return () => controller.abort();
+  }, [nextStep, normalizedSearch, onboardingCompleted, onboardingStep]);
+
+  useEffect(() => {
+    if (onboardingCompleted) return undefined;
+    if (onboardingStep !== 2) return undefined;
+    if (!highlightBookId) return undefined;
+
+    const timeout = window.setTimeout(() => nextStep(), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [highlightBookId, nextStep, onboardingCompleted, onboardingStep]);
+
+  const showSearchResults = Boolean(normalizedSearch);
+  const curatedBooks = personalizedBooks;
+  const visibleBooks = showSearchResults ? searchState.books : curatedBooks;
+  const loading = showSearchResults ? searchState.loading : recLoading;
+  const error = showSearchResults ? searchState.error : recError;
 
   return (
     <main className="library-page content-container">
+      {!onboardingCompleted && onboardingStep === 1 ? (
+        <OnboardingTooltip
+          targetSelector='[data-onboarding="search-input"]'
+          placement="bottom"
+          text="Search any book (try 'Atomic Habits')"
+        />
+      ) : null}
+
+      {!onboardingCompleted && onboardingStep === 2 && highlightBookId ? (
+        <OnboardingTooltip
+          targetSelector='[data-onboarding="added-book-card"]'
+          placement="top"
+          text="This is your library. Track everything here."
+        />
+      ) : null}
+
       <header className="library-page-header">
-        <h1>Library</h1>
+        <h1>{showSearchResults ? 'Search' : 'Curated For You'}</h1>
         <SearchBar
           value={search}
-          onChange={(value) => {
-            setSearch(value);
-            if (validationError) setValidationError('');
-          }}
-          onSubmit={handleSubmitSearch}
+          onChange={setSearch}
+          onSubmit={() => {}}
           loading={loading}
-          categories={FILTER_OPTIONS}
-          activeCategory={category}
-          onCategoryChange={setCategory}
+          categories={[]}
+          activeCategory={null}
+          onCategoryChange={() => {}}
+          inputClassName={!onboardingCompleted && onboardingStep === 1 ? 'onboarding-target-glow' : ''}
         />
-        {validationError ? <p className="library-inline-message" role="status">{validationError}</p> : null}
+        {!showSearchResults && selectedGenres.length === 0 ? (
+          <p className="library-inline-message" role="status">Pick genres in your Profile to personalize this feed.</p>
+        ) : null}
       </header>
 
-      <section className="library-controls-row" aria-label="Library controls">
-        <SortControl sort={sort} onSortChange={setSort} />
-      </section>
-
-      <BookGrid books={books} loading={loading} error={statusMessage} />
+      <BookGrid
+        books={visibleBooks}
+        loading={loading}
+        error={error}
+        onboardingHighlightBookId={!onboardingCompleted && onboardingStep === 2 ? highlightBookId : ''}
+      />
     </main>
   );
-};
-
-export default Library;
+}

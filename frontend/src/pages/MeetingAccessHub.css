@@ -39,6 +39,38 @@
   flex-wrap: wrap;
 }
 
+.meeting-access-pref {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-line);
+}
+
+.meeting-access-pref-btn {
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.meeting-access-pref-btn:hover {
+  background: var(--surface-muted);
+}
+
+.meeting-access-pref-btn.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--text-primary);
+}
+
 .meeting-access-hero-copy {
   display: grid;
   gap: 0.4rem;

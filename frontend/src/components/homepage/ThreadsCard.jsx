@@ -10,7 +10,7 @@ const ThreadsCard = ({ preview }) => (
         <p className="home2-muted">{preview.content || 'New thread activity is happening now.'}</p>
       </>
     ) : (
-      <p className="home2-muted">No active threads yet. New discussions appear as readers finish books.</p>
+      <p className="home2-muted">No active threads yet. New discussions appear as readers start posting about books.</p>
     )}
     <Link to="/threads" className="home2-text-link">Open Threads</Link>
   </article>

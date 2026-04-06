@@ -1,10 +1,12 @@
 const GUTENDEX_HOST = 'https://gutendex.com';
 const OPEN_LIBRARY_HOST = 'https://openlibrary.org';
 const INTERNET_ARCHIVE_HOST = 'https://archive.org';
+const GOOGLE_BOOKS_HOST = 'https://www.googleapis.com/books/v1/volumes';
 
 const SOURCE_GUTENBERG = 'gutenberg';
 const SOURCE_OPEN_LIBRARY = 'openlibrary';
 const SOURCE_INTERNET_ARCHIVE = 'internetarchive';
+const SOURCE_GOOGLE_BOOKS = 'googlebooks';
 
 const SEARCH_TIMEOUT_MS = 12000;
 const READ_TIMEOUT_MS = 20000;
@@ -305,6 +307,47 @@ const readInternetArchive = async ({ sourceId }) => {
   };
 };
 
+const readGoogleBooks = async ({ sourceId }) => {
+  const volumeId = String(sourceId || '').trim();
+  if (!volumeId) throw new Error('Google Books volume id is required.');
+
+  const params = new URLSearchParams();
+  const apiKey = String(process.env.GOOGLE_BOOKS_API_KEY || '').trim();
+  if (apiKey) params.set('key', apiKey);
+
+  const url = params.toString()
+    ? `${GOOGLE_BOOKS_HOST}/${encodeURIComponent(volumeId)}?${params.toString()}`
+    : `${GOOGLE_BOOKS_HOST}/${encodeURIComponent(volumeId)}`;
+
+  const response = await withTimeout(url, { timeoutMs: READ_TIMEOUT_MS });
+  if (!response.ok) throw new Error(`Google Books read failed with ${response.status}`);
+  const payload = await safeJson(response);
+
+  const info = payload?.volumeInfo || {};
+  const title = normalizeTitle(info?.title, `Google Books ${volumeId}`);
+  const author = normalizeAuthor(Array.isArray(info?.authors) ? info.authors[0] : info?.authors);
+
+  const previewLines = [
+    `Google Books title: ${title}`,
+    author ? `Author: ${author}` : null,
+    Array.isArray(info?.categories) && info.categories.length ? `Categories: ${info.categories.join(', ')}` : null,
+    info?.previewLink ? `Preview: ${info.previewLink}` : null,
+    info?.infoLink ? `Info: ${info.infoLink}` : null,
+    'Google Books API does not provide full plaintext content. Use the preview link where available.',
+  ].filter(Boolean);
+
+  return {
+    source: SOURCE_GOOGLE_BOOKS,
+    sourceId: volumeId,
+    title,
+    author,
+    chapters: textToSingleChapter(previewLines.join('\n\n'), 'Google Books Preview'),
+    sourceUrl: String(info?.previewLink || info?.infoLink || '').trim() || null,
+    availability: 'preview',
+    availabilityNote: 'Google Books provides metadata/preview links only in-app.',
+  };
+};
+
 export const readBookFromSource = async ({ source, sourceId, readGutenbergBookStateless, buildReaderOptions }) => {
   const normalizedSource = String(source || '').trim().toLowerCase();
   if (!normalizedSource) throw new Error('Source is required.');
@@ -319,6 +362,10 @@ export const readBookFromSource = async ({ source, sourceId, readGutenbergBookSt
 
   if (normalizedSource === SOURCE_INTERNET_ARCHIVE) {
     return readInternetArchive({ sourceId });
+  }
+
+  if (normalizedSource === SOURCE_GOOGLE_BOOKS) {
+    return readGoogleBooks({ sourceId });
   }
 
   throw new Error(`Unsupported source: ${normalizedSource}`);
@@ -337,4 +384,5 @@ export const SOURCE_NAMES = {
   SOURCE_GUTENBERG,
   SOURCE_OPEN_LIBRARY,
   SOURCE_INTERNET_ARCHIVE,
+  SOURCE_GOOGLE_BOOKS,
 };

@@ -188,6 +188,48 @@
   box-shadow: var(--book-card-shadow);
 }
 
+.library-book-card .skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(110deg, var(--surface-2) 18%, var(--surface-1) 40%, var(--surface-2) 60%);
+  background-size: 200% 100%;
+  animation: library-shimmer 0.9s ease infinite;
+}
+
+.library-book-cover.skeleton {
+  aspect-ratio: 2 / 3;
+}
+
+.library-book-title.skeleton {
+  height: 2.5rem;
+  border-radius: 0.7rem;
+}
+
+.library-book-author.skeleton {
+  height: 1.25rem;
+  border-radius: 0.7rem;
+  opacity: 0.9;
+}
+
+.library-book-tags-skeleton .skeleton {
+  height: 1.05rem;
+  width: 3.4rem;
+  border-radius: 999px;
+}
+
+.library-book-tags-skeleton .skeleton:last-child {
+  width: 2.7rem;
+}
+
+.library-book-cta.skeleton {
+  height: 2.1rem;
+  border-radius: 999px;
+}
+
+@keyframes library-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 .library-book-cover {
   aspect-ratio: 2 / 3;
   border-radius: 0.72rem;
@@ -252,6 +294,34 @@
 }
 
 .library-book-cta:hover { opacity: 0.82; }
+
+.library-book-actions {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.library-book-save {
+  min-height: 2.1rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.library-book-save:hover {
+  background: var(--surface-muted);
+}
+
+.library-book-save.is-saved {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
 
 .library-empty {
   border: 1px dashed var(--border-soft);

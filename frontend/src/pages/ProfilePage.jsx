@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, LoaderCircle, PencilLine, X } from 'lucide-react';
 import api from '../utils/api';
 import { getStoredUser } from '../utils/auth';
-import { GENRE_OPTIONS } from '../utils/libraryApi';
+import GenreSelector from '../components/profile/GenreSelector';
+import { readSelectedGenres, writeSelectedGenres } from '../utils/genrePreferences';
+import useRecommendations from '../hooks/useRecommendations';
 import './ProfilePage.css';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const EMPTY_STATS = { booksCompleted: 0, discussionsParticipated: 0 };
 
 const normalizeUsername = (value) => String(value || '').trim();
+const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
 
 const formatJoinedDate = (value) => {
   if (!value) {
@@ -42,7 +44,6 @@ const getUsernameValidationMessage = (username) => {
 };
 
 const ProfilePage = ({ currentUser, onUserUpdate }) => {
-  const queryClient = useQueryClient();
   const storedUser = useMemo(() => getStoredUser(), []);
   const baseUser = useMemo(() => {
     if (currentUser && !currentUser.isAnonymous) {
@@ -68,8 +69,10 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
   const [success, setSuccess] = useState('');
   const [usernameState, setUsernameState] = useState({ status: 'idle', message: '' });
   const [imageFailed, setImageFailed] = useState(false);
-  const [genreSelection, setGenreSelection] = useState([]);
+  const [selectedGenres, setSelectedGenres] = useState(() => readSelectedGenres());
   const [savingGenres, setSavingGenres] = useState(false);
+
+  useRecommendations(selectedGenres);
 
   const normalizedUsername = normalizeUsername(editForm.username);
   const currentNormalizedUsername = normalizeUsername(profile?.username);
@@ -107,7 +110,10 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
           username: data.username || '',
           bio: data.bio || '',
         });
-        setGenreSelection(Array.isArray(data.preferredGenres) ? data.preferredGenres : []);
+        const profileGenres = Array.isArray(data.preferredGenres) ? data.preferredGenres : [];
+        const normalized = Array.from(new Set(profileGenres.map(normalizeGenre).filter(Boolean)));
+        setSelectedGenres(normalized);
+        writeSelectedGenres(normalized);
         onUserUpdate?.(data);
       } catch (requestError) {
         if (!cancelled) {
@@ -196,41 +202,23 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
     setSuccess('');
   };
 
-  const toggleGenre = (genre) => {
-    setGenreSelection((prev) => (
-      prev.includes(genre) ? prev.filter((item) => item !== genre) : [...prev, genre]
-    ));
-    setError('');
-    setSuccess('');
-  };
+  useEffect(() => {
+    writeSelectedGenres(selectedGenres);
+    if (selectedGenres.length === 0) return;
 
-  const handleSaveGenres = async (skip = false) => {
-    setError('');
-    setSuccess('');
     setSavingGenres(true);
-    try {
-      const { data } = await api.put('/users/preferences/genres', {
-        skip,
-        preferredGenres: skip ? [] : genreSelection,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ['library'],
-        refetchType: 'all',
-      });
-      await queryClient.refetchQueries({
-        queryKey: ['library'],
-        type: 'active',
-      });
-      setProfile({ ...data, stats: data.stats || EMPTY_STATS });
-      setGenreSelection(Array.isArray(data.preferredGenres) ? data.preferredGenres : []);
-      onUserUpdate?.(data);
-      setSuccess(skip ? 'Personalization skipped. Using top 50 books.' : 'Preferred genres updated.');
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Could not update preferred genres right now.');
-    } finally {
-      setSavingGenres(false);
-    }
-  };
+    api.put('/users/preferences/genres', { preferredGenres: selectedGenres })
+      .then(({ data }) => {
+        if (data) {
+          setProfile((prev) => ({ ...(prev || {}), ...data, stats: data.stats || prev?.stats || EMPTY_STATS }));
+          onUserUpdate?.(data);
+        }
+      })
+      .catch((requestError) => {
+        console.warn('[PROFILE] Failed to persist genres:', requestError?.uiMessage || requestError?.message || requestError);
+      })
+      .finally(() => setSavingGenres(false));
+  }, [onUserUpdate, selectedGenres]);
 
   const handleStartEditing = () => {
     setEditForm({
@@ -514,36 +502,12 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
             <div className="profile-card-head">
               <h2 className="font-serif">Preferred genres</h2>
             </div>
-            <div className="profile-genre-cloud">
-              {GENRE_OPTIONS.map((genre) => {
-                const active = genreSelection.includes(genre);
-                return (
-                  <button
-                    key={genre}
-                    type="button"
-                    className={`profile-genre-chip ${active ? 'active' : ''}`}
-                    onClick={() => toggleGenre(genre)}
-                    aria-pressed={active}
-                    disabled={savingGenres}
-                  >
-                    {genre}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="profile-form-actions">
-              <button type="button" className="btn-secondary" onClick={() => handleSaveGenres(true)} disabled={savingGenres}>
-                Skip personalization
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => handleSaveGenres(false)}
-                disabled={savingGenres || genreSelection.length === 0}
-              >
-                {savingGenres ? 'Updating…' : 'Update genres'}
-              </button>
-            </div>
+            <p className="profile-inline-note">Select a few genres and your library will be curated instantly.</p>
+            <GenreSelector
+              selectedGenres={selectedGenres}
+              disabled={savingGenres}
+              onChange={(next) => setSelectedGenres(Array.from(new Set(next.map(normalizeGenre).filter(Boolean))))}
+            />
           </section>
 
         </aside>

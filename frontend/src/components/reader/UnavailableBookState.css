@@ -1,0 +1,89 @@
+.unavailable-book-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(2.5rem, 8vw, 4.5rem) var(--page-gutter);
+}
+
+.unavailable-book-card {
+  width: min(48rem, 100%);
+  padding: clamp(1.35rem, 3vw, 2rem);
+  display: grid;
+  gap: 1.1rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.unavailable-book-illustration {
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 1.35rem;
+  background: var(--surface-2-elevated);
+  border: 1px solid var(--border-soft);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow-line);
+}
+
+.unavailable-book-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-warm);
+  display: grid;
+  place-items: center;
+}
+
+.unavailable-book-title {
+  font-size: clamp(1.6rem, 3.2vw, 2.05rem);
+  line-height: 1.12;
+  margin: 0;
+}
+
+.unavailable-book-subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.unavailable-book-note {
+  margin: 0.7rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.unavailable-book-hint {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.unavailable-book-actions {
+  margin-top: 0.55rem;
+  width: 100%;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.unavailable-book-primary {
+  width: 100%;
+  justify-content: center;
+}
+
+.unavailable-book-secondary {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (min-width: 720px) {
+  .unavailable-book-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .unavailable-book-primary {
+    grid-column: span 2;
+  }
+}

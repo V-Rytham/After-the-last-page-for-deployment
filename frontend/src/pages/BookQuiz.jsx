@@ -292,7 +292,7 @@ export default function BookQuiz() {
 
       navigate(`/meet/${bookId}`, { replace: true });
     } catch (err) {
-      const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unable to unlock Meet right now.';
+      const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unable to open Meet right now.';
       setError(message);
     } finally {
       setFallbackGranting(false);
@@ -365,7 +365,7 @@ export default function BookQuiz() {
     <div className="quiz-page animate-fade-in">
       <header className="quiz-hero glass-panel">
         <h1 className="font-serif">Quick book quiz</h1>
-        <p>Answer 5 questions to unlock Meet + BookThread for this book.</p>
+        <p>Answer 5 questions to generate better discussion prompts for this book.</p>
       </header>
 
       {loading && (
@@ -399,7 +399,7 @@ export default function BookQuiz() {
       {loading && processingMessage && (
         <div className="quiz-actions">
           <button type="button" className="btn-secondary" onClick={handleContinueToMeet} disabled={fallbackGranting}>
-            {fallbackGranting ? 'Unlocking Meet\u2026' : 'Continue to Meet'}
+            {fallbackGranting ? 'Opening Meet\u2026' : 'Continue to Meet'}
           </button>
           <button type="button" className="btn-secondary" onClick={() => navigate('/desk')}>
             Back to Desk
@@ -419,7 +419,7 @@ export default function BookQuiz() {
               <RefreshCw size={16} /> Retry
             </button>
             <button type="button" className="btn-secondary" onClick={handleContinueToMeet} disabled={fallbackGranting}>
-              {fallbackGranting ? 'Unlocking Meet\u2026' : 'Continue to Meet'}
+              {fallbackGranting ? 'Opening Meet\u2026' : 'Continue to Meet'}
             </button>
             <button type="button" className="btn-secondary" onClick={() => navigate('/desk')}>
               Back to Desk
@@ -461,7 +461,7 @@ export default function BookQuiz() {
 
           <div className="quiz-submit-row">
             <button type="submit" className="btn-primary" disabled={!canSubmit || submitting}>
-              {submitting ? 'Submitting\u2026' : (<><span>Submit & unlock</span> <ArrowRight size={16} /></>)}
+              {submitting ? 'Submitting\u2026' : (<><span>Submit answers</span> <ArrowRight size={16} /></>)}
             </button>
             <button
               type="button"

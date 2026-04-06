@@ -143,7 +143,7 @@ export const verifyOtp = async (req, res) => {
   user.otpAttempts = 0;
   await user.save();
 
-  const token = issueAuthToken(user._id);
+  const token = issueAuthToken(user._id, { isAnonymous: user.isAnonymous, anonymousId: user.anonymousId });
   issueCookie(res, token);
 
   return res.status(200).json({ token, user: sanitizeAuthUser(user) });
@@ -166,7 +166,7 @@ export const login = async (req, res) => {
     return res.status(403).json({ message: 'Please verify your email before logging in.' });
   }
 
-  const token = issueAuthToken(user._id);
+  const token = issueAuthToken(user._id, { isAnonymous: user.isAnonymous, anonymousId: user.anonymousId });
   issueCookie(res, token);
 
   return res.status(200).json({ token, user: sanitizeAuthUser(user) });

@@ -34,10 +34,18 @@ export default function registerSocketEvents(io, sessionManager) {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded?.id || decoded?._id || null;
+      socket.isAnonymous = Boolean(decoded?.isAnonymous);
 
       if (!socket.userId) {
         const error = new Error('Unauthorized');
         error.data = { code: 'UNAUTHORIZED' };
+        next(error);
+        return;
+      }
+
+      if (socket.isAnonymous) {
+        const error = new Error('Unauthorized');
+        error.data = { code: 'UNAUTHORIZED', message: 'Sign in required.' };
         next(error);
         return;
       }
@@ -63,6 +71,11 @@ export default function registerSocketEvents(io, sessionManager) {
     });
 
     socket.on('join_matchmaking', async ({ bookId, prefType }) => {
+      if (socket.isAnonymous) {
+        socket.emit('access_denied', { message: 'Please sign in to use Meet.' });
+        return;
+      }
+
       try {
         const access = await checkMeetAccess({ userId: socket.userId, bookId });
         if (!access.access) {

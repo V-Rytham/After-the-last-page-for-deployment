@@ -2,15 +2,28 @@ import { User } from '../models/User.js';
 import { Thread } from '../models/Thread.js';
 import { UserProgress } from '../models/UserProgress.js';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
 import path from 'path';
 import fs from 'fs/promises';
 import { generateToken } from '../utils/generateToken.js';
 import { buildSafeErrorBody } from '../utils/runtime.js';
 import { ensureProfileUploadDir, getImagePublicUrl, profileImageConfig, safeUnlink } from '../utils/profileImage.js';
-import { buildPersonalizedRecommendations } from '../services/personalizedLibraryService.js';
+import { buildDegradedAnonymousUser, isDegradedMode } from '../utils/degradedMode.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const ALLOWED_PREFERRED_GENRES = new Set([
+  'fiction',
+  'non-fiction',
+  'fantasy',
+  'sci-fi',
+  'romance',
+  'mystery',
+  'philosophy',
+  'psychology',
+  'history',
+  'self-help',
+  'business',
+  'biography',
+]);
 
 const formatUsername = (value) => String(value || '').trim();
 const normalizeUsername = (value) => formatUsername(value).toLowerCase();
@@ -94,7 +107,7 @@ const buildUserResponse = (user, extra = {}) => ({
     booksCompleted: 0,
     discussionsParticipated: 0,
   },
-  token: generateToken(user._id),
+  token: generateToken(user._id, { isAnonymous: user.isAnonymous, anonymousId: user.anonymousId }),
 });
 
 const buildProfileResponse = async (user) => ({
@@ -186,55 +199,39 @@ const generateAnonymousId = async () => {
 
 export const registerAnonymousUser = async (req, res) => {
   try {
-    const user = {
-      _id: crypto.randomUUID(),
-      anonymousId: `Reader #${Math.floor(1000 + Math.random() * 9000)}`,
+    if (!String(process.env.JWT_SECRET || '').trim()) {
+      return res.status(500).json({ message: 'Server authentication is not configured.' });
+    }
+
+    if (isDegradedMode()) {
+      const user = buildDegradedAnonymousUser();
+      return res.status(201).json({
+        ...user,
+        stats: { booksCompleted: 0, discussionsParticipated: 0 },
+        token: generateToken(user._id, { isAnonymous: true, anonymousId: user.anonymousId }),
+      });
+    }
+
+    const anonymousId = await generateAnonymousId();
+    const user = await User.create({
+      anonymousId,
       name: '',
       username: '',
       bio: '',
-      email: '',
       isAnonymous: true,
+      provider: 'local',
+      isVerified: false,
       rating: 5.0,
       preferences: {
         theme: 'dark',
         defaultMatchMedium: 'text',
       },
-      createdAt: new Date().toISOString(),
-    };
-
-    const token = jwt.sign({ id: user._id, _id: user._id, isAnonymous: true }, process.env.JWT_SECRET, {
-      expiresIn: '7d',
     });
 
-    return res.status(201).json({
-      ...user,
-      stats: {
-        booksCompleted: 0,
-        discussionsParticipated: 0,
-      },
-      token,
-    });
-  } catch (_ERROR) {
-    return res.status(200).json({
-      fallback: true,
-      _id: 'fallback-user',
-      anonymousId: 'Reader #0000',
-      name: '',
-      username: '',
-      bio: '',
-      email: '',
-      isAnonymous: true,
-      rating: 5.0,
-      preferences: {
-        theme: 'dark',
-        defaultMatchMedium: 'text',
-      },
-      stats: {
-        booksCompleted: 0,
-        discussionsParticipated: 0,
-      },
-      token: 'fallback-token',
-    });
+    return res.status(201).json(buildUserResponse(user));
+  } catch (error) {
+    console.error('[AUTH] Failed to create anonymous user:', error?.message || error);
+    return res.status(500).json({ message: 'Unable to start a guest session right now.' });
   }
 };
 
@@ -487,11 +484,18 @@ export const updatePreferredGenres = async (req, res) => {
     const requestedGenres = Array.isArray(req.body?.preferredGenres)
       ? req.body.preferredGenres.map((genre) => String(genre || '').trim()).filter(Boolean)
       : [];
-    const skip = Boolean(req.body?.skip);
-    const normalizedGenres = Array.from(new Set(requestedGenres.map((genre) => genre.toLowerCase()))).slice(0, 8);
-    console.info('[PERSONALIZATION] Received genre update request:', {
+    const normalizedGenres = Array.from(
+      new Set(
+        requestedGenres
+          .map((genre) => genre.toLowerCase())
+          .map((genre) => genre.replace(/\s+/g, ' ').trim())
+          .filter(Boolean)
+          .filter((genre) => ALLOWED_PREFERRED_GENRES.has(genre)),
+      ),
+    ).slice(0, 8);
+    console.info('[PERSONALIZATION] GENRES RECEIVED:', normalizedGenres);
+    console.info('[PERSONALIZATION] Received preferred genre update:', {
       userId: String(req.user?._id || ''),
-      skip,
       requestedGenres,
       normalizedGenres,
     });
@@ -501,29 +505,12 @@ export const updatePreferredGenres = async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    if (skip || normalizedGenres.length === 0) {
-      console.warn('[PERSONALIZATION] Skipping Groq personalization. Using default shelf behavior.', {
-        userId: String(req.user?._id || ''),
-        reason: skip ? 'User explicitly skipped personalization.' : 'No valid genres after normalization.',
-      });
-      user.preferredGenres = [];
-      user.hasPersonalization = false;
-      user.recommendedBooks = [];
-      user.recommendationsGeneratedAt = undefined;
-      await user.save();
-      return res.json(await buildProfileResponse(user));
-    }
-
-    const recommendationResult = await buildPersonalizedRecommendations(normalizedGenres);
-    console.info('[PERSONALIZATION] Recommendation result summary:', {
-      userId: String(req.user?._id || ''),
-      personalized: recommendationResult.personalized,
-      booksCount: Array.isArray(recommendationResult.books) ? recommendationResult.books.length : 0,
-    });
     user.preferredGenres = normalizedGenres;
-    user.hasPersonalization = recommendationResult.personalized && recommendationResult.books.length > 0;
-    user.recommendedBooks = recommendationResult.personalized ? recommendationResult.books : [];
-    user.recommendationsGeneratedAt = user.hasPersonalization ? new Date() : undefined;
+
+    // Clear legacy recommendation caches so stale payloads cannot leak into the UI.
+    user.hasPersonalization = false;
+    user.recommendedBooks = [];
+    user.recommendationsGeneratedAt = undefined;
     await user.save();
 
     return res.json(await buildProfileResponse(user));

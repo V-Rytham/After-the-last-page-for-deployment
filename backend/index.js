@@ -21,7 +21,8 @@ import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import { isProd } from './utils/runtime.js';
 import { RealtimeSessionManager } from './services/realtimeSessionManager.js';
 import { requestTracing } from './middleware/requestLogging.js';
-import recommenderRoutes from './routes/recommenderRoutes.js';
+import recommendationsRoutes from './routes/recommendationsRoutes.js';
+import searchRoutes from './routes/searchRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import passport from './config/passport.js';
 import { configurePassport } from './config/passport.js';
@@ -32,6 +33,17 @@ app.disable('x-powered-by');
 app.set('trust proxy', isProd() ? 1 : 0);
 
 const httpServer = createServer(app);
+
+const jwtSecret = String(process.env.JWT_SECRET || '').trim();
+if (!jwtSecret) {
+  console.error('[SERVER] JWT_SECRET is required.');
+  process.exit(1);
+}
+
+if (isProd() && jwtSecret === 'change_me_in_production') {
+  console.error('[SERVER] Refusing to start in production with an unsafe JWT_SECRET.');
+  process.exit(1);
+}
 
 process.on('unhandledRejection', (reason) => {
   console.error('[SERVER] Unhandled promise rejection:', reason);
@@ -156,7 +168,8 @@ app.use('/api/users/anonymous', rateLimit({ windowMs: 60_000, max: 40 }));
 app.use('/api/quiz', rateLimit({ windowMs: 60_000, max: 60 }));
 app.use('/api/access', rateLimit({ windowMs: 60_000, max: 90 }));
 app.use('/api/threads', rateLimit({ windowMs: 60_000, max: 90 }));
-app.use('/api/recommender', rateLimit({ windowMs: 60_000, max: 90 }));
+app.use('/api/recommendations', rateLimit({ windowMs: 60_000, max: 60 }));
+app.use('/api/search', rateLimit({ windowMs: 60_000, max: 90 }));
 app.use('/api/agent', rateLimit({ windowMs: 60_000, max: 75 }));
 
 const sessionManager = new RealtimeSessionManager(io);
@@ -173,7 +186,8 @@ app.use('/api/access', accessRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/session', requireDatabase({ feature: 'Realtime sessions' }), buildSessionRoutes(sessionManager));
 app.use('/api/matchmaking', requireDatabase({ feature: 'Meet' }), buildMatchmakingRoutes(sessionManager));
-app.use('/api/recommender', requireDatabase({ feature: 'Recommendations' }), recommenderRoutes);
+app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/search', searchRoutes);
 
 app.get('/api/health', (req, res) => {
   try {
@@ -214,13 +228,5 @@ try {
 }
 
 httpServer.listen(PORT, () => {
-  if (isProd()) {
-    const jwtSecret = String(process.env.JWT_SECRET || '').trim();
-    if (!jwtSecret || jwtSecret === 'change_me_in_production') {
-      console.error('[SERVER] Refusing to start in production with an unsafe JWT_SECRET.');
-      process.exit(1);
-    }
-  }
-
   console.log(`[SERVER] Nexus core listening on port ${PORT}`);
 });

@@ -24,7 +24,7 @@ export const createSessionController = (sessionManager) => {
         sessionManager.sessions.setState(userId, String(state), patch);
       }
 
-      return res.json({ session: sessionManager.getSession(userId) });
+      return res.json({ session: sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to start session.', error));
     }
@@ -38,7 +38,7 @@ export const createSessionController = (sessionManager) => {
       }
 
       await sessionManager.endSession(userId, { reason: String(req.body?.reason || 'ended') });
-      return res.json({ session: sessionManager.getSession(userId) });
+      return res.json({ session: sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to end session.', error));
     }
@@ -51,7 +51,7 @@ export const createSessionController = (sessionManager) => {
         return res.status(401).json({ message: 'Unauthorized.' });
       }
 
-      return res.json({ session: sessionManager.getSession(userId) });
+      return res.json({ session: sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to fetch session status.', error));
     }

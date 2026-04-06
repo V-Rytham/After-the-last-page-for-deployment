@@ -395,6 +395,22 @@
   gap: 0.55rem;
 }
 
+.profile-genre-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.35rem 0 0.65rem;
+  color: var(--text-secondary);
+  font-size: var(--font-size-1);
+  user-select: none;
+}
+
+.profile-genre-mode input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
 .profile-genre-chip {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-pill);

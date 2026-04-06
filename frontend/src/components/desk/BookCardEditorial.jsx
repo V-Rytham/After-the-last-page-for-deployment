@@ -21,7 +21,11 @@ const getReadingState = (session) => {
 
 const BookCardEditorial = ({ book, session }) => {
   const coverUrl = getBestCoverUrl(book);
-  const route = book?.gutenbergId ? `/read/gutenberg/${book.gutenbergId}` : '/library';
+  const route = book?.gutenbergId
+    ? `/read/gutenberg/${book.gutenbergId}`
+    : (book?.source && book?.sourceId
+      ? `/read/${encodeURIComponent(`${String(book.source).trim().toLowerCase()}:${String(book.sourceId).trim()}`)}`
+      : '/library');
   const title = String(book?.title || 'Untitled').trim() || 'Untitled';
   const author = String(book?.author || 'Unknown author').trim() || 'Unknown author';
 

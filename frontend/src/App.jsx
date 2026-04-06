@@ -23,6 +23,7 @@ import GenreOnboardingPage from './pages/GenreOnboardingPage';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
+import FirstChapterExperience from './components/onboarding/FirstChapterExperience';
 import './index.css';
 
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
@@ -97,6 +98,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
           <Route path="/thread/:bookId" element={<PrivateRoute><BookThread /></PrivateRoute>} />
           <Route path="/merch" element={<WizardMerch />} />
         </Routes>
+        <FirstChapterExperience />
       </main>
     </div>
   );

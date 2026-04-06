@@ -14,7 +14,6 @@ import {
   SOURCE_NAMES,
 } from '../services/bookAggregationService.js';
 import { User } from '../models/User.js';
-import { getDefaultTopBooks } from '../services/personalizedLibraryService.js';
 
 const BACKEND_TIMEOUT_MS = 70_000;
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -181,39 +180,21 @@ export const getLibraryFeed = async (req, res) => {
       'Surrogate-Control': 'no-store',
     });
 
-    const defaultBooks = getDefaultTopBooks();
-    if (!req.user?._id) {
-      console.info('[PERSONALIZATION] Library feed requested without authenticated user. Returning default top books.');
-      return res.json({ books: defaultBooks, personalized: false, fallback: true });
+    // This endpoint is deprecated. The new personalization system is driven by POST /api/recommendations.
+    if (req.user?._id) {
+      const user = await User.findById(req.user._id).select('preferredGenres').lean();
+      return res.json({
+        books: [],
+        preferredGenres: Array.isArray(user?.preferredGenres) ? user.preferredGenres : [],
+        personalized: false,
+        deprecated: true,
+      });
     }
 
-    const user = await User.findById(req.user._id)
-      .select('preferredGenres hasPersonalization recommendedBooks recommendationsGeneratedAt')
-      .lean();
-    const personalizedBooks = Array.isArray(user?.recommendedBooks) ? user.recommendedBooks : [];
-    const usePersonalized = Boolean(user?.hasPersonalization) && personalizedBooks.length > 0;
-    const finalBooks = usePersonalized ? personalizedBooks.slice(0, 50) : defaultBooks;
-    console.info('[PERSONALIZATION] Final library feed payload:', {
-      userId: String(req.user._id),
-      preferredGenres: Array.isArray(user?.preferredGenres) ? user.preferredGenres : [],
-      usePersonalized,
-      personalizedBooksCount: personalizedBooks.length,
-      finalBooksCount: finalBooks.length,
-      finalBooks,
-      fallback: !usePersonalized,
-      generatedAt: user?.recommendationsGeneratedAt || null,
-    });
-
-    return res.json({
-      books: finalBooks,
-      preferredGenres: Array.isArray(user?.preferredGenres) ? user.preferredGenres : [],
-      personalized: usePersonalized,
-      fallback: !usePersonalized,
-      generatedAt: user?.recommendationsGeneratedAt || null,
-    });
+    return res.json({ books: [], personalized: false, deprecated: true });
   } catch (error) {
     console.error('[BOOK] Failed to fetch library feed:', error?.message || error);
-    return res.json({ books: getDefaultTopBooks(), personalized: false, fallback: true });
+    return res.json({ books: [], personalized: false, deprecated: true });
   }
 };
 

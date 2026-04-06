@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import api from '../utils/api';
@@ -10,9 +10,23 @@ import './MeetingHub.css';
 const socketServer = getSocketServerUrl();
 const BOOK_READ_TIMEOUT_MS = 120000;
 
+const canonicalizeMeetKey = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return raw.replace(/\s+/g, ' ').slice(0, 120);
+};
+
 const MeetingHub = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const initialPrefType = useMemo(() => {
+    const candidate = String(location?.state?.prefType || 'text').trim().toLowerCase();
+    if (candidate === 'voice' || candidate === 'video' || candidate === 'text') return candidate;
+    return 'text';
+  }, [location?.state?.prefType]);
+  const isObjectId = React.useMemo(() => /^[a-f0-9]{24}$/i.test(String(bookId || '')), [bookId]);
   const parsedSourceRoute = React.useMemo(() => {
     if (!bookId) return null;
     const decoded = decodeURIComponent(String(bookId));
@@ -23,6 +37,20 @@ const MeetingHub = () => {
     if (!source || !sourceId) return null;
     return { source, sourceId, composite: decoded };
   }, [bookId]);
+  const isCustomMeet = useMemo(() => parsedSourceRoute?.source === 'custom', [parsedSourceRoute]);
+  const customMeetTitle = useMemo(() => {
+    const fromState = String(location?.state?.customTitle || '').trim();
+    if (fromState) return fromState.slice(0, 160);
+    if (isCustomMeet) return String(parsedSourceRoute?.sourceId || '').trim();
+    return '';
+  }, [isCustomMeet, location?.state?.customTitle, parsedSourceRoute?.sourceId]);
+  const matchBookId = useMemo(() => {
+    if (isCustomMeet) {
+      const key = canonicalizeMeetKey(customMeetTitle);
+      return key ? `custom:${key}` : String(bookId || '').trim();
+    }
+    return parsedSourceRoute ? parsedSourceRoute.composite : String(bookId || '').trim();
+  }, [bookId, customMeetTitle, isCustomMeet, parsedSourceRoute]);
 
   const [phase, setPhase] = useState('preferences');
   const [book, setBook] = useState(null);
@@ -57,7 +85,7 @@ const MeetingHub = () => {
   const [mediaError, setMediaError] = useState('');
 
   const [chatInput, setChatInput] = useState('');
-  const [prefType, setPrefType] = useState('text');
+  const [prefType, setPrefType] = useState(initialPrefType);
   const lastSafeHashRef = useRef(typeof window !== 'undefined' ? window.location.hash : '');
   const allowHashNavigationRef = useRef(false);
   const pendingHashNavigationRef = useRef(null);
@@ -69,6 +97,18 @@ const MeetingHub = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        if (isCustomMeet) {
+          setBook({
+            _id: matchBookId,
+            id: matchBookId,
+            title: customMeetTitle || 'Untitled',
+            author: '',
+            source: 'custom',
+            sourceId: canonicalizeMeetKey(customMeetTitle),
+          });
+          return;
+        }
+
         if (parsedSourceRoute) {
           const { data: readData } = await api.get('/books/read', {
             timeout: BOOK_READ_TIMEOUT_MS,
@@ -209,7 +249,7 @@ const MeetingHub = () => {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-	  }, [bookId, navigate, parsedSourceRoute]);
+	  }, [bookId, customMeetTitle, isCustomMeet, matchBookId, navigate, parsedSourceRoute]);
 
   const sessionIsSensitive = phase === 'searching' || phase === 'connected' || phase === 'bookfriend';
 
@@ -452,18 +492,13 @@ const MeetingHub = () => {
   if (!book) return <div className="p-10 text-center mt-20 font-serif">Book not found. Perhaps it's still being written?</div>;
 
   const handleStartSearch = async () => {
-    if (parsedSourceRoute) {
-      setMatchNotice('Live matching currently supports library books saved in your desk. You can still use the community thread for this source.');
-      return;
-    }
-
     if (!socketRef.current?.connected) {
       setMatchNotice('Live matching is unavailable right now. Please try again shortly, or enter the community thread.');
       return;
     }
     setPhase('searching');
     setMatchNotice('');
-    await api.post('/matchmaking/join', { bookId, prefType }).then(() => {
+    await api.post('/matchmaking/join', { bookId: matchBookId, prefType }).then(() => {
       window.dispatchEvent(new Event('atlp-session-hint'));
     }).catch((error) => {
       console.error('Failed to join matchmaking:', error);
@@ -563,14 +598,13 @@ const MeetingHub = () => {
             </div>
             {matchNotice && <div className="meeting-notice" role="status">{matchNotice}</div>}
             <div className="mt-8 text-center flex-column-center gap-4">
-              <button className="btn-primary" disabled={!prefType || !socketReady || Boolean(parsedSourceRoute)} onClick={handleStartSearch}>Find a reading partner <ArrowRight size={18} /></button>
-              {parsedSourceRoute && (
-                <p className="text-muted text-center mb-0">
-                  This source can be discussed in the community thread, but live reader matching is only available for books in your desk.
-                </p>
-              )}
-              <button className="btn-secondary" onClick={() => navigate(`/thread/${bookId}`)}>Skip to Community Thread instead</button>
-            </div>
+              <button className="btn-primary" disabled={!prefType || !socketReady} onClick={handleStartSearch}>
+                Find a reading partner <ArrowRight size={18} />
+              </button>
+                  {isObjectId ? (
+                    <button className="btn-secondary" onClick={() => navigate(`/thread/${bookId}`)}>Skip to Community Thread instead</button>
+                  ) : null}
+                </div>
           </div>
         </div>
       )}
