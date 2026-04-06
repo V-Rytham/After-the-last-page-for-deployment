@@ -15,6 +15,7 @@ const FILTER_OPTIONS = [
 ];
 
 const queryCache = new Map();
+const LIBRARY_REFRESH_EVENT = 'library:refresh';
 
 const useLibraryQuery = (params) => {
   const key = JSON.stringify(params);
@@ -57,6 +58,17 @@ const Library = () => {
   const [validationError, setValidationError] = useState('');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('popular');
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  React.useEffect(() => {
+    const handleRefresh = () => {
+      queryCache.clear();
+      setRefreshTick((previous) => previous + 1);
+    };
+
+    window.addEventListener(LIBRARY_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(LIBRARY_REFRESH_EVENT, handleRefresh);
+  }, []);
 
   const queryParams = useMemo(() => ({
     search: submittedSearch,
@@ -64,7 +76,8 @@ const Library = () => {
     sort,
     page: 1,
     perPage: 24,
-  }), [submittedSearch, category, sort]);
+    refreshTick,
+  }), [submittedSearch, category, sort, refreshTick]);
 
   const { data, loading, error } = useLibraryQuery(queryParams);
 

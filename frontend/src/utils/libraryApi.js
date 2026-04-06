@@ -343,7 +343,18 @@ export const fetchLibraryBooks = async ({ search = '', category = 'all', sort = 
     }
   } else {
     try {
-      const { data } = await api.get('/books/library', { signal });
+      const { data } = await api.get('/books/library', {
+        signal,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+        params: {
+          _ts: Date.now(),
+        },
+      });
+      console.log('LIBRARY RESPONSE:', data);
       const list = Array.isArray(data?.items)
         ? data.items
         : Array.isArray(data?.results)

@@ -29,6 +29,7 @@ const GenreOnboardingPage = ({ onUserUpdate }) => {
         skip,
         preferredGenres: skip ? [] : selected,
       });
+      window.dispatchEvent(new Event('library:refresh'));
       const updated = updateStoredUser(data) || data;
       onUserUpdate?.(updated);
       navigate('/library', { replace: true });
