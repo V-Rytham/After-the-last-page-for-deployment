@@ -220,17 +220,22 @@
   min-height: 2.2em;
 }
 
-.library-book-genre {
+.library-book-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  align-items: center;
+  min-height: 1.65rem;
+}
+
+.library-book-genre-pill {
   border: 1px solid var(--border-soft);
   background: var(--surface-2);
   border-radius: 999px;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
-  padding: 0.2rem 0.54rem;
-  min-height: 1.65rem;
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
+  padding: 0.15rem 0.5rem;
+  line-height: 1.2;
   max-width: 100%;
 }
 

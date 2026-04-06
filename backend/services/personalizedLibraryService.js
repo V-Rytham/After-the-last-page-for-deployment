@@ -4,6 +4,7 @@ const GROQ_API_URL = String(process.env.GROQ_API_URL || 'https://api.groq.com/op
 const GROQ_MODEL = String(process.env.GROQ_MODEL || 'llama-3.1-8b-instant');
 const REQUEST_TIMEOUT_MS = Number(process.env.GROQ_TIMEOUT_MS || 10_000);
 const MAX_BOOKS = 50;
+const PERSONALIZATION_LOG_PREFIX = '[PERSONALIZATION]';
 
 const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
 
@@ -95,10 +96,15 @@ const callGroq = async (genres) => {
 const parseBooksFromContent = (rawContent) => {
   try {
     const parsed = JSON.parse(rawContent);
-    const books = Array.isArray(parsed?.books) ? parsed.books : [];
-    return books;
-  } catch {
-    return [];
+    if (!parsed || typeof parsed !== 'object') {
+      return { books: [], error: 'Groq response JSON is not an object.' };
+    }
+    if (!Array.isArray(parsed?.books)) {
+      return { books: [], error: 'Groq response missing required "books" array.' };
+    }
+    return { books: parsed.books, error: null };
+  } catch (error) {
+    return { books: [], error: `Groq response is not valid JSON: ${error?.message || 'Unknown parse error'}` };
   }
 };
 
@@ -147,22 +153,40 @@ export const getDefaultTopBooks = () => top50Books.map((book) => toBookShape(boo
 
 export const buildPersonalizedRecommendations = async (genres = []) => {
   const normalizedGenres = normalizeGenres(genres);
+  console.info(`${PERSONALIZATION_LOG_PREFIX} Input genres sent to Groq:`, normalizedGenres);
+
   if (normalizedGenres.length === 0) {
+    console.warn(`${PERSONALIZATION_LOG_PREFIX} Skipping Groq call: no valid genres provided.`);
     return { books: getDefaultTopBooks(), personalized: false };
   }
 
   try {
     const content = await callGroq(normalizedGenres);
-    const parsedBooks = parseBooksFromContent(content);
-    const sanitized = sanitizeRecommendations(parsedBooks, normalizedGenres);
+    console.info(`${PERSONALIZATION_LOG_PREFIX} Full Groq response:`, content);
 
-    if (sanitized.length === 0) {
+    if (!String(content || '').trim()) {
+      console.error(`${PERSONALIZATION_LOG_PREFIX} Groq returned an empty response body.`);
       return { books: getDefaultTopBooks(), personalized: false };
     }
 
+    const { books: parsedBooks, error: parseError } = parseBooksFromContent(content);
+    if (parseError) {
+      console.error(`${PERSONALIZATION_LOG_PREFIX} Failed to parse Groq response:`, parseError);
+      return { books: getDefaultTopBooks(), personalized: false };
+    }
+
+    const sanitized = sanitizeRecommendations(parsedBooks, normalizedGenres);
+    console.info(`${PERSONALIZATION_LOG_PREFIX} Parsed recommendations (post-transform):`, sanitized);
+
+    if (sanitized.length === 0) {
+      console.error(`${PERSONALIZATION_LOG_PREFIX} Sanitized recommendation list is empty. Falling back to default books.`);
+      return { books: getDefaultTopBooks(), personalized: false };
+    }
+
+    console.info(`${PERSONALIZATION_LOG_PREFIX} Final 50-book list used in the system:`, sanitized.slice(0, MAX_BOOKS));
     return { books: sanitized, personalized: true };
   } catch (error) {
-    console.error('[PERSONALIZATION] Recommendation generation failed:', error?.message || error);
+    console.error(`${PERSONALIZATION_LOG_PREFIX} Recommendation generation failed:`, error?.message || error);
     return { books: getDefaultTopBooks(), personalized: false };
   }
 };

@@ -127,6 +127,7 @@ const normalizeBook = (book) => {
   const genres = Array.from(
     new Set(
       rawGenres
+        .flatMap((value) => String(value || '').split(','))
         .map((value) => toTitleCase(String(value || '').split('--')[0].trim()))
         .filter(Boolean),
     ),

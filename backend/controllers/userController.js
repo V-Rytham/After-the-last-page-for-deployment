@@ -489,6 +489,12 @@ export const updatePreferredGenres = async (req, res) => {
       : [];
     const skip = Boolean(req.body?.skip);
     const normalizedGenres = Array.from(new Set(requestedGenres.map((genre) => genre.toLowerCase()))).slice(0, 8);
+    console.info('[PERSONALIZATION] Received genre update request:', {
+      userId: String(req.user?._id || ''),
+      skip,
+      requestedGenres,
+      normalizedGenres,
+    });
 
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -496,6 +502,10 @@ export const updatePreferredGenres = async (req, res) => {
     }
 
     if (skip || normalizedGenres.length === 0) {
+      console.warn('[PERSONALIZATION] Skipping Groq personalization. Using default shelf behavior.', {
+        userId: String(req.user?._id || ''),
+        reason: skip ? 'User explicitly skipped personalization.' : 'No valid genres after normalization.',
+      });
       user.preferredGenres = [];
       user.hasPersonalization = false;
       user.recommendedBooks = [];
@@ -505,6 +515,11 @@ export const updatePreferredGenres = async (req, res) => {
     }
 
     const recommendationResult = await buildPersonalizedRecommendations(normalizedGenres);
+    console.info('[PERSONALIZATION] Recommendation result summary:', {
+      userId: String(req.user?._id || ''),
+      personalized: recommendationResult.personalized,
+      booksCount: Array.isArray(recommendationResult.books) ? recommendationResult.books.length : 0,
+    });
     user.preferredGenres = normalizedGenres;
     user.hasPersonalization = recommendationResult.personalized && recommendationResult.books.length > 0;
     user.recommendedBooks = recommendationResult.personalized ? recommendationResult.books : [];

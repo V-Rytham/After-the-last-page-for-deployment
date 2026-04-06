@@ -2,18 +2,18 @@ import React, { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getGutenbergCoverUrl, PLACEHOLDER_COVER } from '../../utils/libraryApi';
 
-const getGenreText = (book) => {
+const sanitizeGenres = (book) => {
   const values = [
     ...(Array.isArray(book?.genres) ? book.genres : []),
     ...(Array.isArray(book?.genre) ? book.genre : []),
     ...(typeof book?.genre === 'string' ? [book.genre] : []),
     ...(Array.isArray(book?.tags) ? book.tags : []),
   ]
+    .flatMap((value) => String(value || '').split(','))
     .map((value) => String(value || '').trim())
     .filter(Boolean);
 
-  if (values.length === 0) return 'Unknown';
-  return Array.from(new Set(values)).slice(0, 3).join(', ');
+  return Array.from(new Set(values)).slice(0, 6);
 };
 
 const BookCard = ({ book, loading = false }) => {
@@ -39,7 +39,7 @@ const BookCard = ({ book, loading = false }) => {
   const id = book?.id || `${source}:${sourceId}`;
   const title = String(book?.title || 'Untitled');
   const author = String(book?.author || 'Unknown author');
-  const genreText = getGenreText(book);
+  const genres = sanitizeGenres(book);
   const coverSrc = imageError
     ? PLACEHOLDER_COVER
     : (book?.cover_url || book?.coverImage || (source === 'gutenberg' ? getGutenbergCoverUrl(sourceId) : PLACEHOLDER_COVER));
@@ -56,7 +56,11 @@ const BookCard = ({ book, loading = false }) => {
       </Link>
       <h3 className="library-book-title" title={title}>{title}</h3>
       <p className="library-book-author">{author}</p>
-      <p className="library-book-genre" aria-label="Book genres">{genreText}</p>
+      <div className="library-book-genres" aria-label="Book genres">
+        {genres.length > 0
+          ? genres.map((genre) => <span key={`${id}-${genre}`} className="library-book-genre-pill">{genre}</span>)
+          : <span className="library-book-genre-pill">Unknown</span>}
+      </div>
       <Link className="library-book-cta" to={readPath}>Read</Link>
     </article>
   );
