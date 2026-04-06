@@ -8,11 +8,14 @@ import {
   searchGutenbergBooks,
   searchBooks,
   readBookBySource,
+  getLibraryFeed,
 } from '../controllers/bookController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.get('/', getBooks);
+router.get('/library', requireAuth, getLibraryFeed);
 router.get('/search', searchBooks);
 router.get('/gutenberg/search', searchGutenbergBooks);
 router.get('/gutenberg/:gutenbergId/preview', getGutenbergPreview);

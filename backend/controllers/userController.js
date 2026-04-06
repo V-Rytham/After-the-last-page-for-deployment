@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import { generateToken } from '../utils/generateToken.js';
 import { buildSafeErrorBody } from '../utils/runtime.js';
 import { ensureProfileUploadDir, getImagePublicUrl, profileImageConfig, safeUnlink } from '../utils/profileImage.js';
+import { buildPersonalizedRecommendations } from '../services/personalizedLibraryService.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -86,6 +87,8 @@ const buildUserResponse = (user, extra = {}) => ({
   rating: user.rating,
   joinedAt: user.createdAt,
   preferences: user.preferences,
+  preferredGenres: Array.isArray(user.preferredGenres) ? user.preferredGenres : [],
+  hasPersonalization: Boolean(user.hasPersonalization),
   profileImageUrl: user.profileImageUrl || '',
   stats: extra.stats || {
     booksCompleted: 0,
@@ -105,6 +108,8 @@ const buildProfileResponse = async (user) => ({
   rating: user.rating,
   joinedAt: user.createdAt,
   preferences: user.preferences,
+  preferredGenres: Array.isArray(user.preferredGenres) ? user.preferredGenres : [],
+  hasPersonalization: Boolean(user.hasPersonalization),
   profileImageUrl: user.profileImageUrl || '',
   stats: await buildProfileStats(user),
 });
@@ -470,5 +475,44 @@ export const checkUsernameAvailability = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json(buildSafeErrorBody('Server error', error));
+  }
+};
+
+export const updatePreferredGenres = async (req, res) => {
+  try {
+    if (!req.user || req.user.isAnonymous) {
+      return res.status(403).json({ message: 'Only members can personalize recommendations.' });
+    }
+
+    const requestedGenres = Array.isArray(req.body?.preferredGenres)
+      ? req.body.preferredGenres.map((genre) => String(genre || '').trim()).filter(Boolean)
+      : [];
+    const skip = Boolean(req.body?.skip);
+    const normalizedGenres = Array.from(new Set(requestedGenres.map((genre) => genre.toLowerCase()))).slice(0, 8);
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (skip || normalizedGenres.length === 0) {
+      user.preferredGenres = [];
+      user.hasPersonalization = false;
+      user.recommendedBooks = [];
+      user.recommendationsGeneratedAt = undefined;
+      await user.save();
+      return res.json(await buildProfileResponse(user));
+    }
+
+    const recommendationResult = await buildPersonalizedRecommendations(normalizedGenres);
+    user.preferredGenres = normalizedGenres;
+    user.hasPersonalization = recommendationResult.personalized && recommendationResult.books.length > 0;
+    user.recommendedBooks = recommendationResult.personalized ? recommendationResult.books : [];
+    user.recommendationsGeneratedAt = user.hasPersonalization ? new Date() : undefined;
+    await user.save();
+
+    return res.json(await buildProfileResponse(user));
+  } catch (error) {
+    return res.status(500).json(buildSafeErrorBody('Server error', error));
   }
 };
