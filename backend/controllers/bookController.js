@@ -174,6 +174,13 @@ export const getBooks = async (req, res) => {
 
 export const getLibraryFeed = async (req, res) => {
   try {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+      'Surrogate-Control': 'no-store',
+    });
+
     const defaultBooks = getDefaultTopBooks();
     if (!req.user?._id) {
       console.info('[PERSONALIZATION] Library feed requested without authenticated user. Returning default top books.');

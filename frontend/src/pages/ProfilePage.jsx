@@ -211,6 +211,7 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
         skip,
         preferredGenres: skip ? [] : genreSelection,
       });
+      window.dispatchEvent(new Event('library:refresh'));
       setProfile({ ...data, stats: data.stats || EMPTY_STATS });
       setGenreSelection(Array.isArray(data.preferredGenres) ? data.preferredGenres : []);
       onUserUpdate?.(data);
