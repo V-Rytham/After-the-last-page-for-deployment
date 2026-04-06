@@ -69,13 +69,6 @@ export default function MeetingAccessHub({ currentUser }) {
         </div>
       </section>
 
-      {!hasInput && (
-        <section className="meeting-access-empty glass-panel">
-          <h2 className="font-serif">Meet people</h2>
-          <p>Type any book name to start matching. Youâ€™ll choose text, voice, or video next.</p>
-        </section>
-      )}
-
       {hasQuery && !loading && error && (
         <section className="meeting-access-empty glass-panel">
           <h2 className="font-serif">Unable to load Meet right now.</h2>

@@ -25,12 +25,6 @@ const canonicalizeThreadKey = (value) => {
   return raw.replace(/\s+/g, ' ').slice(0, 120);
 };
 
-const SORT_OPTIONS = [
-  { id: 'new', label: 'Newest notes' },
-  { id: 'hot', label: 'Recently stirred' },
-  { id: 'top', label: 'Most echoed' },
-];
-
 const formatCalendarDate = (value) => new Date(value).toLocaleDateString(undefined, {
   month: 'short',
   day: 'numeric',
@@ -82,7 +76,6 @@ const getExcerpt = (text = '', maxLength = 260) => {
   return `${normalized.slice(0, maxLength).trim()}...`;
 };
 
-const getThreadCountLabel = (count) => (count === 1 ? '1 discussion piece' : `${count} discussion pieces`);
 const getResponseCountLabel = (count) => (count === 1 ? '1 response' : `${count} responses`);
 const getContributionCountLabel = (count) => (count === 1 ? '1 contribution' : `${count} contributions`);
 
@@ -263,7 +256,6 @@ export default function BookThread() {
   const [book, setBook] = useState(null);
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('new');
   const [showComposer, setShowComposer] = useState(false);
   const [threadForm, setThreadForm] = useState(initialThreadForm);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
@@ -318,7 +310,7 @@ export default function BookThread() {
 
       const [bookResult, threadsResult] = await Promise.allSettled([
         bookRequest,
-        api.get(`/threads/${encodeURIComponent(threadBookKey)}?sort=${activeTab}`),
+        api.get(`/threads/${encodeURIComponent(threadBookKey)}?sort=new`),
       ]);
 
       if (bookResult.status === 'fulfilled') {
@@ -354,7 +346,7 @@ export default function BookThread() {
     };
 
     fetchData();
-  }, [activeTab, bookId, customThreadTitle, isCustomThread, location?.state?.book, navigate, parsedSourceRoute, threadBookKey]);
+  }, [bookId, customThreadTitle, isCustomThread, location?.state?.book, navigate, parsedSourceRoute, threadBookKey]);
 
   useEffect(() => {
     if (location.state?.notice) {
@@ -551,22 +543,9 @@ export default function BookThread() {
 
                 <div className="salon-copy">
                   <div className="salon-kicker-row">
-                    <span className="salon-kicker">A literary salon for one book</span>
-                    <span className="salon-divider" aria-hidden="true" />
                     <span className="salon-room-label">{book.author}</span>
                   </div>
                   <h1 className="thread-title font-serif">{book.title}</h1>
-                  <p className="salon-subtitle">
-                    A slow room for readers who have reached the end and want to sit with what the book opened:
-                    its tensions, symbols, arguments, and aftertaste.
-                  </p>
-                  <div className="salon-meta">
-                    <span>{getThreadCountLabel(threads.length)}</span>
-                    <span className="reply-dot" aria-hidden="true">/</span>
-                    <span>Single-column reading view</span>
-                    <span className="reply-dot" aria-hidden="true">/</span>
-                    <span>Chapter anchors when needed</span>
-                  </div>
                 </div>
               </div>
 
@@ -579,19 +558,6 @@ export default function BookThread() {
               </div>
 
               <div className="nexus-toolbar" role="toolbar" aria-label="Discussion controls">
-                <div className="feed-filters" aria-label="Sort discussions">
-                  {SORT_OPTIONS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className={`filter-btn ${activeTab === option.id ? 'active' : ''}`}
-                      onClick={() => setActiveTab(option.id)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
                 <button type="button" className="thread-cta" onClick={() => setShowComposer((prev) => !prev)}>
                   <PenSquare size={16} />
                   {showComposer ? 'Close writing desk' : 'Open writing desk'}
@@ -666,11 +632,8 @@ export default function BookThread() {
             <section className="thread-journal-header" aria-labelledby="thread-list-heading">
               <div>
                 <span className="writing-label">Open conversations</span>
-                <h2 id="thread-list-heading" className="font-serif">Threads read like entries in a shared journal.</h2>
+                <h2 id="thread-list-heading" className="font-serif">Discussion threads</h2>
               </div>
-              <p>
-                Titles, chapter anchors, and opening paragraphs do the work of orientation. Counts stay quiet and secondary.
-              </p>
             </section>
 
             <section className="thread-list-surface" aria-live="polite">
@@ -710,7 +673,7 @@ export default function BookThread() {
               }) : (
                 <div className="empty-state">
                   <ScrollText size={22} />
-                  <h3 className="font-serif">No discussion pieces yet.</h3>
+                  <h3 className="font-serif">No discussions yet.</h3>
                   <p>Open the first conversation about {book.title} and set the tone for the room.</p>
                 </div>
               )}

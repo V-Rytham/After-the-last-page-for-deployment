@@ -1,7 +1,5 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserShelf, toggleBookOnShelf } from '../../utils/readingSession';
-import { getStep, setHighlightBookId } from '../../onboardingManager';
 
 const PLACEHOLDER_COVER = 'https://placehold.co/420x630?text=No+Cover';
 
@@ -15,15 +13,6 @@ const normalizeGenre = (value) => String(value || '').trim();
 
 const BookCard = ({ book, loading = false, onboardingHighlight = false }) => {
   const [imageError, setImageError] = useState(false);
-
-  const shelfKey = useMemo(() => {
-    if (!book) return '';
-    const source = String(book?.source || (book?.gutenbergId ? 'gutenberg' : '')).trim().toLowerCase();
-    const sourceId = String(book?.sourceId || book?.gutenbergId || '').trim();
-    return source && sourceId ? `${source}:${sourceId}` : '';
-  }, [book]);
-
-  const [isSaved, setIsSaved] = useState(() => (shelfKey ? getUserShelf().includes(shelfKey) : false));
 
   if (loading) {
     return (
@@ -42,7 +31,7 @@ const BookCard = ({ book, loading = false, onboardingHighlight = false }) => {
 
   const title = String(book?.title || '').trim();
   const author = String(book?.author || '').trim();
-  const genres = Array.isArray(book?.genres) ? book.genres.map(normalizeGenre).filter(Boolean).slice(0, 6) : [];
+  const genres = Array.isArray(book?.genres) ? book.genres.map(normalizeGenre).filter(Boolean).slice(0, 4) : [];
   if (!title || !author || genres.length === 0) {
     return null;
   }
@@ -60,7 +49,7 @@ const BookCard = ({ book, loading = false, onboardingHighlight = false }) => {
     ? `/read/gutenberg/${encodeURIComponent(sourceId)}`
     : `/read/${encodeURIComponent(compositeId)}`;
 
-  const resolvedShelfKey = shelfKey || compositeId;
+  const resolvedShelfKey = compositeId;
 
   return (
     <article
@@ -81,25 +70,6 @@ const BookCard = ({ book, loading = false, onboardingHighlight = false }) => {
 
       <div className="library-book-actions">
         <Link className="library-book-cta" to={readPath}>Read</Link>
-        <button
-          type="button"
-          className={`library-book-save${isSaved ? ' is-saved' : ''}`}
-          aria-label={isSaved ? `Remove ${title} from your shelf` : `Add ${title} to your shelf`}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const wasSaved = isSaved;
-            const nextShelf = toggleBookOnShelf(resolvedShelfKey);
-            const nextSaved = nextShelf.includes(resolvedShelfKey);
-            setIsSaved(nextSaved);
-
-            if (!wasSaved && nextSaved && Number(getStep()) === 2) {
-              setHighlightBookId(resolvedShelfKey);
-            }
-          }}
-        >
-          {isSaved ? 'Saved' : 'Add'}
-        </button>
       </div>
     </article>
   );
