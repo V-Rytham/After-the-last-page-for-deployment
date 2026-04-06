@@ -15,6 +15,12 @@ const toTitleCase = (value) => String(value || '')
   .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
   .join(' ');
 
+const slugify = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .trim();
+
 const normalizeGenres = (genres = []) => Array.from(
   new Set(
     (Array.isArray(genres) ? genres : [])
@@ -28,7 +34,9 @@ const toBookShape = (book) => ({
   author: String(book?.author || '').trim(),
   gutenbergId: Number.isFinite(Number(book?.gutenbergId)) ? Number(book.gutenbergId) : null,
   source: 'gutenberg',
-  sourceId: String(Number(book?.gutenbergId) || ''),
+  sourceId: Number.isFinite(Number(book?.gutenbergId))
+    ? String(Number(book.gutenbergId))
+    : [slugify(book?.title), slugify(book?.author)].filter(Boolean).join('--'),
   genres: Array.isArray(book?.genres) ? book.genres.slice(0, 3) : [],
 });
 

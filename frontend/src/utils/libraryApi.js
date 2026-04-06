@@ -77,6 +77,12 @@ const toTitleCase = (value) => String(value || '')
   .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
   .join(' ');
 
+const slugify = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .trim();
+
 const inferTags = (book) => {
   const fromSubjects = Array.isArray(book?.subjects) ? book.subjects : Array.isArray(book?.tags) ? book.tags : [];
   const normalizedSubjects = fromSubjects
@@ -103,18 +109,19 @@ export const getGutenbergCoverUrl = (gutenbergId) => {
 const normalizeBook = (book) => {
   const explicitSource = String(book?.source || '').trim().toLowerCase();
   const source = explicitSource || (Number(book?.gutenbergId || book?.id) > 0 ? 'gutenberg' : 'unknown');
-  const sourceId = String(
-    book?.sourceId
-    || (source === 'gutenberg' ? (book?.gutenbergId || book?.id) : '')
-    || book?.id
-    || '',
-  ).trim();
-  if (!sourceId) return null;
-
   const title = String(book?.title || 'Untitled').trim() || 'Untitled';
   const author = Array.isArray(book?.authors) && book.authors.length
     ? String(book.authors[0]?.name || 'Unknown author')
     : String(book?.author || 'Unknown author');
+  const fallbackSourceId = [slugify(title), slugify(author)].filter(Boolean).join('--');
+  const sourceId = String(
+    book?.sourceId
+    || (source === 'gutenberg' ? (book?.gutenbergId || book?.id) : '')
+    || fallbackSourceId
+    || book?.id
+    || '',
+  ).trim();
+  if (!sourceId) return null;
   const gutenbergId = Number(book?.gutenbergId || (source === 'gutenberg' ? sourceId : 0));
   const normalizedId = String(book?.id || `${source}:${sourceId}`);
   const inferredTags = inferTags(book);
