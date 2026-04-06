@@ -1,26 +1,43 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, MessageCircleMore, Sparkles, Users, Wand2 } from 'lucide-react';
+import {
+  BookOpen,
+  MessageCircle,
+  Mic,
+  MoveRight,
+  Shirt,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import { getBestCoverUrl } from '../utils/openLibraryCovers';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
 import './LandingPage.css';
 
-const libraryHighlights = [
+const experienceSignals = [
   {
-    key: 'focus',
-    title: 'Focus on reading',
-    description: 'A clean, low-noise interface designed for long reading sessions.',
+    key: 'read',
+    title: 'Immersive Reading',
+    description: 'A clean reading space that remembers exactly where you paused.',
+    icon: BookOpen,
   },
   {
-    key: 'progress',
-    title: 'Keep your rhythm',
-    description: 'Track where you stopped and continue from the exact same place.',
+    key: 'people',
+    title: 'Meet People',
+    description: 'After finishing, connect anonymously through text, voice, or video.',
+    icon: Users,
   },
   {
-    key: 'community',
-    title: 'Discuss after the last page',
-    description: 'Join thoughtful conversations once you complete a book.',
+    key: 'threads',
+    title: 'BookThread',
+    description: 'Book-specific threads where every reply comes from someone who read it.',
+    icon: MessageCircle,
+  },
+  {
+    key: 'wizard',
+    title: 'Wizard Merch',
+    description: 'Generate custom apparel inspired by books that stayed with you.',
+    icon: Shirt,
   },
 ];
 
@@ -46,6 +63,25 @@ const getProgressCandidate = (books, sessions) => {
     .sort((a, b) => new Date(b.session?.lastOpenedAt || 0).getTime() - new Date(a.session?.lastOpenedAt || 0).getTime())[0] || null;
 };
 
+const resolveBookId = (book) => String(book?._id || book?.id || book?.gutenbergId || '').trim();
+
+const getBookRoute = (book) => {
+  if (!book) return '/desk';
+  if (book?._id || book?.id) return `/read/${book._id || book.id}`;
+  if (book?.gutenbergId) return `/read/gutenberg/${book.gutenbergId}`;
+  return '/desk';
+};
+
+const ExperienceCard = ({ icon: Icon, title, description }) => (
+  <article className="home-signal-card">
+    <div className="home-signal-icon" aria-hidden="true">
+      <Icon size={16} />
+    </div>
+    <h3 className="font-serif">{title}</h3>
+    <p>{description}</p>
+  </article>
+);
+
 export default function LandingPage({ currentUser }) {
   const [books, setBooks] = useState([]);
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
@@ -69,113 +105,169 @@ export default function LandingPage({ currentUser }) {
     };
   }, []);
 
-  const activeProgress = useMemo(() => {
-    if (!isMember) return null;
-    const sessions = getReadingSessionsForCurrentUser();
-    return getProgressCandidate(books, sessions);
-  }, [books, isMember]);
+  const readingSessions = useMemo(() => (
+    isMember ? getReadingSessionsForCurrentUser() : {}
+  ), [isMember]);
 
-  const continueReadingRoute = useMemo(() => {
-    const candidate = activeProgress?.book;
-    if (!candidate) return '/desk';
-    if (candidate?._id || candidate?.id) return `/read/${candidate._id || candidate.id}`;
-    if (candidate?.gutenbergId) return `/read/gutenberg/${candidate.gutenbergId}`;
-    return '/desk';
-  }, [activeProgress]);
+  const activeProgress = useMemo(() => getProgressCandidate(books, readingSessions), [books, readingSessions]);
+
+  const continueReadingRoute = useMemo(() => getBookRoute(activeProgress?.book), [activeProgress]);
 
   const heroCover = useMemo(() => getBestCoverUrl(activeProgress?.book || books[0] || null), [activeProgress, books]);
 
-  const showcaseBooks = useMemo(() => books.slice(0, 4), [books]);
+  const recentlyViewedBooks = useMemo(() => {
+    if (!isMember || !readingSessions || typeof readingSessions !== 'object') return [];
+
+    const mapped = books
+      .map((book) => {
+        const key = resolveBookId(book);
+        if (!key) return null;
+        const session = readingSessions[key];
+        if (!session) return null;
+
+        return {
+          book,
+          lastOpenedAt: new Date(session?.lastOpenedAt || 0).getTime(),
+          progress: Math.round(Number(session?.progressPercent || 0)),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+
+    return mapped.slice(0, 3);
+  }, [books, isMember, readingSessions]);
+
+  const trendingBooks = useMemo(() => books.slice(0, 3), [books]);
+
+  const popularDiscussions = useMemo(() => (
+    books.slice(0, 3).map((book, index) => ({
+      key: resolveBookId(book) || `${book?.title}-${index}`,
+      title: book?.title || 'Untitled Book',
+      topic: `Readers are discussing ${book?.author ? `themes from ${book.author}` : 'the ending and key moments'}.`,
+    }))
+  ), [books]);
 
   return (
     <div className="home-page animate-fade-in">
       <div className="layout-shell home-shell">
-        <section className="layout-content home-hero" aria-label="Home">
+        <section className="layout-content home-hero" aria-label="Home hero">
           <div className="home-hero-copy">
-            <p className="home-eyebrow">After The Last Page</p>
-            <h1 className="home-title font-serif">Read deeply. Then meet people who truly read it too.</h1>
+            <p className="home-eyebrow">After the Last Page</p>
+            <h1 className="home-title font-serif">Where reading becomes connection.</h1>
             <p className="home-subtitle">
-              A distraction-free reading room with continuity across devices, thoughtful post-book discussions,
-              and creative tools for readers who want more than just the final chapter.
+              Finish a chapter in calm, then continue the story with people who felt the same pages.
             </p>
             <div className="home-actions">
-              <Link to={isMember ? '/desk' : '/auth'} className="home-btn home-btn-primary">{isMember ? 'Open your desk' : 'Start reading'}</Link>
-              <Link to="/library" className="home-btn home-btn-secondary">Browse library</Link>
-            </div>
-            <div className="home-proof-row" aria-label="Platform highlights">
-              <span><BookOpen size={16} /> Reader-first layout</span>
-              <span><Users size={16} /> Discussions after completion</span>
-              <span><Wand2 size={16} /> AI merch wizard</span>
+              <Link to={isMember ? continueReadingRoute : '/auth'} className="home-btn home-btn-primary">
+                {isMember ? 'Continue Reading' : 'Start Reading'} <MoveRight size={15} />
+              </Link>
+              <Link to="/meet" className="home-btn home-btn-secondary">Discover People</Link>
             </div>
           </div>
 
-          <div className="home-hero-cover" aria-hidden="true">
-            {heroCover ? <img src={heroCover} alt="" loading="eager" decoding="async" /> : <div className="home-cover-fallback font-serif">ATLP</div>}
+          <div className="home-hero-art" aria-hidden="true">
+            <div className="home-orb" />
+            <div className="home-floating-cover">
+              {heroCover ? <img src={heroCover} alt="" loading="eager" decoding="async" /> : <span className="font-serif">ATLP</span>}
+            </div>
           </div>
         </section>
 
-        {isMember && activeProgress ? (
-          <section className="layout-content home-resume" aria-label="Continue reading">
-            <div>
-              <p className="home-eyebrow">Continue reading</p>
-              <h2 className="font-serif">{activeProgress.book?.title || 'Untitled book'}</h2>
-              <p>{activeProgress.book?.author || 'Unknown author'}</p>
-            </div>
-            <div className="home-progress">
-              <span>{activeProgress.progress}% complete</span>
-              <div className="home-progress-track" role="progressbar" aria-valuenow={activeProgress.progress} aria-valuemin={0} aria-valuemax={100}>
-                <div style={{ width: `${activeProgress.progress}%` }} />
-              </div>
-            </div>
-            <Link to={continueReadingRoute} className="home-btn home-btn-secondary">Resume</Link>
-          </section>
-        ) : null}
-
-        <section className="layout-content home-flow" aria-label="How it works">
-          <article className="home-flow-step">
-            <BookOpen size={18} aria-hidden="true" />
-            <h3 className="font-serif">Read in peace</h3>
-            <p>Comfort-first typography, chapter pagination, and automatic reading position restore.</p>
-          </article>
-          <article className="home-flow-step">
-            <MessageCircleMore size={18} aria-hidden="true" />
-            <h3 className="font-serif">Unlock conversations</h3>
-            <p>Once finished, enter chat, voice, or video rooms with readers who completed the same book.</p>
-          </article>
-          <article className="home-flow-step">
-            <Sparkles size={18} aria-hidden="true" />
-            <h3 className="font-serif">Carry the story forward</h3>
-            <p>Use the Wizard to generate reader-inspired merch concepts from your favorite books.</p>
-          </article>
-        </section>
-
-        {showcaseBooks.length > 0 ? (
-          <section className="layout-content home-showcase" aria-label="Popular books on the platform">
-            <div className="home-section-head">
-              <p className="home-eyebrow">From the library</p>
-              <h2 className="font-serif">Start your next reading sprint.</h2>
-            </div>
-            <div className="home-showcase-grid">
-              {showcaseBooks.map((book, index) => (
-                <article key={book?._id || book?.id || `${book?.title}-${index}`} className="home-showcase-card">
-                  <div className="home-showcase-cover" aria-hidden="true">
-                    {getBestCoverUrl(book) ? <img src={getBestCoverUrl(book)} alt="" loading="lazy" /> : <span className="font-serif">ATLP</span>}
-                  </div>
-                  <h3 className="font-serif">{book?.title || 'Untitled book'}</h3>
-                  <p>{book?.author || 'Unknown author'}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="layout-content home-highlights" aria-label="Highlights">
-          {libraryHighlights.map((item) => (
-            <article key={item.key} className="home-highlight-card">
-              <h3 className="font-serif">{item.title}</h3>
-              <p>{item.description}</p>
-            </article>
+        <section className="layout-content home-signals" aria-label="Experience preview">
+          {experienceSignals.map((item) => (
+            <ExperienceCard key={item.key} icon={item.icon} title={item.title} description={item.description} />
           ))}
+        </section>
+
+        <section className="layout-content home-after-book" aria-label="After you finish a book">
+          <div className="home-after-copy">
+            <p className="home-eyebrow">After you finish a book…</p>
+            <h2 className="font-serif">The last line lands. The feeling stays.</h2>
+            <p>
+              Instead of closing the tab, meet another reader who reached the same final page and wants to talk about it.
+            </p>
+          </div>
+          <div className="home-connection" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <Link to="/meet" className="home-btn home-btn-primary">Meet Readers <Mic size={15} /></Link>
+        </section>
+
+        <section className="layout-content home-dynamic" aria-label="Personalized feed">
+          <div className="home-dynamic-head">
+            <p className="home-eyebrow">Your entry point</p>
+            <h2 className="font-serif">{isMember ? 'Pick up where you left off.' : 'Explore what readers are opening now.'}</h2>
+          </div>
+
+          {isMember ? (
+            <div className="home-dynamic-grid home-dynamic-grid-member">
+              <article className="home-dynamic-card home-dynamic-continue">
+                <p className="home-label">Continue</p>
+                <h3 className="font-serif">{activeProgress?.book?.title || 'Resume your reading flow'}</h3>
+                <p>{activeProgress ? `${activeProgress.progress}% complete` : 'Return to your reading desk and continue your latest book.'}</p>
+                <Link to={continueReadingRoute} className="home-inline-link">Open Reader <MoveRight size={14} /></Link>
+              </article>
+
+              <article className="home-dynamic-card">
+                <p className="home-label">Recently viewed</p>
+                <ul className="home-list">
+                  {recentlyViewedBooks.length > 0 ? recentlyViewedBooks.map(({ book, progress }) => (
+                    <li key={resolveBookId(book) || book?.title}>
+                      <span>{book?.title || 'Untitled Book'}</span>
+                      <span>{Number.isFinite(progress) ? `${Math.max(0, progress)}%` : 'In progress'}</span>
+                    </li>
+                  )) : <li><span>No recent books yet</span><span>—</span></li>}
+                </ul>
+              </article>
+
+              <article className="home-dynamic-card">
+                <p className="home-label">Shortcuts</p>
+                <div className="home-shortcuts">
+                  <Link to="/meet" className="home-btn home-btn-secondary">Meet people</Link>
+                  <Link to="/threads" className="home-btn home-btn-secondary">BookThread</Link>
+                  <Link to="/merch" className="home-btn home-btn-secondary">Wizard Merch</Link>
+                </div>
+              </article>
+            </div>
+          ) : (
+            <div className="home-dynamic-grid home-dynamic-grid-guest">
+              <article className="home-dynamic-card">
+                <p className="home-label">Trending books</p>
+                <ul className="home-list">
+                  {trendingBooks.length > 0 ? trendingBooks.map((book, index) => (
+                    <li key={resolveBookId(book) || `${book?.title}-${index}`}>
+                      <span>{book?.title || 'Untitled Book'}</span>
+                      <span>{book?.author || 'Reader pick'}</span>
+                    </li>
+                  )) : <li><span>Library updates soon</span><span>—</span></li>}
+                </ul>
+              </article>
+
+              <article className="home-dynamic-card">
+                <p className="home-label">Popular discussions</p>
+                <ul className="home-topic-list">
+                  {popularDiscussions.length > 0 ? popularDiscussions.map((item) => (
+                    <li key={item.key}>
+                      <h3 className="font-serif">{item.title}</h3>
+                      <p>{item.topic}</p>
+                    </li>
+                  )) : <li><p>Thread highlights will appear here.</p></li>}
+                </ul>
+              </article>
+
+              <article className="home-dynamic-card home-signup-card">
+                <Sparkles size={17} aria-hidden="true" />
+                <h3 className="font-serif">Sign up to unlock the full reading experience.</h3>
+                <Link to="/auth" className="home-btn home-btn-primary">Sign up</Link>
+              </article>
+            </div>
+          )}
+        </section>
+
+        <section className="layout-content home-endcap" aria-label="Closing note">
+          <p className="font-serif">Built for the moment after the last page.</p>
         </section>
       </div>
     </div>
