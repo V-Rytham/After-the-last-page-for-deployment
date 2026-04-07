@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, Moon, Palette, Sun, X } from 'lucide-react';
+import { ChevronRight, Menu, Moon, Palette, Sun, X } from 'lucide-react';
 import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
 
@@ -166,7 +166,13 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             )}
           </div>
 
-          {isMember ? <ProfileAvatar user={currentUser} className="mobile-menu-avatar" onClick={() => setDrawerOpen(true)} label="Open navigation menu" /> : null}
+          {isMember ? (
+            <ProfileAvatar user={currentUser} className="mobile-menu-avatar" onClick={() => setDrawerOpen(true)} label="Open navigation menu" />
+          ) : (
+            <button type="button" className="mobile-menu-trigger" onClick={() => setDrawerOpen(true)} aria-label="Open navigation menu">
+              <Menu size={18} />
+            </button>
+          )}
         </div>
       </header>
 
@@ -180,7 +186,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
           </header>
 
           <div className="drawer-avatar-wrap">
-            {isMember ? <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} /> : null}
+            {isMember ? <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} /> : <span className="drawer-guest-label">Guest</span>}
           </div>
 
           <nav className="drawer-nav" aria-label="Mobile navigation">

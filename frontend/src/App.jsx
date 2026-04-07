@@ -1,25 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
-import LandingPage from './pages/LandingPage';
-import Library from './pages/Library';
-import BooksLibrary from './pages/BooksLibrary';
-import MeetingAccessHub from './pages/MeetingAccessHub';
-import ReadingRoom from './pages/ReadingRoom';
-import MeetingHub from './pages/MeetingHub';
-import BookThread from './pages/BookThread';
-import ThreadAccessHub from './pages/ThreadAccessHub';
-import WizardMerch from './pages/WizardMerch';
-import AuthPage from './pages/AuthPage';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
-import ProfilePage from './pages/ProfilePage';
-import SettingsPage from './pages/SettingsPage';
-import BookQuiz from './pages/BookQuiz';
-import RequestBookPage from './pages/RequestBookPage';
-import ReadEntryPage from './pages/ReadEntryPage';
-import GenreOnboardingPage from './pages/GenreOnboardingPage';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
@@ -28,6 +12,23 @@ import FirstChapterExperience from './components/onboarding/FirstChapterExperien
 import './index.css';
 
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const Library = lazy(() => import('./pages/Library'));
+const BooksLibrary = lazy(() => import('./pages/BooksLibrary'));
+const MeetingAccessHub = lazy(() => import('./pages/MeetingAccessHub'));
+const ReadingRoom = lazy(() => import('./pages/ReadingRoom'));
+const MeetingHub = lazy(() => import('./pages/MeetingHub'));
+const BookThread = lazy(() => import('./pages/BookThread'));
+const ThreadAccessHub = lazy(() => import('./pages/ThreadAccessHub'));
+const WizardMerch = lazy(() => import('./pages/WizardMerch'));
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const BookQuiz = lazy(() => import('./pages/BookQuiz'));
+const RequestBookPage = lazy(() => import('./pages/RequestBookPage'));
+const GenreOnboardingPage = lazy(() => import('./pages/GenreOnboardingPage'));
+
 let isFetchingUser = false;
 
 const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -79,6 +80,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
         <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />
       )}
       <main className="main-content">
+        <Suspense fallback={<div className="content-container"><p className="text-muted">Loading…</p></div>}>
         <Routes>
           <Route path="/" element={<LandingPage currentUser={currentUser} />} />
           <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
@@ -99,6 +101,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
           <Route path="/thread/:bookId" element={<PrivateRoute><BookThread /></PrivateRoute>} />
           <Route path="/merch" element={<WizardMerch />} />
         </Routes>
+        </Suspense>
         <FirstChapterExperience />
       </main>
     </div>

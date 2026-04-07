@@ -37,7 +37,7 @@
   --space-8: 4.5rem;
   --space-9: 6rem;
 
-  --page-gutter: clamp(0.9rem, 2.2vw, 1.6rem);
+  --page-gutter: clamp(1rem, 2.2vw, 1.6rem);
   --section-space: clamp(2.5rem, 7vw, 5.25rem);
   --chrome-height: 4.5rem;
 
@@ -60,6 +60,10 @@
   --button-secondary-text: #CFCFCF;
   --button-secondary-border: #2A2A2A;
   --auth-icon-color: #E5E7EB;
+  --intent-btn-bg: #1E293B;
+  --intent-btn-hover: #334155;
+  --intent-btn-text: #E2E8F0;
+  --intent-btn-border: #1E293B;
 }
 
 html[data-theme='light'] {
@@ -216,10 +220,12 @@ html[data-theme='dark'] body::before {
 html {
   font-size: 16px;
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   min-height: 100vh;
+  overflow-x: hidden;
   background: var(--page-bg);
   color: var(--text-primary);
   font-family: var(--font-ui);
@@ -248,6 +254,8 @@ body.is-reading-room::before {
 #root,
 .app-container {
   min-height: 100vh;
+  width: 100%;
+  overflow-x: clip;
 }
 
 .main-content {
@@ -395,7 +403,7 @@ li {
 
 .btn-primary.sm,
 .btn-secondary.sm {
-  min-height: 2.35rem;
+  min-height: 2.75rem;
   padding: 0 0.85rem;
   font-size: var(--font-size-0);
 }
@@ -533,4 +541,15 @@ button:disabled {
   background: var(--border-strong);
   border: 2px solid var(--page-bg);
   border-radius: 999px;
+}
+
+.meeting-access-button:hover,
+.meeting-access-page .btn-primary:hover,
+.meeting-access-page .btn-secondary:hover,
+.meeting-hub .btn-primary:hover,
+.meeting-hub .btn-secondary:hover,
+.meeting-hub .send-btn:hover {
+  background: var(--intent-btn-hover);
+  border-color: var(--intent-btn-hover);
+  color: var(--intent-btn-text);
 }

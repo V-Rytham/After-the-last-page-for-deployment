@@ -17,6 +17,14 @@
 .home2-hero {
   padding: clamp(2.5rem, 6vw, 4.5rem) var(--page-gutter) clamp(1.5rem, 3.5vw, 2.5rem);
   text-align: center;
+  display: grid;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .home2-hero {
+    min-height: calc(100vh - var(--chrome-height));
+  }
 }
 
 .home2-hero-inner {
@@ -34,8 +42,25 @@
 }
 
 .home2-hero-title {
-  font-size: clamp(2rem, 5.5vw, 4rem);
-  line-height: 1.04;
+  font-size: clamp(1.95rem, 5.1vw, 4rem);
+  line-height: 1.06;
+  max-width: 18ch;
+  margin-inline: auto;
+  text-wrap: balance;
+}
+
+.home2-hero-title-shimmer {
+  background-image: linear-gradient(110deg, currentColor 20%, color-mix(in srgb, currentColor 68%, #ffffff) 50%, currentColor 80%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: home2Shimmer 10s ease-in-out infinite;
+}
+
+@keyframes home2Shimmer {
+  0%,
+  100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .home2-hero-subtitle {
@@ -53,7 +78,7 @@
 }
 
 .home2-btn {
-  min-height: 2.65rem;
+  min-height: 2.75rem;
   border-radius: 999px;
   border: 1px solid transparent;
   padding: 0.45rem 1rem;
@@ -358,9 +383,24 @@
   }
 }
 
+@media (max-width: 1023px) {
+  .home2-hero {
+    min-height: auto;
+  }
+}
+
 @media (max-width: 760px) {
+  .home2-hero {
+    min-height: unset;
+    padding-block: clamp(1.5rem, 8vw, 2.5rem) clamp(1.25rem, 5vw, 2rem);
+  }
+
   .home2-hero-inner {
     width: 100%;
+  }
+
+  .home2-hero-title {
+    font-size: clamp(1.7rem, 7.4vw, 2.3rem);
   }
 
   .home2-current-main {
