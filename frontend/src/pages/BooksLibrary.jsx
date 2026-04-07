@@ -16,6 +16,7 @@ const deskDataCache = {
 const DESK_CACHE_TTL_MS = 90_000;
 const MAX_RECENT_ACTIVITY = 6;
 const MAX_RECOMMENDATIONS_PER_TYPE = 12;
+const MAX_SOCIAL_RECOMMENDATIONS = 12;
 
 const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -105,8 +106,10 @@ const fetchDeskData = async () => {
   const recommendationBase = active?.book || recentActivity[0]?.book || allBooks[0] || null;
 
   let recommendationError = '';
+  let socialRecommendationError = '';
   let contentRecommendations = [];
   let popularRecommendations = [];
+  let socialRecommendations = [];
 
   const selectedGenres = readSelectedGenres();
   if (selectedGenres.length > 0) {
@@ -120,6 +123,14 @@ const fetchDeskData = async () => {
     }
   }
 
+  try {
+    const socialResponse = await withRetry(() => api.get('/recommendations/for-you'));
+    const social = Array.isArray(socialResponse?.data?.recommendations) ? socialResponse.data.recommendations : [];
+    socialRecommendations = social.slice(0, MAX_SOCIAL_RECOMMENDATIONS);
+  } catch (error) {
+    socialRecommendationError = String(error?.uiMessage || error?.message || 'Social recommendations are unavailable right now.');
+  }
+
   if (contentRecommendations.length === 0) {
     recommendationError = recommendationError || 'Pick genres in Profile to generate curated recommendations.';
   }
@@ -131,6 +142,8 @@ const fetchDeskData = async () => {
     contentRecommendations,
     popularRecommendations,
     recommendationError,
+    socialRecommendationError,
+    socialRecommendations,
     fetchedAt: Date.now(),
   };
 };
@@ -165,6 +178,8 @@ const BooksLibrary = ({ currentUser }) => {
   const [contentRecommendations, setContentRecommendations] = useState([]);
   const [popularRecommendations, setPopularRecommendations] = useState([]);
   const [recommendationBase, setRecommendationBase] = useState(null);
+  const [socialRecommendations, setSocialRecommendations] = useState([]);
+  const [socialRecommendationError, setSocialRecommendationError] = useState('');
   const [loading, setLoading] = useState(true);
   const [recommendationLoading, setRecommendationLoading] = useState(true);
   const [error, setError] = useState('');
@@ -196,10 +211,13 @@ const BooksLibrary = ({ currentUser }) => {
       setPopularRecommendations(Array.isArray(payload.popularRecommendations) ? payload.popularRecommendations : []);
       setRecommendationBase(payload.recommendationBase || null);
       setRecommendationError(payload.recommendationError || '');
+      setSocialRecommendations(Array.isArray(payload.socialRecommendations) ? payload.socialRecommendations : []);
+      setSocialRecommendationError(payload.socialRecommendationError || '');
     } catch (loadError) {
       setBooks([]);
       setContentRecommendations([]);
       setPopularRecommendations([]);
+      setSocialRecommendations([]);
       setSessions(getReadingSessionsForCurrentUser());
       setError(String(loadError?.uiMessage || loadError?.message || 'Unable to load your desk right now.'));
     } finally {
@@ -287,13 +305,21 @@ const BooksLibrary = ({ currentUser }) => {
     [matchesSearchAndCategory, popularRecommendations],
   );
 
-  const hasRecommendations = filteredContentRecommendations.length > 0 || filteredPopularRecommendations.length > 0;
+  const filteredSocialRecommendations = useMemo(
+    () => socialRecommendations.filter(matchesSearchAndCategory),
+    [matchesSearchAndCategory, socialRecommendations],
+  );
+
+  const hasRecommendations = filteredContentRecommendations.length > 0
+    || filteredPopularRecommendations.length > 0
+    || filteredSocialRecommendations.length > 0;
   const hasNoFilterResults = !loading
     && !recommendationLoading
     && Boolean(searchTerm.trim() || activeCategory !== 'all')
     && filteredRecentActivity.length === 0
     && filteredContentRecommendations.length === 0
-    && filteredPopularRecommendations.length === 0;
+    && filteredPopularRecommendations.length === 0
+    && filteredSocialRecommendations.length === 0;
 
   return (
     <div className="desk-page editorial-theme">
@@ -414,6 +440,20 @@ const BooksLibrary = ({ currentUser }) => {
                 getSessionForBook={sessionForBook}
               />
             )}
+
+            {filteredSocialRecommendations.length > 0 && (
+              <RecommendationRow
+                title="Readers Like You Are Exploring"
+                subtitle="People with similar reading behavior are diving into these right now."
+                books={filteredSocialRecommendations}
+                getSessionForBook={sessionForBook}
+                onRecommendationClick={(book) => {
+                  const trackedBookId = String(book?.bookId || book?._id || '');
+                  if (!trackedBookId) return;
+                  api.post('/recommendations/for-you/click', { bookId: trackedBookId }).catch(() => {});
+                }}
+              />
+            )}
           </>
         )}
 
@@ -428,7 +468,7 @@ const BooksLibrary = ({ currentUser }) => {
             <div className="desk-section__heading">
               <h2>Recommendations</h2>
             </div>
-            <p className="desk-empty-copy">{recommendationError || 'No recommendations available yet.'}</p>
+            <p className="desk-empty-copy">{recommendationError || socialRecommendationError || 'No recommendations available yet.'}</p>
             <button type="button" className="desk-btn desk-btn--secondary" onClick={() => refreshDesk({ force: true })}>Retry recommendations</button>
           </section>
         )}

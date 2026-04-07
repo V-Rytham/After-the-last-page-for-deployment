@@ -1,4 +1,9 @@
 import { buildRecommendations } from '../services/recommendationsService.js';
+import {
+  invalidateRecommendationCacheV2,
+  mergeAndRankRecommendations,
+  trackRecommendationClickV2,
+} from '../services/recommendationEngineV2.js';
 
 const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
 
@@ -10,8 +15,6 @@ export const postRecommendations = async (req, res) => {
     if (normalized.length === 0) {
       return res.status(400).json({ message: 'genres must be a non-empty array.' });
     }
-
-    console.log('GENRES RECEIVED:', normalized);
 
     const result = await buildRecommendations({ genres: normalized });
 
@@ -25,3 +28,42 @@ export const postRecommendations = async (req, res) => {
   }
 };
 
+export const getRecommendationsForYou = async (req, res) => {
+  try {
+    const userId = String(req.user?._id || '').trim();
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized.' });
+    }
+
+    const actionName = String(req.headers['x-book-action-name'] || '').trim().toLowerCase();
+    if (actionName === 'add' || actionName === 'remove') {
+      invalidateRecommendationCacheV2(userId);
+    }
+
+    const response = await mergeAndRankRecommendations(userId);
+    return res.json(response);
+  } catch (error) {
+    console.error('[RECOMMENDATIONS_V2] Failed:', error?.message || error);
+    return res.status(500).json({ message: 'Failed to fetch personalized recommendations.' });
+  }
+};
+
+export const postRecommendationClick = async (req, res) => {
+  try {
+    const userId = String(req.user?._id || '').trim();
+    const bookId = String(req.body?.bookId || '').trim();
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized.' });
+    }
+
+    if (!bookId) {
+      return res.status(400).json({ message: 'bookId is required.' });
+    }
+
+    trackRecommendationClickV2({ userId, bookId });
+    return res.status(204).send();
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to track recommendation click.' });
+  }
+};

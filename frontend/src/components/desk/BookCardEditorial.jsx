@@ -19,7 +19,7 @@ const getReadingState = (session) => {
   return { status: 'not-started', readingProgress: 0 };
 };
 
-const BookCardEditorial = ({ book, session }) => {
+const BookCardEditorial = ({ book, session, recommendationReason = '', onOpen = null }) => {
   const coverUrl = getBestCoverUrl(book);
   const route = book?.gutenbergId
     ? `/read/gutenberg/${book.gutenbergId}`
@@ -41,7 +41,16 @@ const BookCardEditorial = ({ book, session }) => {
   }, [author, coverUrl, session, title]);
 
   return (
-    <Link to={route} className="editorial-book-card" aria-label={`Open ${mappedState.title}`}>
+    <Link
+      to={route}
+      className="editorial-book-card"
+      aria-label={`Open ${mappedState.title}`}
+      onClick={() => {
+        if (typeof onOpen === 'function') {
+          onOpen(book);
+        }
+      }}
+    >
       <div className="editorial-book-card__cover">
         {mappedState.coverImage ? (
           <img src={mappedState.coverImage} alt={`${mappedState.title} cover`} loading="lazy" decoding="async" />
@@ -51,6 +60,10 @@ const BookCardEditorial = ({ book, session }) => {
       </div>
       <h3 title={mappedState.title}>{mappedState.title}</h3>
       <p>{mappedState.author}</p>
+
+      {recommendationReason ? (
+        <p className="editorial-book-card__reason" title={`Why this recommendation? ${recommendationReason}`}>{recommendationReason}</p>
+      ) : null}
 
       {mappedState.status === 'in-progress' && (
         <div className="editorial-book-card__progress-block">

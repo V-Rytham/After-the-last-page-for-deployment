@@ -548,6 +548,13 @@ html[data-theme='dark'] .current-reading-card__resume {
   overflow: hidden;
 }
 
+
+.editorial-book-card__reason {
+  font-size: 0.72rem;
+  color: var(--desk-muted);
+  min-height: 2.1em;
+}
+
 .editorial-book-card__cover {
   aspect-ratio: 2 / 3;
   border-radius: 10px;

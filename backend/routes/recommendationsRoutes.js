@@ -1,10 +1,18 @@
 import express from 'express';
-import { postRecommendations } from '../controllers/recommendationsController.js';
+import {
+  getRecommendationsForYou,
+  postRecommendationClick,
+  postRecommendations,
+} from '../controllers/recommendationsController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// POST /api/recommendations
+// Existing recommender
 router.post('/', postRecommendations);
 
-export default router;
+// Hybrid recommender v2
+router.get('/for-you', requireAuth, getRecommendationsForYou);
+router.post('/for-you/click', requireAuth, postRecommendationClick);
 
+export default router;
