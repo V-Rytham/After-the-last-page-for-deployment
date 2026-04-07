@@ -8,6 +8,7 @@ import { generateToken } from '../utils/generateToken.js';
 import { buildSafeErrorBody } from '../utils/runtime.js';
 import { ensureProfileUploadDir, getImagePublicUrl, profileImageConfig, safeUnlink } from '../utils/profileImage.js';
 import { buildDegradedAnonymousUser, isDegradedMode } from '../utils/degradedMode.js';
+import { AUTH_COOKIE_NAME, getAuthCookieOptions } from '../utils/authCookies.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const ALLOWED_PREFERRED_GENRES = new Set([
@@ -110,6 +111,16 @@ const buildUserResponse = (user, extra = {}) => ({
   token: generateToken(user._id, { isAnonymous: user.isAnonymous, anonymousId: user.anonymousId }),
 });
 
+const issueUserCookie = (res, user) => {
+  if (!res || !user?._id) {
+    return '';
+  }
+
+  const token = generateToken(user._id, { isAnonymous: user.isAnonymous, anonymousId: user.anonymousId });
+  res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+  return token;
+};
+
 const buildProfileResponse = async (user) => ({
   _id: user._id,
   anonymousId: user.anonymousId,
@@ -205,10 +216,11 @@ export const registerAnonymousUser = async (req, res) => {
 
     if (isDegradedMode()) {
       const user = buildDegradedAnonymousUser();
+      const token = issueUserCookie(res, user);
       return res.status(201).json({
         ...user,
         stats: { booksCompleted: 0, discussionsParticipated: 0 },
-        token: generateToken(user._id, { isAnonymous: true, anonymousId: user.anonymousId }),
+        token,
       });
     }
 
@@ -228,6 +240,7 @@ export const registerAnonymousUser = async (req, res) => {
       },
     });
 
+    issueUserCookie(res, user);
     return res.status(201).json(buildUserResponse(user));
   } catch (error) {
     console.error('[AUTH] Failed to create anonymous user:', error?.message || error);
@@ -300,6 +313,7 @@ export const registerUser = async (req, res) => {
       await setUserProfileImage({ req, user, filename, absolutePath });
     }
 
+    issueUserCookie(res, user);
     res.status(201).json(buildUserResponse(user));
   } catch (error) {
     if (error?.code === 11000 && error?.keyPattern?.usernameLower) {
@@ -325,6 +339,7 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    issueUserCookie(res, user);
     res.json(buildUserResponse(user));
   } catch (error) {
     res.status(500).json(buildSafeErrorBody('Server error', error));

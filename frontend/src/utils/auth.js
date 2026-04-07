@@ -17,8 +17,13 @@ export const getStoredUser = () => {
 };
 
 export const saveAuthSession = (payload) => {
-  const { token, ...user } = payload;
-  localStorage.setItem(TOKEN_KEY, token);
+  const { token, ...user } = payload || {};
+  const normalizedToken = String(token || '').trim();
+  if (normalizedToken) {
+    localStorage.setItem(TOKEN_KEY, normalizedToken);
+  } else if (!localStorage.getItem(TOKEN_KEY)) {
+    localStorage.removeItem(TOKEN_KEY);
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   localStorage.setItem('anonId', user.anonymousId || '');
   return user;
