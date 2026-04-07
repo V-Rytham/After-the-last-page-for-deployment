@@ -176,60 +176,43 @@
   display: grid;
   gap: 0.8rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
 }
 
 .meeting-access-card {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 0.8rem;
   padding: 0.8rem;
   border-radius: var(--radius-md);
   box-shadow: none;
+  min-height: 100%;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.meeting-access-mini-cover {
-  width: 3rem;
-  height: 4.2rem;
-  border-radius: 0.55rem;
-  overflow: hidden;
-  border: 1px solid var(--border-soft);
-  background: var(--surface-2);
-}
-
-.meeting-access-mini-image,
-.meeting-access-mini-fallback {
-  width: 100%;
-  height: 100%;
-}
-
-.meeting-access-mini-image {
-  object-fit: cover;
-}
-
-.meeting-access-mini-fallback {
-  position: relative;
-}
-
-.meeting-access-mini-spine {
-  position: absolute;
-  top: 0.55rem;
-  bottom: 0.55rem;
-  left: 0.5rem;
-  width: 1px;
-  background: rgba(255, 248, 236, 0.28);
+.meeting-access-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-soft);
 }
 
 .meeting-access-body {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.2rem;
   min-width: 0;
+  align-content: center;
 }
 
 .meeting-access-title {
   margin: 0;
   font-size: 1rem;
-  line-height: 1.25;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  text-overflow: ellipsis;
 }
 
 .meeting-access-author {
@@ -290,15 +273,11 @@
   }
 
   .meeting-access-card {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr;
     grid-template-areas:
-      'cover body'
-      'action action';
+      'body'
+      'action';
     align-items: start;
-  }
-
-  .meeting-access-mini-cover {
-    grid-area: cover;
   }
 
   .meeting-access-body {

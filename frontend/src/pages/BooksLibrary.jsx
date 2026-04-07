@@ -330,7 +330,7 @@ const BooksLibrary = ({ currentUser }) => {
     && filteredSocialRecommendations.length === 0;
 
   return (
-    !isMember ? <AuthRequired previewClassName="desk-page" previewLabel="Your reading desk unlocks once you log in." /> : (
+    !isMember ? <AuthRequired previewClassName="desk-page" previewLabel="" /> : (
     <div className="desk-page editorial-theme">
       <div className="desk-shell">
         <section className="desk-search-panel" aria-label="Filter books on desk">

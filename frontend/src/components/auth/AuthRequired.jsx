@@ -16,7 +16,7 @@ export default function AuthRequired({ previewClassName = '', previewLabel = 'Pr
           <button type="button" className="btn-primary" onClick={() => navigate('/auth?mode=login')}>Login <ArrowRight size={16} /></button>
           <button type="button" className="btn-secondary" onClick={() => navigate('/auth?mode=signup')}>Sign up</button>
         </div>
-        <span className="auth-required-footnote">{previewLabel}</span>
+        {previewLabel ? <span className="auth-required-footnote">{previewLabel}</span> : null}
       </section>
     </div>
   );

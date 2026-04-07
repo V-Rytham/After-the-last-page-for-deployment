@@ -108,15 +108,10 @@ export default function MeetingAccessHub({ currentUser }) {
         <section className="meeting-access-grid" aria-label="Meet books">
           {manualCompositeId ? (
             <article key={manualCompositeId} className="meeting-access-card glass-panel meeting-access-card--manual">
-              <div className="meeting-access-mini-cover" aria-hidden="true">
-                <div className="meeting-access-mini-fallback">
-                  <span className="meeting-access-mini-spine" />
-                </div>
-              </div>
               <div className="meeting-access-body">
                 <h3 className="meeting-access-title font-serif">{typedQuery}</h3>
                 <p className="meeting-access-author">Meet people who read this book</p>
-                <span className="meeting-access-status">Instant match queue</span>
+                <span className="meeting-access-status">Featured for Meet</span>
               </div>
               <button
                 type="button"
@@ -143,27 +138,10 @@ export default function MeetingAccessHub({ currentUser }) {
 
             return (
               <article key={`${book.source}:${book.sourceId}`} className="meeting-access-card glass-panel">
-                <div className="meeting-access-mini-cover" aria-hidden="true">
-                  {book.coverImage ? (
-                    <img
-                      className="meeting-access-mini-image"
-                      src={book.coverImage}
-                      alt=""
-                      loading="lazy"
-                      onError={(event) => {
-                        event.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="meeting-access-mini-fallback">
-                      <span className="meeting-access-mini-spine" />
-                    </div>
-                  )}
-                </div>
                 <div className="meeting-access-body">
                   <h3 className="meeting-access-title font-serif">{book.title}</h3>
                   <p className="meeting-access-author">{book.author}</p>
-                  <span className="meeting-access-status">Matched by book</span>
+                  <span className="meeting-access-status">Featured for Meet</span>
                 </div>
                 <button
                   type="button"
@@ -185,9 +163,6 @@ export default function MeetingAccessHub({ currentUser }) {
             if (!book?.sourceId) return null;
             return (
               <article key={`${book.source}:${book.sourceId}`} className="meeting-access-card glass-panel">
-                <div className="meeting-access-mini-cover" aria-hidden="true">
-                  {book.coverImage ? <img className="meeting-access-mini-image" src={book.coverImage} alt="" loading="lazy" /> : <div className="meeting-access-mini-fallback"><span className="meeting-access-mini-spine" /></div>}
-                </div>
                 <div className="meeting-access-body">
                   <h3 className="meeting-access-title font-serif">{book.title}</h3>
                   <p className="meeting-access-author">{book.author}</p>
