@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useDebouncedValue from './useDebouncedValue';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
+import { getApiBaseUrl } from '../utils/serviceUrls';
+import { log } from '../utils/logger';
 
 const normalizeQuery = (value) => String(value || '').trim();
+const BASE_URL = getApiBaseUrl();
 
 export default function useGlobalSearch(query) {
   const debounced = useDebouncedValue(query, 300);
@@ -28,11 +31,14 @@ export default function useGlobalSearch(query) {
     abortRef.current = controller;
     Promise.resolve().then(() => setState((prev) => ({ ...prev, loading: true, error: '' })));
 
-    fetch(`/api/search?q=${encodeURIComponent(normalized)}`, { signal: controller.signal })
+    const url = `${BASE_URL}/search?q=${encodeURIComponent(normalized)}`;
+    log('Search Query:', normalized);
+    log('Request URL:', url);
+
+    fetch(url, { signal: controller.signal, credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `HTTP ${res.status}`);
+          throw new Error(`API failed (${res.status})`);
         }
         return res.json();
       })

@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
-import { buildSafeErrorBody, isProd } from '../utils/runtime.js';
+import { isProd } from '../utils/runtime.js';
+import { log } from '../utils/logger.js';
 
 const trimTrailingSlash = (value) => String(value || '').replace(/\/$/, '');
 
@@ -64,6 +65,16 @@ const isLocalFallbackEnabled = () => {
 
 const parseBookId = (bookId) => {
   const raw = String(bookId || '').trim();
+  const composite = raw.match(/^([a-z0-9_-]+):(.+)$/i);
+  if (composite) {
+    const [, sourceRaw, sourceIdRaw] = composite;
+    const source = String(sourceRaw || '').trim().toLowerCase();
+    const sourceId = String(sourceIdRaw || '').trim();
+    if (source === 'gutenberg' && /^\d+$/.test(sourceId)) {
+      return { gutenbergId: Number.parseInt(sourceId, 10) };
+    }
+  }
+
   const gutenbergMatch = raw.match(/^g?(\d+)$/i);
   if (gutenbergMatch) {
     return { gutenbergId: Number.parseInt(gutenbergMatch[1], 10) };
@@ -219,6 +230,7 @@ const forwardToBookFriend = async (req, path, payload) => {
 
 export const startAgentSession = async (req, res) => {
   try {
+    log('Bookfriend request body:', req.body);
     validateStartPayload(req.body || {});
     const { book_id: explicitBookId, chapter_progress: chapterProgress } = req.body || {};
     const userId = req.user?._id?.toString() || req.user?.anonymousId;
@@ -252,10 +264,12 @@ export const startAgentSession = async (req, res) => {
 
       console.warn('[AGENT] BookFriend unavailable, using local fallback mode for start.');
 
-      const book = await findBookForAgent(bookId);
-      if (!book) {
-        return res.status(404).json({ message: 'Book not found for this session.' });
-      }
+      const book = await findBookForAgent(bookId) || {
+        title: String(req.body?.book_title || 'this book').trim() || 'this book',
+        author: String(req.body?.book_author || '').trim(),
+        synopsis: '',
+        chapters: [],
+      };
 
       const sessionId = crypto.randomUUID();
       localSessionStore.set(sessionId, {
@@ -271,15 +285,13 @@ export const startAgentSession = async (req, res) => {
     res.status(201).json(data);
   } catch (error) {
     const status = error.statusCode || 502;
-    res.status(status).json(buildSafeErrorBody(
-      error.message || 'Unable to start BookFriend session.',
-      error,
-    ));
+    res.status(status).json({ error: error.message || 'Unable to start BookFriend session.' });
   }
 };
 
 export const sendAgentMessage = async (req, res) => {
   try {
+    log('Bookfriend request body:', req.body);
     validateMessagePayload(req.body || {});
     let data;
 
@@ -323,15 +335,13 @@ export const sendAgentMessage = async (req, res) => {
     res.json(data);
   } catch (error) {
     const status = error.statusCode || 502;
-    res.status(status).json(buildSafeErrorBody(
-      error.message || 'Unable to fetch BookFriend response.',
-      error,
-    ));
+    res.status(status).json({ error: error.message || 'Unable to fetch BookFriend response.' });
   }
 };
 
 export const endAgentSession = async (req, res) => {
   try {
+    log('Bookfriend request body:', req.body);
     let data;
 
     try {
@@ -361,9 +371,6 @@ export const endAgentSession = async (req, res) => {
     res.json(data);
   } catch (error) {
     const status = error.statusCode || 502;
-    res.status(status).json(buildSafeErrorBody(
-      error.message || 'Unable to end BookFriend session.',
-      error,
-    ));
+    res.status(status).json({ error: error.message || 'Unable to end BookFriend session.' });
   }
 };

@@ -3,6 +3,16 @@ import { Book } from '../models/Book.js';
 
 const parseBookId = (bookId) => {
   const raw = String(bookId || '').trim();
+  const composite = raw.match(/^([a-z0-9_-]+):(.+)$/i);
+  if (composite) {
+    const [, sourceRaw, sourceIdRaw] = composite;
+    const source = String(sourceRaw || '').trim().toLowerCase();
+    const sourceId = String(sourceIdRaw || '').trim();
+    if (source === 'gutenberg' && /^\d+$/.test(sourceId)) {
+      return { gutenbergId: Number.parseInt(sourceId, 10) };
+    }
+  }
+
   const goodMatch = raw.match(/^g?(\d+)$/i);
   if (goodMatch) {
     return { gutenbergId: Number.parseInt(goodMatch[1], 10) };

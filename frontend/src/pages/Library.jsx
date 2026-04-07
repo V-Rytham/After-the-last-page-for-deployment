@@ -8,9 +8,12 @@ import useOnboarding from '../hooks/useOnboarding';
 import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
 import AuthRequired from '../components/auth/AuthRequired';
+import { getApiBaseUrl } from '../utils/serviceUrls';
+import { log } from '../utils/logger';
 import './Library.css';
 
 const normalizeQuery = (value) => String(value || '').trim();
+const BASE_URL = getApiBaseUrl();
 
 export default function Library({ currentUser }) {
   const selectedGenres = useSelectedGenres();
@@ -45,11 +48,14 @@ export default function Library({ currentUser }) {
     abortRef.current = controller;
     Promise.resolve().then(() => setSearchState((prev) => ({ ...prev, loading: true, error: '' })));
 
-    fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+    const url = `${BASE_URL}/search?q=${encodeURIComponent(q)}`;
+    log('Search Query:', q);
+    log('Request URL:', url);
+
+    fetch(url, { signal: controller.signal, credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `HTTP ${res.status}`);
+          throw new Error(`API failed (${res.status})`);
         }
         return res.json();
       })

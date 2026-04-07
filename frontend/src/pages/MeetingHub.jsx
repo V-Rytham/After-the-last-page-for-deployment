@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import api from '../utils/api';
 import { getStoredToken } from '../utils/auth';
 import { getApiBaseUrl, getSocketServerUrl } from '../utils/serviceUrls';
+import { log } from '../utils/logger';
 import './MeetingHub.css';
 
 const socketServer = getSocketServerUrl();
@@ -517,15 +518,27 @@ const MeetingHub = () => {
   };
 
   const handleTalkToBookFriend = async () => {
+    log('Bookfriend clicked');
     setBookFriendLoading(true);
     setMatchNotice('');
     try {
-      const { data } = await api.post('/agent/start', { book_id: book._id || book.id || bookId });
+      const inferredBookId = (
+        String(book?.source || '').trim().toLowerCase() === 'gutenberg'
+          ? (book?.sourceId || book?.gutenbergId || '')
+          : (book?._id || book?.id || bookId)
+      );
+      const payload = {
+        book_id: String(inferredBookId || '').trim(),
+        book_title: book?.title || '',
+        book_author: book?.author || '',
+      };
+      log('Payload:', payload);
+      const { data } = await api.post('/agent/start', payload);
       setBookFriendSessionId(data.session_id);
       setMessages([]);
       setPhase('bookfriend');
-    } catch {
-      setMatchNotice('BookFriend is unavailable right now. Please try again shortly.');
+    } catch (error) {
+      setMatchNotice(error?.response?.data?.error || error?.response?.data?.message || 'BookFriend is unavailable right now. Please try again shortly.');
     } finally {
       setBookFriendLoading(false);
     }
@@ -538,7 +551,9 @@ const MeetingHub = () => {
     setMessages((prev) => [...prev, { text: trimmed, sender: 'me', timestamp: new Date() }]);
     setChatInput('');
     try {
-      const { data } = await api.post('/agent/message', { session_id: bookFriendSessionId, message: trimmed });
+      const payload = { session_id: bookFriendSessionId, message: trimmed };
+      log('Payload:', payload);
+      const { data } = await api.post('/agent/message', payload);
       setMessages((prev) => [...prev, { text: data.response, sender: 'bookfriend', timestamp: new Date() }]);
     } catch {
       setMessages((prev) => [...prev, { text: 'Sorry, I lost the thread for a moment. Could you try that again?', sender: 'bookfriend', timestamp: new Date() }]);
