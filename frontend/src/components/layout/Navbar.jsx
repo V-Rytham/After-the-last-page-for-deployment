@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, Moon, Palette, Sun, X } from 'lucide-react';
+import { ChevronRight, LogIn, Moon, Palette, Sun, UserPlus, X } from 'lucide-react';
 import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
 
@@ -95,6 +95,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
     navigate('/profile');
   };
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+  const guestName = currentUser?.anonymousId ? `Guest (${currentUser.anonymousId})` : 'Guest mode';
 
   const handleSignOut = async () => {
     setProfileMenuOpen(false);
@@ -141,26 +142,32 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               {uiTheme === 'dark' ? <Sun size={17} /> : uiTheme === 'sepia' ? <Palette size={17} /> : <Moon size={17} />}
             </button>
 
-            <div className="profile-menu-wrap" ref={profileMenuRef}>
-              <ProfileAvatar
-                user={currentUser}
-                label="Open profile menu"
-                onClick={() => setProfileMenuOpen((open) => !open)}
-              />
-              {profileMenuOpen ? (
-                <div className="profile-dropdown" role="menu" aria-label="Profile menu">
-                  <button type="button" className="profile-dropdown-item" role="menuitem" onClick={handleViewProfile}>View profile</button>
-                  {isMember ? (
+            {isMember ? (
+              <div className="profile-menu-wrap" ref={profileMenuRef}>
+                <ProfileAvatar
+                  user={currentUser}
+                  label="Open profile menu"
+                  onClick={() => setProfileMenuOpen((open) => !open)}
+                />
+                {profileMenuOpen ? (
+                  <div className="profile-dropdown" role="menu" aria-label="Profile menu">
+                    <button type="button" className="profile-dropdown-item" role="menuitem" onClick={handleViewProfile}>View profile</button>
                     <button type="button" className="profile-dropdown-item is-danger" role="menuitem" onClick={handleSignOut}>
                       Sign out
                     </button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="guest-auth-controls">
+                <span className="guest-pill">{guestName}</span>
+                <button type="button" className="btn-secondary sm" onClick={() => navigate('/auth?mode=login')}><LogIn size={16} /> Login</button>
+                <button type="button" className="btn-primary sm" onClick={() => navigate('/auth?mode=signup')}><UserPlus size={16} /> Sign up</button>
+              </div>
+            )}
           </div>
 
-          <ProfileAvatar user={currentUser} className="mobile-menu-avatar" onClick={() => setDrawerOpen(true)} label="Open navigation menu" />
+          {isMember ? <ProfileAvatar user={currentUser} className="mobile-menu-avatar" onClick={() => setDrawerOpen(true)} label="Open navigation menu" /> : null}
         </div>
       </header>
 
@@ -174,7 +181,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
           </header>
 
           <div className="drawer-avatar-wrap">
-            <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} />
+            {isMember ? <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} /> : <span className="guest-pill">{guestName}</span>}
           </div>
 
           <nav className="drawer-nav" aria-label="Mobile navigation">
@@ -205,10 +212,15 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               ))}
             </div>
 
-            <Link to="/settings" className="drawer-action-row" onClick={() => setDrawerOpen(false)}>Profile Settings</Link>
+            {isMember ? <Link to="/settings" className="drawer-action-row" onClick={() => setDrawerOpen(false)}>Profile Settings</Link> : null}
             {isMember ? (
               <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign out</button>
-            ) : null}
+            ) : (
+              <>
+                <button type="button" className="drawer-action-row" onClick={() => { setDrawerOpen(false); navigate('/auth?mode=login'); }}>Login</button>
+                <button type="button" className="drawer-action-row" onClick={() => { setDrawerOpen(false); navigate('/auth?mode=signup'); }}>Sign up</button>
+              </>
+            )}
           </div>
         </div>
       </aside>

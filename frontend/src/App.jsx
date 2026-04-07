@@ -23,6 +23,7 @@ import GenreOnboardingPage from './pages/GenreOnboardingPage';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
+import { applyThemeTokens } from './styles/theme';
 import FirstChapterExperience from './components/onboarding/FirstChapterExperience';
 import './index.css';
 
@@ -82,7 +83,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
           <Route path="/" element={<LandingPage currentUser={currentUser} />} />
           <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
           <Route path="/desk" element={<PrivateRoute><BooksLibrary currentUser={currentUser} /></PrivateRoute>} />
-          <Route path="/library" element={<PrivateRoute><Library /></PrivateRoute>} />
+          <Route path="/library" element={<PrivateRoute><Library currentUser={currentUser} /></PrivateRoute>} />
           <Route path="/onboarding/genres" element={<PrivateRoute><GenreOnboardingPage onUserUpdate={onUserUpdate} /></PrivateRoute>} />
           <Route path="/books" element={<Navigate to="/desk" replace />} />
           <Route path="/request-book" element={<PrivateRoute><RequestBookPage /></PrivateRoute>} />
@@ -203,6 +204,7 @@ const App = () => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', uiTheme);
     window.localStorage.setItem(THEME_STORAGE_KEY, uiTheme);
+    applyThemeTokens(uiTheme);
   }, [uiTheme]);
 
   const handleAuthSuccess = useCallback((user) => {

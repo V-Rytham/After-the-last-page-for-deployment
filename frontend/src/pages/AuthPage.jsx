@@ -1,6 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, LoaderCircle, LogIn, Sparkles, UserPlus } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  LoaderCircle,
+  Lock,
+  LogIn,
+  Mail,
+  UserPlus,
+} from 'lucide-react';
+import AuthCard from '../components/auth/AuthCard';
 import api from '../utils/api';
 import { saveAuthSession } from '../utils/auth';
 import './AuthPage.css';
@@ -44,6 +53,12 @@ const getUsernameValidationMessage = (username) => {
   return '';
 };
 
+const marketingPoints = [
+  'Build your personal reading desk',
+  'See what others are reading after the same books',
+  'Join conversations that actually go somewhere',
+];
+
 export default function AuthPage({ onAuthSuccess, currentUser }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,7 +70,6 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
   const [serverOnline, setServerOnline] = useState(true);
   const [usernameState, setUsernameState] = useState({ status: 'idle', message: '' });
 
-  const isGuest = currentUser?.isAnonymous;
   const redirectPath = location.state?.from || '/desk';
   const normalizedSignupUsername = normalizeUsername(signupForm.username);
 
@@ -67,10 +81,15 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
 
   useEffect(() => {
     const query = new URLSearchParams(location.search);
+    const requestedMode = query.get('mode');
+    if (requestedMode === 'signup' || requestedMode === 'login') {
+      setMode(requestedMode);
+    }
+
     if (query.get('error') === 'google_login_failed') {
       setError('Google login is currently unavailable.');
     }
-  }, [location.search, navigate, onAuthSuccess, redirectPath]);
+  }, [location.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,13 +163,6 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
       window.clearTimeout(timeoutId);
     };
   }, [mode, normalizedSignupUsername, signupForm.username]);
-
-  const introCopy = useMemo(() => {
-    if (isGuest) {
-      return 'Save your identity, keep your reading history, and carry your presence into every room.';
-    }
-    return 'Create an account or sign in to keep your reading identity with you.';
-  }, [isGuest]);
 
   const handleLoginChange = (event) => {
     const { name, value } = event.target;
@@ -254,27 +266,19 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
   return (
     <div className="auth-page animate-fade-in">
       <div className="auth-shell">
-        <section className="auth-copy glass-panel">
-          <div className="auth-badge">
-            <Sparkles size={16} />
-            <span>Reader Access</span>
-          </div>
-          <h1 className="font-serif auth-title">Keep your reading world with you.</h1>
-          <p className="auth-subtitle">{introCopy}</p>
-          <div className="auth-points">
-            <div className="auth-point"><span className="auth-point-dot" /><span>Claim a public username for threads and book conversations</span></div>
-            <div className="auth-point"><span className="auth-point-dot" /><span>Add a short bio so your profile feels lived in, not blank</span></div>
-            <div className="auth-point"><span className="auth-point-dot" /><span>Keep your progress and discussion presence across devices</span></div>
-          </div>
-        </section>
+        <AuthCard
+          title="Your reading life, organized."
+          subtitle="Track what you read, find people who think like you, and turn books into conversations."
+          points={marketingPoints}
+        />
 
         <section className="auth-card glass-panel">
           <div className="auth-tabs">
             <button className={`auth-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => { setMode('login'); setError(''); }}>
-              <LogIn size={18} /> Login
+              <LogIn size={18} strokeWidth={2} className="auth-tab-icon" /> Login
             </button>
             <button className={`auth-tab ${mode === 'signup' ? 'active' : ''}`} onClick={() => { setMode('signup'); setError(''); }}>
-              <UserPlus size={18} /> Sign up
+              <UserPlus size={18} strokeWidth={2} className="auth-tab-icon" /> Sign up
             </button>
           </div>
 
@@ -283,8 +287,8 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
 
           {mode === 'login' ? (
             <form className="auth-form" onSubmit={handleLogin}>
-              <label className="auth-label"><span>Email</span><input name="email" type="email" value={loginForm.email} onChange={handleLoginChange} className="auth-input" required /></label>
-              <label className="auth-label"><span>Password</span><input name="password" type="password" value={loginForm.password} onChange={handleLoginChange} className="auth-input" required /></label>
+              <label className="auth-label"><span>Email</span><span className="auth-input-wrap"><Mail size={18} strokeWidth={2} className="auth-field-icon" /><input name="email" type="email" value={loginForm.email} onChange={handleLoginChange} className="auth-input" required /></span></label>
+              <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={loginForm.password} onChange={handleLoginChange} className="auth-input" required /></span></label>
               <button type="submit" className="btn-primary auth-submit" disabled={submitting}>{submitting ? 'Signing in...' : 'Login'} <ArrowRight size={18} /></button>
             </form>
           ) : (
@@ -300,10 +304,10 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
               </div>
               <label className="auth-label"><span>Bio <em>(optional)</em></span><textarea name="bio" value={signupForm.bio} onChange={handleSignupChange} className="auth-input auth-textarea" maxLength={160} rows={3} placeholder="A short note about what you read or how you show up in discussion." /></label>
               <div className="auth-character-count">{signupForm.bio.length}/160</div>
-              <label className="auth-label"><span>Email</span><input name="email" type="email" value={signupForm.email} onChange={handleSignupChange} className="auth-input" required /></label>
+              <label className="auth-label"><span>Email</span><span className="auth-input-wrap"><Mail size={18} strokeWidth={2} className="auth-field-icon" /><input name="email" type="email" value={signupForm.email} onChange={handleSignupChange} className="auth-input" required /></span></label>
               <div className="auth-form-grid auth-form-grid-split">
-                <label className="auth-label"><span>Password</span><input name="password" type="password" value={signupForm.password} onChange={handleSignupChange} className="auth-input" minLength={6} required /></label>
-                <label className="auth-label"><span>Confirm password</span><input name="confirmPassword" type="password" value={signupForm.confirmPassword} onChange={handleSignupChange} className="auth-input" minLength={6} required /></label>
+                <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={signupForm.password} onChange={handleSignupChange} className="auth-input" minLength={6} required /></span></label>
+                <label className="auth-label"><span>Confirm password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="confirmPassword" type="password" value={signupForm.confirmPassword} onChange={handleSignupChange} className="auth-input" minLength={6} required /></span></label>
               </div>
               <label className="auth-label"><span>Profile image <em>(optional)</em></span><input name="profileImageFile" type="file" accept="image/*" onChange={handleSignupChange} className="auth-input" /></label>
               <button type="submit" className="btn-primary auth-submit" disabled={submitting || usernameState.status === 'checking'}>{submitting ? 'Creating account...' : 'Create account'} <ArrowRight size={18} /></button>

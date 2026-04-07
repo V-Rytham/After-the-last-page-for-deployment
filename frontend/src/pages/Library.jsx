@@ -7,11 +7,12 @@ import useDebouncedValue from '../hooks/useDebouncedValue';
 import useOnboarding from '../hooks/useOnboarding';
 import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
+import AuthRequired from '../components/auth/AuthRequired';
 import './Library.css';
 
 const normalizeQuery = (value) => String(value || '').trim();
 
-export default function Library() {
+export default function Library({ currentUser }) {
   const selectedGenres = useSelectedGenres();
   const { books: personalizedBooks, loading: recLoading, error: recError } = useRecommendations(selectedGenres);
 
@@ -77,6 +78,13 @@ export default function Library() {
     const timeout = window.setTimeout(() => nextStep(), 3000);
     return () => window.clearTimeout(timeout);
   }, [highlightBookId, nextStep, onboardingCompleted, onboardingStep]);
+
+
+  const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+
+  if (!isMember) {
+    return <AuthRequired previewClassName="library-page" previewLabel="Preview your future library after signing in." />;
+  }
 
   const showSearchResults = Boolean(normalizedSearch);
   const curatedBooks = personalizedBooks;

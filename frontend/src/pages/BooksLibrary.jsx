@@ -6,6 +6,7 @@ import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
 import { readSelectedGenres } from '../utils/genrePreferences';
+import AuthRequired from '../components/auth/AuthRequired';
 import './BooksLibrary.css';
 
 const deskDataCache = {
@@ -173,6 +174,7 @@ const loadDeskData = async (currentUser, { force = false } = {}) => {
 };
 
 const BooksLibrary = ({ currentUser }) => {
+  const isMember = Boolean(currentUser && !currentUser.isAnonymous);
   const [books, setBooks] = useState([]);
   const [sessions, setSessions] = useState({});
   const [contentRecommendations, setContentRecommendations] = useState([]);
@@ -200,6 +202,10 @@ const BooksLibrary = ({ currentUser }) => {
   }, []);
 
   const refreshDesk = useCallback(async ({ force = false } = {}) => {
+    if (!isMember) {
+      return;
+    }
+
     try {
       setLoading(true);
       setRecommendationLoading(true);
@@ -224,13 +230,15 @@ const BooksLibrary = ({ currentUser }) => {
       setLoading(false);
       setRecommendationLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, isMember]);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      await refreshDesk({ force: true });
-    })();
+    if (isMember) {
+      (async () => {
+        await refreshDesk({ force: true });
+      })();
+    }
 
     const refreshFromStorage = () => {
       if (!alive) return;
@@ -245,7 +253,7 @@ const BooksLibrary = ({ currentUser }) => {
       window.removeEventListener('storage', refreshFromStorage);
       window.removeEventListener('focus', refreshFromStorage);
     };
-  }, [refreshDesk]);
+  }, [isMember, refreshDesk]);
 
   const greeting = `${getGreetingPrefix()}, ${getDisplayName(currentUser)}.`;
   const currentReading = useMemo(() => getLastActiveBook(books, sessions), [books, sessions]);
@@ -322,6 +330,7 @@ const BooksLibrary = ({ currentUser }) => {
     && filteredSocialRecommendations.length === 0;
 
   return (
+    !isMember ? <AuthRequired previewClassName="desk-page" previewLabel="Your reading desk unlocks once you log in." /> : (
     <div className="desk-page editorial-theme">
       <div className="desk-shell">
         <section className="desk-search-panel" aria-label="Filter books on desk">
@@ -480,7 +489,7 @@ const BooksLibrary = ({ currentUser }) => {
           </section>
         )}
       </div>
-    </div>
+    </div>)
   );
 };
 
