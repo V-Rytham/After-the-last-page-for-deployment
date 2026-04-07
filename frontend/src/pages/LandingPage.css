@@ -14,17 +14,6 @@
   gap: clamp(1rem, 2.2vw, 1.5rem);
 }
 
-.home2-page .home2-hero,
-.home2-page .home2-desk,
-.home2-page .home2-experience,
-.home2-page .home2-emotional {
-  animation: home2-rise 620ms ease both;
-}
-
-.home2-page .home2-desk { animation-delay: 90ms; }
-.home2-page .home2-experience { animation-delay: 160ms; }
-.home2-page .home2-emotional { animation-delay: 230ms; }
-
 .home2-hero {
   padding: clamp(2.5rem, 6vw, 4.5rem) var(--page-gutter) clamp(1.5rem, 3.5vw, 2.5rem);
   text-align: center;
@@ -83,7 +72,7 @@
 
 .home2-btn:hover,
 .home2-btn:focus-visible {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .home2-btn-primary {
@@ -284,12 +273,12 @@
   display: grid;
   align-items: end;
   box-shadow: var(--shadow-panel);
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .home2-exp-card:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--border-soft) 40%, var(--accent));
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
 }
 
 .home2-exp-card h3 {
@@ -366,17 +355,6 @@
 
   .home2-experience {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@keyframes home2-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 

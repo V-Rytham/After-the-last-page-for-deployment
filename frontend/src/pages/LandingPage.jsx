@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
 import HeroSection from '../components/homepage/HeroSection';
@@ -7,7 +8,10 @@ import MeetReadersCard from '../components/homepage/MeetReadersCard';
 import ThreadsCard from '../components/homepage/ThreadsCard';
 import ExperienceCard from '../components/homepage/ExperienceCard';
 import EmotionalSection from '../components/homepage/EmotionalSection';
+import { cardStagger } from '../components/homepage/motionPresets';
 import './LandingPage.css';
+
+const MotionSection = motion.section;
 
 const EXPERIENCE_ITEMS = [
   {
@@ -223,16 +227,24 @@ export default function LandingPage({ currentUser }) {
             </section>
           ) : null}
 
-          <section className="home2-experience" aria-label="Experience">
-            {EXPERIENCE_ITEMS.map((item) => (
+          <MotionSection
+            className="home2-experience"
+            aria-label="Experience"
+            variants={cardStagger}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.28 }}
+          >
+            {EXPERIENCE_ITEMS.map((item, index) => (
               <ExperienceCard
                 key={item.key}
                 title={item.title}
                 description={item.description}
                 tone={item.tone}
+                index={index}
               />
             ))}
-          </section>
+          </MotionSection>
 
           <EmotionalSection />
         </section>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, LogIn, Moon, Palette, Sun, UserPlus, X } from 'lucide-react';
+import { ChevronRight, Moon, Palette, Sun, X } from 'lucide-react';
 import { UI_THEMES } from '../../utils/uiThemes';
 import './Navbar.css';
 
@@ -95,7 +95,6 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
     navigate('/profile');
   };
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
-  const guestName = currentUser?.anonymousId ? `Guest (${currentUser.anonymousId})` : 'Guest mode';
 
   const handleSignOut = async () => {
     setProfileMenuOpen(false);
@@ -160,9 +159,9 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
               </div>
             ) : (
               <div className="guest-auth-controls">
-                <span className="guest-pill">{guestName}</span>
-                <button type="button" className="btn-secondary sm" onClick={() => navigate('/auth?mode=login')}><LogIn size={16} /> Login</button>
-                <button type="button" className="btn-primary sm" onClick={() => navigate('/auth?mode=signup')}><UserPlus size={16} /> Sign up</button>
+                <button type="button" className="btn-primary sm" onClick={() => navigate('/auth')}>
+                  Enter
+                </button>
               </div>
             )}
           </div>
@@ -181,7 +180,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
           </header>
 
           <div className="drawer-avatar-wrap">
-            {isMember ? <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} /> : <span className="guest-pill">{guestName}</span>}
+            {isMember ? <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} /> : null}
           </div>
 
           <nav className="drawer-nav" aria-label="Mobile navigation">
@@ -216,10 +215,7 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             {isMember ? (
               <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign out</button>
             ) : (
-              <>
-                <button type="button" className="drawer-action-row" onClick={() => { setDrawerOpen(false); navigate('/auth?mode=login'); }}>Login</button>
-                <button type="button" className="drawer-action-row" onClick={() => { setDrawerOpen(false); navigate('/auth?mode=signup'); }}>Sign up</button>
-              </>
+              <button type="button" className="drawer-action-row" onClick={() => { setDrawerOpen(false); navigate('/auth'); }}>Enter</button>
             )}
           </div>
         </div>
