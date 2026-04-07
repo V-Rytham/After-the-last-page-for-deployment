@@ -63,7 +63,7 @@ export const postRecommendationClick = async (req, res) => {
 
     trackRecommendationClickV2({ userId, bookId });
     return res.status(204).send();
-  } catch (error) {
+  } catch {
     return res.status(500).json({ message: 'Failed to track recommendation click.' });
   }
 };

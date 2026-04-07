@@ -25,6 +25,11 @@ const findCommentById = (comments, commentId) => {
 };
 
 const normalizeBookKey = (value) => String(value || '').trim().slice(0, 180);
+const sanitizeText = (value, maxLen) => String(value || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, maxLen);
 
 const buildBookFilter = (bookKey) => {
   const normalized = normalizeBookKey(bookKey);
@@ -117,7 +122,11 @@ export const createThread = async (req, res) => {
     const rawBookKey = req.body?.bookKey || req.body?.bookId;
     const { title, content, chapterReference } = req.body || {};
 
-    if (!rawBookKey || !title?.trim() || !content?.trim()) {
+    const sanitizedTitle = sanitizeText(title, 100);
+    const sanitizedContent = sanitizeText(content, 3_000);
+    const sanitizedChapterReference = sanitizeText(chapterReference, 120);
+
+    if (!rawBookKey || !sanitizedTitle || !sanitizedContent) {
       return res.status(400).json({ message: 'Book, title, and content are required.' });
     }
 
@@ -127,14 +136,6 @@ export const createThread = async (req, res) => {
 
     if (req.user?.isAnonymous) {
       return res.status(403).json({ message: 'Please sign in to join BookThreads.' });
-    }
-
-    if (String(title).trim().length > 100) {
-      return res.status(400).json({ message: 'Title must be 100 characters or fewer.' });
-    }
-
-    if (String(content).trim().length > 3_000) {
-      return res.status(400).json({ message: 'Thread content must be 3000 characters or fewer.' });
     }
 
     const bookKey = normalizeBookKey(rawBookKey);
@@ -147,9 +148,9 @@ export const createThread = async (req, res) => {
     const doc = {
       bookKey,
       authorAnonId,
-      title: title.trim(),
-      chapterReference: chapterReference?.trim() || '',
-      content: content.trim(),
+      title: sanitizedTitle,
+      chapterReference: sanitizedChapterReference,
+      content: sanitizedContent,
       likes: 0,
       likedBy: [],
       comments: [],
@@ -189,12 +190,9 @@ export const addComment = async (req, res) => {
       return res.status(403).json({ message: 'Please sign in to join BookThreads.' });
     }
 
-    const content = req.body.content?.trim();
+    const content = sanitizeText(req.body?.content, 1_200);
     if (!content) {
       return res.status(400).json({ message: 'Comment content is required.' });
-    }
-    if (content.length > 1_200) {
-      return res.status(400).json({ message: 'Comment content must be 1200 characters or fewer.' });
     }
 
     const newComment = {

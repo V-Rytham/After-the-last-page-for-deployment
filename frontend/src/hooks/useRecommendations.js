@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import api from '../utils/api';
 
 export default function useRecommendations(selectedGenres) {
   const [state, setState] = useState({ books: [], personalized: false, loading: false, error: '' });
   const abortRef = useRef(null);
 
   useEffect(() => {
-    if (selectedGenres.length === 0) return;
+    if (selectedGenres.length === 0) {
+      return () => {};
+    }
 
     console.log('SELECTED GENRES:', selectedGenres);
     console.log('FETCHING RECOMMENDATIONS');
@@ -16,19 +19,8 @@ export default function useRecommendations(selectedGenres) {
 
     Promise.resolve().then(() => setState((prev) => ({ ...prev, loading: true, error: '' })));
 
-    fetch('/api/recommendations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ genres: selectedGenres }),
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `HTTP ${res.status}`);
-        }
-        return res.json();
-      })
+    api.post('/recommendations', { genres: selectedGenres }, { signal: controller.signal })
+      .then(({ data }) => data)
       .then((data) => {
         const books = Array.isArray(data?.books) ? data.books : [];
         console.log('BOOKS RECEIVED:', books);
@@ -42,5 +34,11 @@ export default function useRecommendations(selectedGenres) {
     return () => controller.abort();
   }, [selectedGenres]);
 
-  return useMemo(() => state, [state]);
+  return useMemo(() => {
+    if (selectedGenres.length === 0) {
+      return { books: [], personalized: false, loading: false, error: '' };
+    }
+
+    return state;
+  }, [selectedGenres.length, state]);
 }
