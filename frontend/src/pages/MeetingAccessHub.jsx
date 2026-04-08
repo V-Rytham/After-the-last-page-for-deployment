@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Search, ShieldCheck } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
+import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import './MeetingAccessHub.css';
 
@@ -32,10 +33,12 @@ const sourceLabel = (source) => {
 export default function MeetingAccessHub({ currentUser }) {
   const navigate = useNavigate();
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
+  const { socketConnected, socketConnecting, socketError, ensureConnected } = useSocketConnection();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredBooks, setFeaturedBooks] = useState([]);
   const [joiningKey, setJoiningKey] = useState('');
+  const [joinNotice, setJoinNotice] = useState('');
   const { books, loading, error, query } = useGlobalSearch(searchTerm);
 
   const hasQuery = Boolean(query);
@@ -67,13 +70,22 @@ export default function MeetingAccessHub({ currentUser }) {
 
   const handleJoinDiscussion = async (book) => {
     const key = `${book.source}:${book.source_book_id}`;
+    if (!socketConnected) {
+      setJoinNotice(socketConnecting ? 'Connecting…' : 'Connecting to live room…');
+      return;
+    }
+
     setJoiningKey(key);
+    setJoinNotice('');
+
+    const attemptJoin = async () => api.post('/meet/join', {
+      source: book.source,
+      source_book_id: book.source_book_id,
+      prefType: 'text',
+    });
+
     try {
-      const { data } = await api.post('/meet/join', {
-        source: book.source,
-        source_book_id: book.source_book_id,
-        prefType: 'text',
-      });
+      const { data } = await attemptJoin();
 
       const roomId = String(data?.room_id || data?.canonical_book_id || '').trim();
       if (!roomId) throw new Error('Could not start discussion room.');
@@ -91,8 +103,38 @@ export default function MeetingAccessHub({ currentUser }) {
         },
       });
     } catch (joinError) {
-      const message = joinError?.response?.data?.message || joinError?.response?.data?.error || joinError?.message;
-      window.alert(message || 'Unable to join this discussion right now.');
+      const statusCode = Number(joinError?.response?.status || 0);
+      const serverMessage = String(joinError?.response?.data?.message || joinError?.response?.data?.error || '').trim();
+      const socketMismatch = statusCode === 409
+        && (/no active socket connection/i.test(serverMessage) || serverMessage === 'SOCKET_NOT_CONNECTED');
+
+      if (socketMismatch) {
+        setJoinNotice('Reconnecting to live room…');
+        try {
+          await ensureConnected({ forceReconnect: true });
+          const { data } = await attemptJoin();
+          const roomId = String(data?.room_id || data?.canonical_book_id || '').trim();
+          if (roomId) {
+            navigate(`/meet/${encodeURIComponent(roomId)}`, {
+              state: {
+                meetRoom: {
+                  room_id: roomId,
+                  canonical_book_id: roomId,
+                  source: book.source,
+                  source_book_id: book.source_book_id,
+                  title: String(data?.book?.title || book.title || 'Untitled'),
+                  author: String(data?.book?.author || book.author || 'Unknown author'),
+                },
+              },
+            });
+            return;
+          }
+        } catch {
+          // fall through
+        }
+      }
+
+      setJoinNotice('Could not join this discussion right now. Please try again in a moment.');
     } finally {
       setJoiningKey('');
     }
@@ -126,6 +168,11 @@ export default function MeetingAccessHub({ currentUser }) {
         <div className="meeting-access-hero-copy">
           <h1 className="font-serif">Meet readers in the same book discussion room.</h1>
           <p>Search, select a verified book result, and join instantly.</p>
+          <p className="meeting-access-live-state">
+            {socketConnected ? 'Live room ready.' : (socketConnecting ? 'Connecting…' : 'Connecting…')}
+          </p>
+          {!socketConnected && socketError ? <p className="meeting-access-live-error">{socketError}</p> : null}
+          {joinNotice ? <p className="meeting-access-live-error">{joinNotice}</p> : null}
         </div>
         <label className="meeting-access-search" htmlFor="meeting-search-input">
           <Search size={16} aria-hidden="true" />
@@ -173,10 +220,11 @@ export default function MeetingAccessHub({ currentUser }) {
                 <button
                   type="button"
                   className="meeting-book-cta"
-                  disabled={Boolean(joiningKey)}
+                  disabled={Boolean(joiningKey) || !socketConnected}
                   onClick={() => handleJoinDiscussion(book)}
                 >
-                  {isJoining ? 'Joining…' : 'Join Discussion →'}
+                  {isJoining || !socketConnected ? <span className="meeting-cta-spinner" aria-hidden="true" /> : null}
+                  {isJoining ? 'Joining…' : (socketConnected ? 'Join Discussion →' : 'Connecting…')}
                 </button>
               </article>
             );

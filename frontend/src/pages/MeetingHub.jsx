@@ -1,20 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3 } from 'lucide-react';
-import { io } from 'socket.io-client';
+import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import { getStoredToken } from '../utils/auth';
-import { getApiBaseUrl, getSocketServerUrl } from '../utils/serviceUrls';
+import { getApiBaseUrl } from '../utils/serviceUrls';
 import { log } from '../utils/logger';
 import './MeetingHub.css';
 
-const socketServer = getSocketServerUrl();
 const BOOK_READ_TIMEOUT_MS = 120000;
 
 const MeetingHub = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { socket, socketConnected, ensureConnected } = useSocketConnection();
 
   const initialPrefType = useMemo(() => {
     const candidate = String(location?.state?.prefType || 'text').trim().toLowerCase();
@@ -55,7 +55,7 @@ const MeetingHub = () => {
   const [searchingDots, setSearchingDots] = useState('.');
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
   const pendingLeaveActionRef = useRef(null);
-  const socketRef = useRef(null);
+  const socketRef = useRef(socket);
   const searchIntervalRef = useRef(null);
   const cleanupInFlightRef = useRef(false);
 
@@ -80,6 +80,10 @@ const MeetingHub = () => {
   useEffect(() => {
     roomIdRef.current = roomId;
   }, [roomId]);
+
+  useEffect(() => {
+    socketRef.current = socket;
+  }, [socket]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -133,42 +137,36 @@ const MeetingHub = () => {
 
     fetchData();
 
-    socketRef.current = io(socketServer, {
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 600,
-      timeout: 3000,
-      auth: {
-        token: getStoredToken(),
-      },
-    });
+    const activeSocket = socketRef.current;
+    if (!activeSocket) {
+      return () => {};
+    }
 
-    socketRef.current.on('connect', () => {
+    const onConnect = () => {
       setSocketReady(true);
       setMatchNotice('');
-    });
+    };
 
-    socketRef.current.on('connect_error', (error) => {
+    const onConnectError = (error) => {
       console.error('Socket connection failed:', error);
       setSocketReady(false);
       setMatchNotice('Live matching is offline right now. You can still enter the community thread.');
-    });
+    };
 
-    socketRef.current.on('match_found', ({ roomId: matchedRoomId, role }) => {
+    const onMatchFound = ({ roomId: matchedRoomId, role }) => {
       setBookFriendOffered(false);
       setRoomId(matchedRoomId);
       setMatchRole(role || null);
       setPhase('connected');
-      socketRef.current?.emit('enter_conversation', { roomId: matchedRoomId });
+      activeSocket.emit('enter_conversation', { roomId: matchedRoomId });
       window.dispatchEvent(new Event('atlp-session-hint'));
-    });
+    };
 
-    socketRef.current.on('access_denied', ({ message }) => {
+    const onAccessDenied = ({ message }) => {
       setMatchNotice(String(message || 'Live reading rooms are only available for open-access books.'));
-    });
+    };
 
-    socketRef.current.on('match_stats', (payload) => {
+    const onMatchStats = (payload) => {
       if (payload && typeof payload === 'object') {
         setMatchStats({
           online: Number.isFinite(Number(payload.online)) ? Number(payload.online) : null,
@@ -176,13 +174,13 @@ const MeetingHub = () => {
           updatedAt: payload.updatedAt || null,
         });
       }
-    });
+    };
 
-    socketRef.current.on('receive_message', ({ message }) => {
+    const onReceiveMessage = ({ message }) => {
       setMessages((prev) => [...prev, { text: message, sender: 'partner', timestamp: new Date() }]);
-    });
+    };
 
-    socketRef.current.on('partner_left', () => {
+    const onPartnerLeft = () => {
       if (peerRef.current) {
         try { peerRef.current.close(); } catch { /* ignore */ }
         peerRef.current = null;
@@ -206,9 +204,9 @@ const MeetingHub = () => {
       setMessages([]);
       setPhase('preferences');
       window.dispatchEvent(new Event('atlp-session-hint'));
-    });
+    };
 
-    socketRef.current.on('webrtc_offer', async ({ offer }) => {
+    const onWebRtcOffer = async ({ offer }) => {
       if (!offer) return;
       try {
         if (!localStreamRef.current) {
@@ -224,15 +222,15 @@ const MeetingHub = () => {
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socketRef.current?.emit('webrtc_answer', { roomId: roomIdRef.current, answer: pc.localDescription });
+        activeSocket.emit('webrtc_answer', { roomId: roomIdRef.current, answer: pc.localDescription });
         setMediaStatus('connecting');
       } catch (error) {
         setMediaError(error?.message || 'Failed handling WebRTC offer.');
         setMediaStatus('failed');
       }
-    });
+    };
 
-    socketRef.current.on('webrtc_answer', async ({ answer }) => {
+    const onWebRtcAnswer = async ({ answer }) => {
       if (!answer) return;
       try {
         const pc = peerRef.current;
@@ -243,9 +241,9 @@ const MeetingHub = () => {
         setMediaError(error?.message || 'Failed handling WebRTC answer.');
         setMediaStatus('failed');
       }
-    });
+    };
 
-    socketRef.current.on('webrtc_ice_candidate', async ({ candidate }) => {
+    const onWebRtcCandidate = async ({ candidate }) => {
       if (!candidate) return;
       try {
         const pc = peerRef.current;
@@ -254,12 +252,38 @@ const MeetingHub = () => {
       } catch {
         // ignore
       }
-    });
+    };
+
+    activeSocket.on('connect', onConnect);
+    activeSocket.on('connect_error', onConnectError);
+    activeSocket.on('match_found', onMatchFound);
+    activeSocket.on('access_denied', onAccessDenied);
+    activeSocket.on('match_stats', onMatchStats);
+    activeSocket.on('receive_message', onReceiveMessage);
+    activeSocket.on('partner_left', onPartnerLeft);
+    activeSocket.on('webrtc_offer', onWebRtcOffer);
+    activeSocket.on('webrtc_answer', onWebRtcAnswer);
+    activeSocket.on('webrtc_ice_candidate', onWebRtcCandidate);
+
+    setSocketReady(activeSocket.connected);
 
     return () => {
-      if (socketRef.current) socketRef.current.disconnect();
+      activeSocket.off('connect', onConnect);
+      activeSocket.off('connect_error', onConnectError);
+      activeSocket.off('match_found', onMatchFound);
+      activeSocket.off('access_denied', onAccessDenied);
+      activeSocket.off('match_stats', onMatchStats);
+      activeSocket.off('receive_message', onReceiveMessage);
+      activeSocket.off('partner_left', onPartnerLeft);
+      activeSocket.off('webrtc_offer', onWebRtcOffer);
+      activeSocket.off('webrtc_answer', onWebRtcAnswer);
+      activeSocket.off('webrtc_ice_candidate', onWebRtcCandidate);
     };
-  }, [bookId, matchBookId, meetRoomState, navigate, parsedSourceRoute, isObjectId]);
+  }, [bookId, matchBookId, meetRoomState, navigate, parsedSourceRoute, isObjectId, socket]);
+
+  useEffect(() => {
+    setSocketReady(socketConnected);
+  }, [socketConnected]);
 
   const sessionIsSensitive = phase === 'searching' || phase === 'connected' || phase === 'bookfriend';
 
@@ -521,8 +545,13 @@ const MeetingHub = () => {
 
   const handleStartSearch = async () => {
     if (!socketRef.current?.connected) {
-      setMatchNotice('Live matching is unavailable right now. Please try again shortly, or enter the community thread.');
-      return;
+      setMatchNotice('Connecting to live matching…');
+      try {
+        await ensureConnected();
+      } catch {
+        setMatchNotice('Live matching is unavailable right now. Please try again shortly, or enter the community thread.');
+        return;
+      }
     }
     setPhase('searching');
     setMatchNotice('');
@@ -541,33 +570,7 @@ const MeetingHub = () => {
 
       if (socketMismatch) {
         try {
-          await new Promise((resolve, reject) => {
-            const socket = socketRef.current;
-            if (!socket) {
-              reject(new Error('Socket unavailable'));
-              return;
-            }
-
-            if (socket.connected) {
-              resolve();
-              return;
-            }
-
-            const timeout = window.setTimeout(() => {
-              socket.off('connect', onConnect);
-              reject(new Error('Socket reconnection timed out'));
-            }, 2200);
-
-            const onConnect = () => {
-              window.clearTimeout(timeout);
-              socket.off('connect', onConnect);
-              resolve();
-            };
-
-            socket.on('connect', onConnect);
-            socket.connect();
-          });
-
+          await ensureConnected({ forceReconnect: true });
           await attemptJoin();
           window.dispatchEvent(new Event('atlp-session-hint'));
           return;

@@ -4,6 +4,7 @@ import Navbar from './components/layout/Navbar';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
 import api from './utils/api';
 import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
@@ -235,16 +236,18 @@ const App = () => {
 
   return (
     <AuthProvider value={{ currentUser, setCurrentUser, authLoading }}>
-      <Router>
-        <AppShell
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        onUserUpdate={handleUserUpdate}
-        uiTheme={uiTheme}
-        onThemeChange={setUiTheme}
-        onAuthSuccess={handleAuthSuccess}
-      />
-      </Router>
+      <SocketProvider currentUser={currentUser}>
+        <Router>
+          <AppShell
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onUserUpdate={handleUserUpdate}
+          uiTheme={uiTheme}
+          onThemeChange={setUiTheme}
+          onAuthSuccess={handleAuthSuccess}
+        />
+        </Router>
+      </SocketProvider>
     </AuthProvider>
   );
 };

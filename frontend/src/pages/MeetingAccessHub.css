@@ -29,6 +29,14 @@
 
 .meeting-access-hero-copy h1 { margin: 0; font-size: clamp(1.35rem, 1.08rem + 1.1vw, 2rem); line-height: 1.15; }
 .meeting-access-hero-copy p { margin: 0.35rem 0 0; color: var(--text-secondary); }
+.meeting-access-live-state {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.meeting-access-live-error {
+  font-size: 0.8rem;
+  color: var(--intent-danger-text);
+}
 
 .meeting-access-search {
   display: inline-flex;
@@ -79,6 +87,9 @@
 }
 
 .meeting-book-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   border: 1px solid var(--intent-btn-border);
   background: var(--intent-btn-bg);
   color: var(--intent-btn-text);
@@ -87,6 +98,18 @@
   padding: 0 0.8rem;
   font-size: 0.82rem;
   white-space: nowrap;
+}
+.meeting-book-cta:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.meeting-cta-spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: meeting-cta-spin 0.85s linear infinite;
 }
 
 .meeting-book-card--skeleton { grid-template-columns: 1fr; }
@@ -103,6 +126,7 @@
 .meeting-access-empty { padding: 1rem; border-radius: var(--radius-lg); }
 
 @keyframes meeting-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes meeting-cta-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 @media (max-width: 800px) {
   .meeting-access-hero { grid-template-columns: 1fr; }
