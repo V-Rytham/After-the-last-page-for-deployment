@@ -80,7 +80,7 @@ export default function registerSocketEvents(io, sessionManager) {
       try {
         const access = await checkMeetAccess({ userId: socket.userId, bookId });
         if (!access.access) {
-          socket.emit('access_denied', { message: 'Access is locked for this book.' });
+          socket.emit('access_denied', { message: access?.message || 'Live reading rooms are only available for open-access books.' });
           return;
         }
       } catch (error) {

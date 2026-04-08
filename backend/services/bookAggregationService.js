@@ -1,12 +1,18 @@
 import { log } from '../utils/logger.js';
+import {
+  enrichArchiveReadability,
+  getArchiveDetailsUrl,
+  logArchiveMetric,
+  searchArchiveBooks,
+} from './sourceAdapters/archiveAdapter.js';
 
 const GUTENDEX_HOST = 'https://gutendex.com';
 const OPEN_LIBRARY_HOST = 'https://openlibrary.org';
-const INTERNET_ARCHIVE_HOST = 'https://archive.org';
 const GOOGLE_BOOKS_HOST = 'https://www.googleapis.com/books/v1/volumes';
 
 const SOURCE_GUTENBERG = 'gutenberg';
 const SOURCE_OPEN_LIBRARY = 'openlibrary';
+const SOURCE_ARCHIVE = 'archive';
 const SOURCE_INTERNET_ARCHIVE = 'internetarchive';
 const SOURCE_GOOGLE_BOOKS = 'googlebooks';
 
@@ -154,44 +160,38 @@ const searchOpenLibrary = async (query) => {
 };
 
 const searchInternetArchive = async (query) => {
-  const q = `title:(${query}) AND mediatype:texts`;
-  const fields = ['identifier', 'title', 'creator'];
-  const url = `${INTERNET_ARCHIVE_HOST}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=${fields.join('&fl[]=')}&rows=24&page=1&output=json`;
-
-  const response = await withTimeout(url, { timeoutMs: SEARCH_TIMEOUT_MS });
-  if (!response.ok) throw new Error(`Internet Archive search failed with ${response.status}`);
-
-  const payload = await safeJson(response);
-  const docs = Array.isArray(payload?.response?.docs) ? payload.response.docs : [];
-
-  return docs.slice(0, 24).map((entry) => {
-    const identifier = String(entry?.identifier || '').trim();
-    const title = normalizeTitle(entry?.title, identifier || 'Internet Archive Title');
-    const author = Array.isArray(entry?.creator) ? entry.creator[0] : entry?.creator;
-
-    return toUnifiedBook({
-      source: SOURCE_INTERNET_ARCHIVE,
-      sourceId: identifier || title,
-      title,
-      author,
-      coverImage: identifier ? `${INTERNET_ARCHIVE_HOST}/services/img/${encodeURIComponent(identifier)}` : null,
-    });
-  });
+  const normalized = await searchArchiveBooks(query, { maxResults: 24, timeoutMs: 1500 });
+  return normalized.map((entry) => toUnifiedBook({
+    source: SOURCE_ARCHIVE,
+    sourceId: entry.id,
+    title: entry.title,
+    author: entry.author,
+    coverImage: entry.cover,
+    extras: {
+      isPublicDomain: Boolean(entry.isPublicDomain),
+      readable: false,
+      formats: [],
+      downloadUrl: null,
+      sourceUrl: getArchiveDetailsUrl(entry.id),
+      availability: 'preview',
+      availabilityNote: 'Archive item metadata loaded. Open source link for lending/preview unless marked open access.',
+    },
+  }));
 };
 
 export const aggregateBookSearch = async (query) => {
   const term = String(query || '').trim();
   if (!term) return [];
 
-  const [gutenberg, openlibrary, internetarchive] = await Promise.all([
+  const [gutenberg, openlibrary, archive] = await Promise.all([
     runSourceSafely(SOURCE_GUTENBERG, () => searchGutenberg(term)),
     runSourceSafely(SOURCE_OPEN_LIBRARY, () => searchOpenLibrary(term)),
-    runSourceSafely(SOURCE_INTERNET_ARCHIVE, () => searchInternetArchive(term)),
+    runSourceSafely(SOURCE_ARCHIVE, () => searchInternetArchive(term)),
   ]);
 
-  const merged = uniqueById([...gutenberg, ...openlibrary, ...internetarchive]);
+  const merged = uniqueById([...gutenberg, ...openlibrary, ...archive]);
   log(
-    `[BOOK][SEARCH] Aggregated ${merged.length} total results (gutenberg=${gutenberg.length}, openlibrary=${openlibrary.length}, internetarchive=${internetarchive.length})`,
+    `[BOOK][SEARCH] Aggregated ${merged.length} total results (gutenberg=${gutenberg.length}, openlibrary=${openlibrary.length}, archive=${archive.length})`,
   );
   return merged.slice(0, 48);
 };
@@ -270,42 +270,92 @@ const readInternetArchive = async ({ sourceId }) => {
   const identifier = String(sourceId || '').trim();
   if (!identifier) throw new Error('Internet Archive identifier is required.');
 
-  const metadataResponse = await withTimeout(`${INTERNET_ARCHIVE_HOST}/metadata/${encodeURIComponent(identifier)}`, { timeoutMs: READ_TIMEOUT_MS });
-  if (!metadataResponse.ok) throw new Error(`Internet Archive metadata failed with ${metadataResponse.status}`);
-  const metadata = await safeJson(metadataResponse);
+  const baseBook = {
+    id: identifier,
+    sourceId: identifier,
+    source: SOURCE_ARCHIVE,
+    title: identifier,
+    author: 'Unknown author',
+    isPublicDomain: false,
+    readable: false,
+    formats: [],
+    downloadUrl: null,
+  };
 
+  const enriched = await enrichArchiveReadability(baseBook, { timeoutMs: READ_TIMEOUT_MS });
+  const metadata = enriched?.metadata || {};
   const title = normalizeTitle(metadata?.metadata?.title, identifier);
-  const author = normalizeAuthor(metadata?.metadata?.creator);
-  const files = Array.isArray(metadata?.files) ? metadata.files : [];
-  const txtFile = files.find((file) => /\.txt$/i.test(String(file?.name || '')));
+  const author = normalizeAuthor(Array.isArray(metadata?.metadata?.creator) ? metadata.metadata.creator[0] : metadata?.metadata?.creator);
+
+  if (!enriched?.isPublicDomain) {
+    logArchiveMetric('archive_skipped_non_public_domain');
+    return {
+      source: SOURCE_ARCHIVE,
+      sourceId: identifier,
+      title,
+      author,
+      chapters: textToSingleChapter(
+        'This Archive.org title is metadata-only in-app because rights are not open-access. Use the source link to view lending or preview options.',
+        'Archive.org External Access',
+      ),
+      sourceUrl: getArchiveDetailsUrl(identifier),
+      availability: 'preview',
+      availabilityNote: 'Metadata only. Reader and live rooms are limited to open-access Archive.org books.',
+      isPublicDomain: false,
+      readable: false,
+      formats: [],
+    };
+  }
+
+  if (!enriched.readable || !enriched.downloadUrl) {
+    logArchiveMetric('archive_failed_fetch');
+    return {
+      source: SOURCE_ARCHIVE,
+      sourceId: identifier,
+      title,
+      author,
+      chapters: textToSingleChapter(
+        'This open-access Archive.org title does not expose txt/epub/pdf formats suitable for the in-app reader.',
+        'Archive.org Format Unavailable',
+      ),
+      sourceUrl: getArchiveDetailsUrl(identifier),
+      availability: 'preview',
+      availabilityNote: 'Open-access detected, but no supported reader format is currently available.',
+      isPublicDomain: true,
+      readable: false,
+      formats: Array.isArray(enriched.formats) ? enriched.formats : [],
+    };
+  }
 
   let chapters = [];
-  if (txtFile?.name) {
-    const textResponse = await withTimeout(`${INTERNET_ARCHIVE_HOST}/download/${encodeURIComponent(identifier)}/${encodeURIComponent(txtFile.name)}`, { timeoutMs: READ_TIMEOUT_MS });
+  if (enriched.formats.includes('txt')) {
+    const textResponse = await withTimeout(enriched.downloadUrl, { timeoutMs: READ_TIMEOUT_MS });
     if (textResponse.ok) {
       const text = await safeText(textResponse);
-      chapters = textToSingleChapter(String(text || '').slice(0, 140000), 'Internet Archive Text Preview');
+      chapters = textToSingleChapter(String(text || '').slice(0, 140000), 'Archive.org Text Preview');
     }
   }
 
   if (!chapters.length) {
     chapters = textToSingleChapter(
-      `This title does not expose a direct plaintext file via Internet Archive API.\n\nOpen the source URL to read or borrow if available.`,
-      'Internet Archive Preview',
+      'Open-access title detected. Use the source link for the full files while this in-app preview is being prepared.',
+      'Archive.org Open Access',
     );
   }
 
+  logArchiveMetric('archive_ingested_count');
   return {
-    source: SOURCE_INTERNET_ARCHIVE,
+    source: SOURCE_ARCHIVE,
     sourceId: identifier,
     title,
     author,
     chapters,
-    sourceUrl: `${INTERNET_ARCHIVE_HOST}/details/${identifier}`,
-    availability: txtFile?.name ? 'full' : 'preview',
-    availabilityNote: txtFile?.name
-      ? 'Loaded from Internet Archive plaintext file.'
-      : 'Only preview metadata is available in-app for this Internet Archive entry.',
+    sourceUrl: getArchiveDetailsUrl(identifier),
+    availability: 'full',
+    availabilityNote: 'Open-access Archive.org text loaded for in-app reading.',
+    isPublicDomain: true,
+    readable: true,
+    formats: Array.isArray(enriched.formats) ? enriched.formats : [],
   };
 };
 
@@ -362,7 +412,7 @@ export const readBookFromSource = async ({ source, sourceId, readGutenbergBookSt
     return readOpenLibrary({ sourceId });
   }
 
-  if (normalizedSource === SOURCE_INTERNET_ARCHIVE) {
+  if (normalizedSource === SOURCE_ARCHIVE || normalizedSource === SOURCE_INTERNET_ARCHIVE) {
     return readInternetArchive({ sourceId });
   }
 
@@ -382,9 +432,35 @@ export const splitCompositeSourceId = (value) => {
   return { source: source.trim().toLowerCase(), sourceId };
 };
 
+
+const archivePublicDomainCache = new Map();
+
+export const canCreateArchiveRooms = async ({ source, sourceId }) => {
+  const normalizedSource = String(source || '').trim().toLowerCase();
+  if (normalizedSource !== SOURCE_ARCHIVE && normalizedSource !== SOURCE_INTERNET_ARCHIVE) return true;
+
+  const id = String(sourceId || '').trim();
+  if (!id) return false;
+
+  const cached = archivePublicDomainCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  try {
+    const enriched = await enrichArchiveReadability({ id, sourceId: id, source: SOURCE_ARCHIVE }, { timeoutMs: 1500 });
+    const allowed = Boolean(enriched?.isPublicDomain && enriched?.readable);
+    archivePublicDomainCache.set(id, { value: allowed, expiresAt: Date.now() + 5 * 60 * 1000 });
+    if (!allowed) logArchiveMetric('archive_skipped_non_public_domain');
+    return allowed;
+  } catch {
+    logArchiveMetric('archive_failed_fetch');
+    return false;
+  }
+};
+
 export const SOURCE_NAMES = {
   SOURCE_GUTENBERG,
   SOURCE_OPEN_LIBRARY,
+  SOURCE_ARCHIVE,
   SOURCE_INTERNET_ARCHIVE,
   SOURCE_GOOGLE_BOOKS,
 };

@@ -11,6 +11,13 @@ const canonicalizeThreadKey = (value) => {
   return raw.replace(/\s+/g, ' ').slice(0, 120);
 };
 
+const getArchiveBadge = (book) => {
+  const source = String(book?.source || '').trim().toLowerCase();
+  const isArchive = source === 'archive' || source === 'internetarchive';
+  if (!isArchive) return '';
+  return book?.isPublicDomain ? 'Open Access' : 'External';
+};
+
 export default function ThreadAccessHub({ currentUser }) {
   const navigate = useNavigate();
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
@@ -148,6 +155,7 @@ export default function ThreadAccessHub({ currentUser }) {
               <div className="thread-access-card-body">
                 <h3 className="thread-access-title font-serif">{book.title}</h3>
                 <p className="thread-access-author">{book.author}</p>
+                {getArchiveBadge(book) ? <p className="thread-access-author">{getArchiveBadge(book)}</p> : null}
               </div>
               <div className="thread-access-actions">
                 <button

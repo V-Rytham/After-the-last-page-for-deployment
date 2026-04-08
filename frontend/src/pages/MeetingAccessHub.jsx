@@ -5,6 +5,16 @@ import useGlobalSearch from '../hooks/useGlobalSearch';
 import api from '../utils/api';
 import './MeetingAccessHub.css';
 
+const getArchiveAccessMeta = (book) => {
+  const source = String(book?.source || '').trim().toLowerCase();
+  const isArchive = source === 'archive' || source === 'internetarchive';
+  if (!isArchive) return { label: '', blocked: false };
+  const isPublicDomain = Boolean(book?.isPublicDomain);
+  return isPublicDomain
+    ? { label: 'Open Access', blocked: false }
+    : { label: 'External', blocked: true };
+};
+
 const canonicalizeMeetKey = (value) => {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
@@ -135,18 +145,27 @@ export default function MeetingAccessHub({ currentUser }) {
             const compositeId = `${String(book?.source || '').trim().toLowerCase()}:${String(book?.sourceId || '').trim()}`;
             if (!book?.source || !book?.sourceId) return null;
 
+            const accessMeta = getArchiveAccessMeta(book);
             return (
               <article key={`${book.source}:${book.sourceId}`} className="meeting-access-card glass-panel">
                 <div className="meeting-access-body">
                   <h3 className="meeting-access-title font-serif">{book.title}</h3>
                   <p className="meeting-access-author">{book.author}</p>
+                  {accessMeta.label ? <p className="meeting-access-author">{accessMeta.label}</p> : null}
                 </div>
                 <button
                   type="button"
                   className="meeting-access-button"
-                  onClick={() => navigate(`/meet/${encodeURIComponent(compositeId)}`)}
+                  onClick={() => {
+                    if (accessMeta.blocked) {
+                      window.open(`https://archive.org/details/${encodeURIComponent(String(book?.sourceId || '').trim())}`, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
+                    navigate(`/meet/${encodeURIComponent(compositeId)}`);
+                  }}
+                  title={accessMeta.blocked ? 'Live reading rooms are only available for open-access books.' : 'Open Meet'}
                 >
-                  Open Meet <ArrowRight size={16} />
+                  {accessMeta.blocked ? 'Open on Archive.org' : 'Open Meet'} <ArrowRight size={16} />
                 </button>
               </article>
             );
@@ -157,6 +176,7 @@ export default function MeetingAccessHub({ currentUser }) {
       {!hasInput && (
         <section className="meeting-access-grid" aria-label="Featured books for Meet">
           {visible.map((book) => {
+            const accessMeta = getArchiveAccessMeta(book);
             const compositeId = `${String(book?.source || '').trim().toLowerCase()}:${String(book?.sourceId || '').trim()}`;
             if (!book?.sourceId) return null;
             return (
@@ -164,9 +184,21 @@ export default function MeetingAccessHub({ currentUser }) {
                 <div className="meeting-access-body">
                   <h3 className="meeting-access-title font-serif">{book.title}</h3>
                   <p className="meeting-access-author">{book.author}</p>
+                  {accessMeta.label ? <p className="meeting-access-author">{accessMeta.label}</p> : null}
                 </div>
-                <button type="button" className="meeting-access-button" onClick={() => navigate(`/meet/${encodeURIComponent(compositeId)}`)}>
-                  Open Meet <ArrowRight size={16} />
+                <button
+                  type="button"
+                  className="meeting-access-button"
+                  onClick={() => {
+                    if (accessMeta.blocked) {
+                      window.open(`https://archive.org/details/${encodeURIComponent(String(book?.sourceId || '').trim())}`, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
+                    navigate(`/meet/${encodeURIComponent(compositeId)}`);
+                  }}
+                  title={accessMeta.blocked ? 'Live reading rooms are only available for open-access books.' : 'Open Meet'}
+                >
+                  {accessMeta.blocked ? 'Open on Archive.org' : 'Open Meet'} <ArrowRight size={16} />
                 </button>
               </article>
             );

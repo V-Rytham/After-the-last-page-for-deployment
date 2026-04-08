@@ -174,8 +174,8 @@ const MeetingHub = () => {
       window.dispatchEvent(new Event('atlp-session-hint'));
     });
 
-    socketRef.current.on('access_denied', () => {
-      setMatchNotice('Unable to join matchmaking for this book right now.');
+    socketRef.current.on('access_denied', ({ message }) => {
+      setMatchNotice(String(message || 'Live reading rooms are only available for open-access books.'));
     });
 
     socketRef.current.on('match_stats', (payload) => {

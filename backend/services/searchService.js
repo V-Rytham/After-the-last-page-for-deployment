@@ -1,6 +1,7 @@
 import { gutenbergCatalog } from '../seed/gutenbergCatalog.js';
 import { Book } from '../models/Book.js';
 import { log } from '../utils/logger.js';
+import { searchArchiveBooks } from './sourceAdapters/archiveAdapter.js';
 
 const GUTENDEX_HOST = 'https://gutendex.com';
 const OPEN_LIBRARY_HOST = 'https://openlibrary.org';
@@ -250,20 +251,37 @@ const searchGoogleBooks = async (q) => {
   }).filter(Boolean);
 };
 
+
+const searchArchive = async (q) => {
+  const items = await searchArchiveBooks(q, { maxResults: MAX_PER_SOURCE, timeoutMs: 1500 });
+  return items.map((entry) => ({
+    title: normalizeWhitespace(entry?.title),
+    author: normalizeWhitespace(entry?.author || 'Unknown author'),
+    gutenbergId: null,
+    coverImage: normalizeWhitespace(entry?.cover) || 'https://placehold.co/420x630?text=No+Cover',
+    genres: [entry?.isPublicDomain ? 'open access' : 'external'],
+    source: 'archive',
+    sourceId: String(entry?.id || '').trim(),
+    isPublicDomain: Boolean(entry?.isPublicDomain),
+    readable: false,
+  })).filter((entry) => entry.title && entry.author && entry.sourceId);
+};
+
 export const runGlobalSearch = async ({ q }) => {
   const term = normalizeWhitespace(q);
   if (!term) return [];
 
-  const [gutenberg, openlibrary, googlebooks] = await Promise.all([
+  const [gutenberg, openlibrary, googlebooks, archive] = await Promise.all([
     runSourceSafely('gutenberg', () => searchGutenberg(term)),
     runSourceSafely('openlibrary', () => searchOpenLibrary(term)),
     runSourceSafely('googlebooks', () => searchGoogleBooks(term)),
+    runSourceSafely('archive', () => searchArchive(term)),
   ]);
 
   const merged = [];
   const seen = new Set();
 
-  for (const entry of [...gutenberg, ...openlibrary, ...googlebooks]) {
+  for (const entry of [...gutenberg, ...openlibrary, ...googlebooks, ...archive]) {
     const key = normalizeTitleAuthorKey(entry.title, entry.author);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -280,6 +298,8 @@ export const runGlobalSearch = async ({ q }) => {
       source: entry.source,
       sourceId: String(entry.sourceId || '').trim(),
       internalBookId: entry?.internalBookId ? String(entry.internalBookId) : null,
+      isPublicDomain: Boolean(entry?.isPublicDomain),
+      readable: Boolean(entry?.readable),
     });
 
     if (merged.length >= MAX_TOTAL) break;
