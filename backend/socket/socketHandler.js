@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { checkMeetAccess } from '../services/accessService.js';
+import { getCanonicalBook } from '../services/canonicalBookService.js';
 import { log } from '../utils/logger.js';
 
 export default function registerSocketEvents(io, sessionManager) {
@@ -71,25 +72,28 @@ export default function registerSocketEvents(io, sessionManager) {
       updatedAt: new Date().toISOString(),
     });
 
-    socket.on('join_matchmaking', async ({ bookId, prefType }) => {
+    socket.on('join_matchmaking', async ({ source, source_book_id: sourceBookId, prefType }) => {
       if (socket.isAnonymous) {
         socket.emit('access_denied', { message: 'Please sign in to use Meet.' });
         return;
       }
 
-      try {
-        const access = await checkMeetAccess({ userId: socket.userId, bookId });
-        if (!access.access) {
-          socket.emit('access_denied', { message: access?.message || 'Live reading rooms are only available for open-access books.' });
-          return;
-        }
-      } catch (error) {
-        socket.emit('access_denied', { message: error.message || 'Access check failed.' });
+      const normalizedSource = String(source || '').trim().toLowerCase();
+      const normalizedSourceBookId = String(sourceBookId || '').trim();
+      if (!normalizedSource || !normalizedSourceBookId) {
+        socket.emit('access_denied', { message: 'source and source_book_id are required.' });
         return;
       }
 
       try {
-        await sessionManager.joinMatchmaking({ userId: socket.userId, bookId, prefType });
+        const access = await checkMeetAccess({ userId: socket.userId, source: normalizedSource, sourceBookId: normalizedSourceBookId });
+        if (!access.access) {
+          socket.emit('access_denied', { message: access?.message || 'Live reading rooms are only available for open-access books.' });
+          return;
+        }
+
+        const canonical = await getCanonicalBook({ source: normalizedSource, source_book_id: normalizedSourceBookId });
+        await sessionManager.joinMatchmaking({ userId: socket.userId, bookId: canonical.canonical_book_id, prefType });
       } catch (error) {
         socket.emit('access_denied', { message: error.message || 'Unable to join matchmaking.' });
       } finally {

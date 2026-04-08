@@ -11,12 +11,6 @@ import './MeetingHub.css';
 const socketServer = getSocketServerUrl();
 const BOOK_READ_TIMEOUT_MS = 120000;
 
-const canonicalizeMeetKey = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.replace(/\s+/g, ' ').slice(0, 120);
-};
-
 const MeetingHub = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
@@ -28,6 +22,7 @@ const MeetingHub = () => {
     return 'text';
   }, [location?.state?.prefType]);
   const isObjectId = React.useMemo(() => /^[a-f0-9]{24}$/i.test(String(bookId || '')), [bookId]);
+  const meetRoomState = location?.state?.meetRoom || null;
   const parsedSourceRoute = React.useMemo(() => {
     if (!bookId) return null;
     const decoded = decodeURIComponent(String(bookId));
@@ -38,20 +33,10 @@ const MeetingHub = () => {
     if (!source || !sourceId) return null;
     return { source, sourceId, composite: decoded };
   }, [bookId]);
-  const isCustomMeet = useMemo(() => parsedSourceRoute?.source === 'custom', [parsedSourceRoute]);
-  const customMeetTitle = useMemo(() => {
-    const fromState = String(location?.state?.customTitle || '').trim();
-    if (fromState) return fromState.slice(0, 160);
-    if (isCustomMeet) return String(parsedSourceRoute?.sourceId || '').trim();
-    return '';
-  }, [isCustomMeet, location?.state?.customTitle, parsedSourceRoute?.sourceId]);
-  const matchBookId = useMemo(() => {
-    if (isCustomMeet) {
-      const key = canonicalizeMeetKey(customMeetTitle);
-      return key ? `custom:${key}` : String(bookId || '').trim();
-    }
-    return parsedSourceRoute ? parsedSourceRoute.composite : String(bookId || '').trim();
-  }, [bookId, customMeetTitle, isCustomMeet, parsedSourceRoute]);
+  const matchBookId = useMemo(
+    () => String(meetRoomState?.canonical_book_id || bookId || '').trim(),
+    [bookId, meetRoomState?.canonical_book_id],
+  );
 
   const [phase, setPhase] = useState('preferences');
   const [book, setBook] = useState(null);
@@ -99,14 +84,14 @@ const MeetingHub = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (isCustomMeet) {
+        if (meetRoomState?.title) {
           setBook({
             _id: matchBookId,
             id: matchBookId,
-            title: customMeetTitle || 'Untitled',
-            author: '',
-            source: 'custom',
-            sourceId: canonicalizeMeetKey(customMeetTitle),
+            title: meetRoomState.title,
+            author: meetRoomState.author || 'Unknown author',
+            source: meetRoomState.source,
+            sourceId: meetRoomState.source_book_id,
           });
           return;
         }
@@ -121,8 +106,8 @@ const MeetingHub = () => {
           });
           const payload = readData?.data || readData;
           setBook({
-            _id: parsedSourceRoute.composite,
-            id: parsedSourceRoute.composite,
+            _id: matchBookId || parsedSourceRoute.composite,
+            id: matchBookId || parsedSourceRoute.composite,
             title: payload?.title || 'Untitled',
             author: payload?.author || 'Unknown author',
             source: parsedSourceRoute.source,
@@ -131,8 +116,13 @@ const MeetingHub = () => {
           return;
         }
 
-        const { data } = await api.get(`/books/${bookId}`);
-        setBook(data);
+        if (isObjectId) {
+          const { data } = await api.get(`/books/${bookId}`);
+          setBook(data);
+          return;
+        }
+
+        setBook({ _id: matchBookId, id: matchBookId, title: 'Discussion Room', author: 'Verified book', source: '', sourceId: '' });
       } catch (error) {
         console.error('Fetch error:', error);
         setBook(null);
@@ -269,7 +259,7 @@ const MeetingHub = () => {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-	  }, [bookId, customMeetTitle, isCustomMeet, matchBookId, navigate, parsedSourceRoute]);
+  }, [bookId, matchBookId, meetRoomState, navigate, parsedSourceRoute, isObjectId]);
 
   const sessionIsSensitive = phase === 'searching' || phase === 'connected' || phase === 'bookfriend';
 
@@ -536,7 +526,7 @@ const MeetingHub = () => {
     }
     setPhase('searching');
     setMatchNotice('');
-    await api.post('/matchmaking/join', { bookId: matchBookId, prefType }).then(() => {
+    await api.post('/meet/join', { source: book?.source, source_book_id: book?.sourceId, prefType }).then(() => {
       window.dispatchEvent(new Event('atlp-session-hint'));
     }).catch((error) => {
       console.error('Failed to join matchmaking:', error);

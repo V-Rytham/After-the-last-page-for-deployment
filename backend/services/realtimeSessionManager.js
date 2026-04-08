@@ -4,8 +4,6 @@ import { SESSION_STATES } from '../utils/sessionStates.js';
 const normalizeId = (value) => String(value || '').trim();
 const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
 
-const buildRoomId = () => `room_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
 export class RealtimeSessionManager {
   constructor(io, { disconnectGraceMs = 12_000 } = {}) {
     this.io = io;
@@ -154,7 +152,7 @@ export class RealtimeSessionManager {
     });
 
     const items = this.queue.get(queueKey) || [];
-    items.push({ userId: normalizedUserId, socketId, queuedAt: Date.now() });
+    items.push({ userId: normalizedUserId, socketId, queuedAt: Date.now(), bookId: normalizedBookId });
     this.queue.set(queueKey, items);
     this.userToQueueKey.set(normalizedUserId, queueKey);
 
@@ -219,7 +217,7 @@ export class RealtimeSessionManager {
     this.userToQueueKey.delete(a.userId);
     this.userToQueueKey.delete(b.userId);
 
-    const roomId = buildRoomId();
+    const roomId = normalizeId(a.bookId || queueKey.split('_')[0]);
     return {
       roomId,
       aUserId: a.userId,

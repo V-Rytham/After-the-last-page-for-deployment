@@ -15,6 +15,7 @@ import accessRoutes from './routes/accessRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
 import { buildSessionRoutes } from './routes/sessionRoutes.js';
 import { buildMatchmakingRoutes } from './routes/matchmakingRoutes.js';
+import { buildMeetRoutes } from './routes/meetRoutes.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
@@ -187,6 +188,7 @@ app.use('/api/access', accessRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/session', requireDatabase({ feature: 'Realtime sessions' }), buildSessionRoutes(sessionManager));
 app.use('/api/matchmaking', requireDatabase({ feature: 'Meet' }), buildMatchmakingRoutes(sessionManager));
+app.use('/api/meet', requireDatabase({ feature: 'Meet' }), buildMeetRoutes(sessionManager));
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/search', searchRoutes);
 

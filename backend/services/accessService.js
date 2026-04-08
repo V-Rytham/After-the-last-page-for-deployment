@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
 import { UserProgress } from '../models/UserProgress.js';
 import { canCreateArchiveRooms, splitCompositeSourceId } from './bookAggregationService.js';
+import { CanonicalBook } from '../models/CanonicalBook.js';
 
 export const resolveBookOrThrow = async (bookId) => {
   if (!mongoose.Types.ObjectId.isValid(bookId)) {
@@ -44,7 +45,7 @@ export const checkQuizAccess = async ({ userId, bookId }) => {
   };
 };
 
-export const checkMeetAccess = async ({ userId, bookId }) => {
+export const checkMeetAccess = async ({ userId, bookId, source, sourceBookId }) => {
   if (!userId) {
     const error = new Error('Unauthorized.');
     error.statusCode = 401;
@@ -52,11 +53,27 @@ export const checkMeetAccess = async ({ userId, bookId }) => {
   }
 
   const normalizedBookId = String(bookId || '').trim();
+  const normalizedSource = String(source || '').trim().toLowerCase();
+  const normalizedSourceBookId = String(sourceBookId || '').trim();
+
+  if (normalizedSource && normalizedSourceBookId) {
+    if (normalizedSource === 'archive' || normalizedSource === 'internetarchive') {
+      const allowed = await canCreateArchiveRooms({ source: normalizedSource, sourceId: normalizedSourceBookId });
+      if (!allowed) {
+        return {
+          access: false,
+          mode: 'restricted',
+          message: 'Live reading rooms are only available for open-access books.',
+        };
+      }
+    }
+    return { access: true, mode: 'open' };
+  }
+
   if (!normalizedBookId) {
     return { access: false, mode: 'invalid' };
   }
 
-  // Meet is open by default, but Archive.org entries require open-access readability.
   const parsed = splitCompositeSourceId(normalizedBookId);
   if (parsed?.source === 'archive' || parsed?.source === 'internetarchive') {
     const allowed = await canCreateArchiveRooms({ source: parsed.source, sourceId: parsed.sourceId });
@@ -67,6 +84,11 @@ export const checkMeetAccess = async ({ userId, bookId }) => {
         message: 'Live reading rooms are only available for open-access books.',
       };
     }
+  }
+
+  const canonicalExists = await CanonicalBook.findOne({ canonical_book_id: normalizedBookId }).select('_id').lean();
+  if (!canonicalExists) {
+    return { access: false, mode: 'invalid', message: 'Select a valid book result to join Meet.' };
   }
 
   return { access: true, mode: 'open' };
