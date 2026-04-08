@@ -226,6 +226,9 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
 
   const resolvedTotalPages = Number.isFinite(Number(totalPages)) ? Number(totalPages) : null;
   const hasResolvedTotalPages = resolvedTotalPages != null && resolvedTotalPages > 0;
+  const chapterPageProgress = hasResolvedTotalPages
+    ? Math.max(0, Math.min(1, (currentPageIndex + 1) / resolvedTotalPages))
+    : 0;
 
   const nextBookPath = book ? `/meet/${book._id || book.id}` : '/desk';
 
@@ -739,16 +742,25 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
 
   useEffect(() => {
     if (isAtEndOfBook && book) {
-      updateReadingSession(resolvedBookId, totalChapters, totalChapters);
+      updateReadingSession(resolvedBookId, totalChapters, totalChapters, {
+        progressPercent: 100,
+        isFinished: true,
+      });
     }
   }, [book, isAtEndOfBook, resolvedBookId, totalChapters]);
 
   useEffect(() => {
     if (book) {
       trackBookOpened(resolvedBookId);
-      updateReadingSession(resolvedBookId, clampedChapter, totalChapters);
+      const chapterBaseProgress = ((clampedChapter - 1) / totalChapters) * 100;
+      const inChapterProgress = (chapterPageProgress / totalChapters) * 100;
+      const progressPercent = Math.max(0, Math.min(99, chapterBaseProgress + inChapterProgress));
+      updateReadingSession(resolvedBookId, clampedChapter, totalChapters, {
+        progressPercent,
+        isFinished: false,
+      });
     }
-  }, [book, clampedChapter, resolvedBookId, totalChapters]);
+  }, [book, chapterPageProgress, clampedChapter, resolvedBookId, totalChapters]);
 
   useEffect(() => {
     document.body.classList.add('is-reading-room');

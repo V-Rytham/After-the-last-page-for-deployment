@@ -89,15 +89,28 @@ export const trackBookOpened = (bookId) => (
   })
 );
 
-export const updateReadingSession = (bookId, currentPage, totalPages) => (
-  setCurrentActorSession(bookId, {
-    currentPage,
-    totalPages,
-    progressPercent: Math.round((currentPage / totalPages) * 100),
-    isFinished: currentPage >= totalPages,
+export const updateReadingSession = (bookId, currentPage, totalPages, options = {}) => {
+  const safeCurrentPage = Math.max(0, Number(currentPage) || 0);
+  const safeTotalPages = Math.max(1, Number(totalPages) || 1);
+
+  const computedProgress = Math.round((safeCurrentPage / safeTotalPages) * 100);
+  const explicitProgress = Number(options?.progressPercent);
+  const progressPercent = Number.isFinite(explicitProgress)
+    ? Math.max(0, Math.min(100, Math.round(explicitProgress)))
+    : Math.max(0, Math.min(100, computedProgress));
+
+  const isFinished = typeof options?.isFinished === 'boolean'
+    ? options.isFinished
+    : progressPercent >= 100;
+
+  return setCurrentActorSession(bookId, {
+    currentPage: safeCurrentPage,
+    totalPages: safeTotalPages,
+    progressPercent,
+    isFinished,
     lastOpenedAt: new Date().toISOString(),
-  })
-);
+  });
+};
 
 export const getFinishedBookIds = () => {
   const sessions = getReadingSessionsForCurrentUser();
