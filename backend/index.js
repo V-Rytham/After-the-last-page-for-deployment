@@ -93,7 +93,8 @@ const io = new Server(httpServer, {
 
       callback(new Error(`Socket origin not allowed: ${origin}`));
     },
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST'],
+    credentials: true,
   }
 });
 
