@@ -526,18 +526,64 @@ const MeetingHub = () => {
     }
     setPhase('searching');
     setMatchNotice('');
-    await api.post('/meet/join', { source: book?.source, source_book_id: book?.sourceId, prefType }).then(() => {
+    const attemptJoin = async () => api.post('/meet/join', {
+      source: book?.source,
+      source_book_id: book?.sourceId,
+      prefType,
+    });
+
+    await attemptJoin().then(() => {
       window.dispatchEvent(new Event('atlp-session-hint'));
-    }).catch((error) => {
+    }).catch(async (error) => {
+      const statusCode = Number(error?.response?.status || 0);
+      const serverMessage = String(error?.response?.data?.message || error?.response?.data?.error || '').trim();
+      const socketMismatch = statusCode === 409 && /no active socket connection/i.test(serverMessage);
+
+      if (socketMismatch) {
+        try {
+          await new Promise((resolve, reject) => {
+            const socket = socketRef.current;
+            if (!socket) {
+              reject(new Error('Socket unavailable'));
+              return;
+            }
+
+            if (socket.connected) {
+              resolve();
+              return;
+            }
+
+            const timeout = window.setTimeout(() => {
+              socket.off('connect', onConnect);
+              reject(new Error('Socket reconnection timed out'));
+            }, 2200);
+
+            const onConnect = () => {
+              window.clearTimeout(timeout);
+              socket.off('connect', onConnect);
+              resolve();
+            };
+
+            socket.on('connect', onConnect);
+            socket.connect();
+          });
+
+          await attemptJoin();
+          window.dispatchEvent(new Event('atlp-session-hint'));
+          return;
+        } catch {
+          // Fall through to the generic message below.
+        }
+      }
+
       console.error('Failed to join matchmaking:', error);
-      const serverMessage = error?.response?.data?.message || error?.response?.data?.error;
       setMatchNotice(serverMessage || 'Unable to start matchmaking right now. Please try again.');
       setPhase('preferences');
     });
   };
 
   const handleCancelSearch = async () => {
-    await api.post('/matchmaking/leave').catch(() => {});
+    await api.post('/meet/leave').catch(() => {});
     setPhase('preferences');
     setSearchHint('');
     setSearchSeconds(0);
