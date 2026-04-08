@@ -91,7 +91,8 @@ export default function MeetingAccessHub({ currentUser }) {
         },
       });
     } catch (joinError) {
-      window.alert(joinError?.response?.data?.message || joinError?.message || 'Unable to join this discussion right now.');
+      const message = joinError?.response?.data?.message || joinError?.response?.data?.error || joinError?.message;
+      window.alert(message || 'Unable to join this discussion right now.');
     } finally {
       setJoiningKey('');
     }

@@ -530,7 +530,8 @@ const MeetingHub = () => {
       window.dispatchEvent(new Event('atlp-session-hint'));
     }).catch((error) => {
       console.error('Failed to join matchmaking:', error);
-      setMatchNotice('Unable to start matchmaking right now. Please try again.');
+      const serverMessage = error?.response?.data?.message || error?.response?.data?.error;
+      setMatchNotice(serverMessage || 'Unable to start matchmaking right now. Please try again.');
       setPhase('preferences');
     });
   };

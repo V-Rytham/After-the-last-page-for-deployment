@@ -66,6 +66,9 @@ export const createMatchmakingController = (sessionManager) => {
       });
     } catch (error) {
       const status = error.statusCode || 500;
+      if (status === 409 && error?.message) {
+        return res.status(409).json({ message: error.message });
+      }
       return res.status(status).json(buildSafeErrorBody('Failed to join matchmaking.', error));
     }
   };
