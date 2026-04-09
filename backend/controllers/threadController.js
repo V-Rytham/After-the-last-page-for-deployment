@@ -30,6 +30,24 @@ const sanitizeText = (value, maxLen) => String(value || '')
   .replace(/\s+/g, ' ')
   .trim()
   .slice(0, maxLen);
+const deriveAuthorAnonId = (user) => {
+  const preferred = String(user?.anonymousId || '').trim();
+  if (preferred) {
+    return preferred;
+  }
+
+  const fallbackName = String(user?.username || user?.name || '').trim();
+  if (fallbackName) {
+    return fallbackName;
+  }
+
+  const fallbackId = String(user?._id || '').trim();
+  if (fallbackId) {
+    return `Reader ${fallbackId.slice(-6)}`;
+  }
+
+  return 'Anonymous Reader';
+};
 
 const buildBookFilter = (bookKey) => {
   const normalized = normalizeBookKey(bookKey);
@@ -124,7 +142,7 @@ export const createThread = async (req, res) => {
 
     const sanitizedTitle = sanitizeText(title, 100);
     const sanitizedContent = sanitizeText(content, 3_000);
-    const sanitizedChapterReference = sanitizeText(chapterReference, 120);
+    const sanitizedChapterReference = sanitizeText(chapterReference, 80);
 
     if (!rawBookKey || !sanitizedTitle || !sanitizedContent) {
       return res.status(400).json({ message: 'Book, title, and content are required.' });
@@ -143,7 +161,7 @@ export const createThread = async (req, res) => {
       return res.status(400).json({ message: 'Book reference is required.' });
     }
 
-    const authorAnonId = req.user ? req.user.anonymousId : 'Anonymous Reader';
+    const authorAnonId = deriveAuthorAnonId(req.user);
 
     const doc = {
       bookKey,
@@ -164,7 +182,9 @@ export const createThread = async (req, res) => {
 
     res.status(201).json(thread);
   } catch (error) {
-    const statusCode = Number(error?.statusCode) || (error?.name === 'ValidationError' ? 400 : 500);
+    const dbUnavailable = error?.name === 'MongooseServerSelectionError'
+      || error?.name === 'MongoServerSelectionError';
+    const statusCode = Number(error?.statusCode) || (error?.name === 'ValidationError' ? 400 : (dbUnavailable ? 503 : 500));
     const message = statusCode >= 500
       ? 'Unable to create thread right now. Please retry.'
       : (error?.message || 'Invalid thread payload.');
