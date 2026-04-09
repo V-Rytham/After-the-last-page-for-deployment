@@ -7,7 +7,6 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { connectDB } from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
-import bookRoutes from './routes/bookRoutes.js';
 import threadRoutes from './routes/threadRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
 import registerSocketEvents from './socket/socketHandler.js';
@@ -26,6 +25,7 @@ import { requestTracing } from './middleware/requestLogging.js';
 import recommendationsRoutes from './routes/recommendationsRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import { bootstrapFeatureModules } from './core/bootstrapModules.js';
 import passport from './config/passport.js';
 import { configurePassport } from './config/passport.js';
 import { requireDatabase } from './middleware/degradedModeMiddleware.js';
@@ -179,10 +179,12 @@ const sessionManager = new RealtimeSessionManager(io);
 // Register Socket Events
 registerSocketEvents(io, sessionManager);
 
+const { booksModule } = bootstrapFeatureModules();
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/books', bookRoutes);
+app.use('/api/books', booksModule.router);
 app.use('/api/threads', requireDatabase({ status: 503, feature: 'Threads' }), threadRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/access', accessRoutes);
