@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3 } from 'lucide-react';
+import { useParams, useNavigate, useLocation, useBlocker } from 'react-router-dom';
+import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3, LogOut } from 'lucide-react';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import { getStoredToken } from '../utils/auth';
@@ -43,6 +43,7 @@ const MeetingHub = () => {
   const [loading, setLoading] = useState(true);
   const [roomId, setRoomId] = useState(null);
   const [matchRole, setMatchRole] = useState(null);
+  const [partnerDisplayName, setPartnerDisplayName] = useState('Reader');
   const [messages, setMessages] = useState([]);
   const [socketReady, setSocketReady] = useState(false);
   const [matchNotice, setMatchNotice] = useState('');
@@ -54,6 +55,7 @@ const MeetingHub = () => {
   const [searchSeconds, setSearchSeconds] = useState(0);
   const [searchingDots, setSearchingDots] = useState('.');
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
+  const [leavePromptBody, setLeavePromptBody] = useState('You will disconnect from this reader.');
   const pendingLeaveActionRef = useRef(null);
   const socketRef = useRef(socket);
   const searchIntervalRef = useRef(null);
@@ -74,8 +76,6 @@ const MeetingHub = () => {
   const [chatInput, setChatInput] = useState('');
   const [prefType, setPrefType] = useState(initialPrefType);
   const lastSafeHashRef = useRef(typeof window !== 'undefined' ? window.location.hash : '');
-  const allowHashNavigationRef = useRef(false);
-  const pendingHashNavigationRef = useRef(null);
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -153,10 +153,12 @@ const MeetingHub = () => {
       setMatchNotice('Live matching is offline right now. You can still enter the community thread.');
     };
 
-    const onMatchFound = ({ roomId: matchedRoomId, role }) => {
+    const onMatchFound = ({ roomId: matchedRoomId, role, partnerUsername, partnerName }) => {
       setBookFriendOffered(false);
       setRoomId(matchedRoomId);
       setMatchRole(role || null);
+      const normalizedPartner = String(partnerUsername || partnerName || '').trim();
+      setPartnerDisplayName(normalizedPartner || 'Reader');
       setPhase('connected');
       activeSocket.emit('enter_conversation', { roomId: matchedRoomId });
       window.dispatchEvent(new Event('atlp-session-hint'));
@@ -180,7 +182,7 @@ const MeetingHub = () => {
       setMessages((prev) => [...prev, { text: message, sender: 'partner', timestamp: new Date() }]);
     };
 
-    const onPartnerLeft = () => {
+    const onPartnerLeft = ({ message } = {}) => {
       if (peerRef.current) {
         try { peerRef.current.close(); } catch { /* ignore */ }
         peerRef.current = null;
@@ -199,8 +201,9 @@ const MeetingHub = () => {
       pendingOfferRef.current = null;
       setMediaStatus('idle');
       setMediaError('');
-      setMatchNotice('Your partner left the room. You can search again when ready.');
+      setMatchNotice(String(message || 'The other reader has left the discussion.'));
       setRoomId(null);
+      setPartnerDisplayName('Reader');
       setMessages([]);
       setPhase('preferences');
       window.dispatchEvent(new Event('atlp-session-hint'));
@@ -323,54 +326,16 @@ const MeetingHub = () => {
     }
   }, [closeBookFriendSession, phase, roomId]);
 
+  const navigationBlocker = useBlocker(sessionIsSensitive);
+
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
+    if (navigationBlocker.state !== 'blocked') {
+      return;
     }
-
-    const handleHashNavigation = () => {
-      if (allowHashNavigationRef.current) {
-        allowHashNavigationRef.current = false;
-        lastSafeHashRef.current = window.location.hash;
-        pendingHashNavigationRef.current = null;
-        return;
-      }
-
-      const nextHash = window.location.hash;
-      const previousHash = lastSafeHashRef.current;
-
-      if (!sessionIsSensitive) {
-        lastSafeHashRef.current = nextHash;
-        return;
-      }
-
-      pendingHashNavigationRef.current = nextHash;
-
-      // Revert immediately; hashchange is not cancelable.
-      if (previousHash && previousHash !== nextHash) {
-        allowHashNavigationRef.current = true;
-        window.location.hash = previousHash;
-      }
-
-      pendingLeaveActionRef.current = () => {
-        const targetHash = pendingHashNavigationRef.current;
-        if (targetHash && targetHash !== window.location.hash) {
-          allowHashNavigationRef.current = true;
-          window.location.hash = targetHash;
-        }
-      };
-
-      setLeavePromptOpen(true);
-    };
-
-    window.addEventListener('hashchange', handleHashNavigation);
-    window.addEventListener('popstate', handleHashNavigation);
-
-    return () => {
-      window.removeEventListener('hashchange', handleHashNavigation);
-      window.removeEventListener('popstate', handleHashNavigation);
-    };
-  }, [sessionIsSensitive]);
+    setLeavePromptBody('You will disconnect from this reader.');
+    pendingLeaveActionRef.current = () => navigationBlocker.proceed();
+    setLeavePromptOpen(true);
+  }, [navigationBlocker]);
 
   useEffect(() => {
     if (!socketReady) {
@@ -419,6 +384,13 @@ const MeetingHub = () => {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [sessionIsSensitive]);
+
+  useEffect(() => {
+    if (!sessionIsSensitive && navigationBlocker.state === 'blocked') {
+      navigationBlocker.reset();
+    }
+    if (typeof window !== 'undefined') lastSafeHashRef.current = window.location.hash;
+  }, [navigationBlocker, sessionIsSensitive]);
 
 	  const cleanupMedia = useCallback(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -478,7 +450,7 @@ const MeetingHub = () => {
         return;
       }
 
-      if (matchRole === 'caller') {
+      if (matchRole === 'initiator') {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socketRef.current?.emit('webrtc_offer', { roomId: roomIdRef.current, offer: pc.localDescription });
@@ -638,12 +610,20 @@ const MeetingHub = () => {
   };
 
   const sendMessage = (event) => {
-    event.preventDefault();
-    if (!chatInput.trim() || !roomId || !socketRef.current) return;
-    const msgData = { roomId, message: chatInput, senderId: socketRef.current.id };
+    if (event) event.preventDefault();
+    const trimmed = chatInput.trim();
+    if (!trimmed || !roomId || !socketRef.current) return;
+    const msgData = { roomId, message: trimmed, senderId: socketRef.current.id };
     socketRef.current.emit('send_message', msgData);
-    setMessages((prev) => [...prev, { text: chatInput, sender: 'me', timestamp: new Date() }]);
+    setMessages((prev) => [...prev, { text: trimmed, sender: 'me', timestamp: new Date() }]);
     setChatInput('');
+  };
+
+  const handleChatKeyDown = (event, submit) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      submit();
+    }
   };
 
   const mediaConnected = mediaStatus === 'ready' || mediaStatus === 'connecting' || mediaStatus === 'connected';
@@ -796,13 +776,15 @@ const MeetingHub = () => {
                 ))}
               </div>
               <form className="chat-input-area" onSubmit={sendBookFriendMessage}>
-                <input
+                <textarea
                   className="chat-input"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(event) => handleChatKeyDown(event, () => sendBookFriendMessage(event))}
                   placeholder="Share your thought..."
+                  rows={1}
                 />
-                <button type="submit" className="send-btn" aria-label="Send">
+                <button type="submit" className="send-btn" aria-label="Send" disabled={!chatInput.trim()}>
                   <Send size={16} />
                 </button>
               </form>
@@ -819,28 +801,25 @@ const MeetingHub = () => {
                 <User size={18} />
               </div>
               <div className="partner-copy">
-                <div className="room-title font-serif">
-                  Matched reader {matchRole ? `(${matchRole})` : ''}
-                </div>
-                <div className="room-subtitle text-muted">Anonymous, book-aligned conversation.</div>
+                <div className="room-title font-serif">{partnerDisplayName || 'Reader'}</div>
               </div>
             </div>
 
             <div className="room-actions">
-              <span className="room-pill" aria-label="Selected medium">
-                {prefType.toUpperCase()}
-              </span>
               <button
                 type="button"
-                className="btn-secondary sm"
+                className="btn-leave sm"
                 onClick={() => {
-                  endSession('leave-room').finally(() => {
+                  setLeavePromptBody('You will disconnect from this reader.');
+                  pendingLeaveActionRef.current = () => {
                     setRoomId(null);
                     setMessages([]);
                     setPhase('preferences');
-                  });
+                  };
+                  setLeavePromptOpen(true);
                 }}
               >
+                <LogOut size={15} aria-hidden="true" />
                 Leave
               </button>
             </div>
@@ -877,13 +856,15 @@ const MeetingHub = () => {
                 ))}
               </div>
               <form className="chat-input-area" onSubmit={sendMessage}>
-                <input
+                <textarea
                   className="chat-input"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(event) => handleChatKeyDown(event, sendMessage)}
                   placeholder="Send a message..."
+                  rows={1}
                 />
-                <button type="submit" className="send-btn" aria-label="Send">
+                <button type="submit" className="send-btn" aria-label="Send" disabled={!chatInput.trim()}>
                   <Send size={16} />
                 </button>
               </form>
@@ -895,8 +876,8 @@ const MeetingHub = () => {
       {leavePromptOpen && (
         <div className="leave-guard-overlay" role="dialog" aria-modal="true" aria-label="Leave session confirmation">
           <div className="leave-guard-card glass-panel">
-            <h2 className="font-serif">Leave this session?</h2>
-            <p>Leaving will end your current session and notify the other reader.</p>
+            <h2 className="font-serif">Leave discussion?</h2>
+            <p>{leavePromptBody}</p>
             <div className="leave-guard-actions">
               <button
                 type="button"
@@ -904,7 +885,9 @@ const MeetingHub = () => {
                 onClick={() => {
                   setLeavePromptOpen(false);
                   pendingLeaveActionRef.current = null;
-                  pendingHashNavigationRef.current = null;
+                  if (navigationBlocker.state === 'blocked') {
+                    navigationBlocker.reset();
+                  }
                 }}
               >
                 Cancel

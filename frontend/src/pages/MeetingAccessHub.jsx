@@ -22,14 +22,6 @@ const normalizeBook = (book) => {
   };
 };
 
-const sourceLabel = (source) => {
-  if (source === 'gutendex' || source === 'gutenberg') return 'Gutendex';
-  if (source === 'openlibrary') return 'Open Library';
-  if (source === 'google' || source === 'googlebooks') return 'Google';
-  if (source === 'archive' || source === 'internetarchive') return 'Internet Archive';
-  return source || 'Source';
-};
-
 export default function MeetingAccessHub({ currentUser }) {
   const navigate = useNavigate();
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
@@ -166,10 +158,10 @@ export default function MeetingAccessHub({ currentUser }) {
     <div className="meeting-access-page animate-fade-in">
       <section className="meeting-access-hero">
         <div className="meeting-access-hero-copy">
-          <h1 className="font-serif">Meet readers in the same book discussion room.</h1>
-          <p>Search, select a verified book result, and join instantly.</p>
+          <h1 className="font-serif">Find a book. Start a discussion.</h1>
+          <p>Join readers already discussing a book or start your own.</p>
           <p className="meeting-access-live-state">
-            {socketConnected ? 'Live room ready.' : (socketConnecting ? 'Connecting…' : 'Connecting…')}
+            {socketConnected ? 'Connected' : (socketConnecting ? 'Connecting…' : 'Connecting…')}
           </p>
           {!socketConnected && socketError ? <p className="meeting-access-live-error">{socketError}</p> : null}
           {joinNotice ? <p className="meeting-access-live-error">{joinNotice}</p> : null}
@@ -216,7 +208,6 @@ export default function MeetingAccessHub({ currentUser }) {
                   <h3 className="meeting-book-title" title={book.title}>{book.title}</h3>
                   <p className="meeting-book-author" title={book.author}>{book.author}</p>
                 </div>
-                <span className="meeting-book-source">{sourceLabel(book.source)}</span>
                 <button
                   type="button"
                   className="meeting-book-cta"
@@ -224,7 +215,7 @@ export default function MeetingAccessHub({ currentUser }) {
                   onClick={() => handleJoinDiscussion(book)}
                 >
                   {isJoining || !socketConnected ? <span className="meeting-cta-spinner" aria-hidden="true" /> : null}
-                  {isJoining ? 'Joining…' : (socketConnected ? 'Join Discussion →' : 'Connecting…')}
+                  {isJoining ? 'Joining…' : (socketConnected ? 'Join Discussion' : 'Connecting…')}
                 </button>
               </article>
             );

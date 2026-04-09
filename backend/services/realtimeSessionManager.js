@@ -1,13 +1,13 @@
 import { SessionStore } from './sessionStore.js';
 import { SESSION_STATES } from '../utils/sessionStates.js';
+import { User } from '../models/User.js';
 
 const normalizeId = (value) => String(value || '').trim();
 const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
 
 export class RealtimeSessionManager {
-  constructor(io, { disconnectGraceMs = 12_000 } = {}) {
+  constructor(io) {
     this.io = io;
-    this.disconnectGraceMs = disconnectGraceMs;
 
     this.sessions = new SessionStore({ ttlMs: 30 * 60 * 1000 });
 
@@ -19,8 +19,6 @@ export class RealtimeSessionManager {
 
     this.roomMembers = new Map(); // roomId -> Set(userId)
     this.userToRoomId = new Map(); // userId -> roomId
-
-    this.pendingDisconnectTimers = new Map(); // userId -> timeout
 
     setInterval(() => {
       this.sessions.sweep();
@@ -56,15 +54,9 @@ export class RealtimeSessionManager {
     const existing = this.userSockets.get(normalizedUserId) || new Set();
     existing.add(normalizedSocketId);
     this.userSockets.set(normalizedUserId, existing);
-
-    const timer = this.pendingDisconnectTimers.get(normalizedUserId);
-    if (timer) {
-      clearTimeout(timer);
-      this.pendingDisconnectTimers.delete(normalizedUserId);
-    }
   }
 
-  unregisterSocket({ socketId }) {
+  unregisterSocket({ socketId, reason = 'disconnect' }) {
     const normalizedSocketId = normalizeId(socketId);
     const userId = this.socketToUser.get(normalizedSocketId);
     if (!userId) {
@@ -77,31 +69,13 @@ export class RealtimeSessionManager {
       sockets.delete(normalizedSocketId);
       if (sockets.size === 0) {
         this.userSockets.delete(userId);
-        this._scheduleDisconnectCleanup(userId);
+        void this.endSession(userId, { reason });
       } else {
         this.userSockets.set(userId, sockets);
       }
     } else {
-      this._scheduleDisconnectCleanup(userId);
+      void this.endSession(userId, { reason });
     }
-  }
-
-  _scheduleDisconnectCleanup(userId) {
-    const normalizedUserId = normalizeId(userId);
-    if (!normalizedUserId) {
-      return;
-    }
-
-    if (this.pendingDisconnectTimers.has(normalizedUserId)) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      this.pendingDisconnectTimers.delete(normalizedUserId);
-      this.endSession(normalizedUserId, { reason: 'disconnect-timeout' }).catch(() => {});
-    }, this.disconnectGraceMs);
-
-    this.pendingDisconnectTimers.set(normalizedUserId, timer);
   }
 
   _getPrimarySocketId(userId) {
@@ -246,8 +220,25 @@ export class RealtimeSessionManager {
     this.sessions.setState(aUserId, SESSION_STATES.MATCHED, { roomId, partnerUserId: bUserId });
     this.sessions.setState(bUserId, SESSION_STATES.MATCHED, { roomId, partnerUserId: aUserId });
 
-    aSocket.emit('match_found', { roomId, role: 'caller', message: 'You have been paired with a fellow reader.' });
-    bSocket.emit('match_found', { roomId, role: 'callee', message: 'You have been paired with a fellow reader.' });
+    const [aUser, bUser] = await Promise.all([
+      User.findById(aUserId).select('username').lean().catch(() => null),
+      User.findById(bUserId).select('username').lean().catch(() => null),
+    ]);
+    const aUsername = String(aUser?.username || '').trim();
+    const bUsername = String(bUser?.username || '').trim();
+
+    aSocket.emit('match_found', {
+      roomId,
+      role: 'initiator',
+      message: 'You have been paired with a reader.',
+      partnerUsername: bUsername || null,
+    });
+    bSocket.emit('match_found', {
+      roomId,
+      role: 'responder',
+      message: 'You have been paired with a reader.',
+      partnerUsername: aUsername || null,
+    });
   }
 
   enterConversation({ userId, roomId }) {
@@ -295,7 +286,11 @@ export class RealtimeSessionManager {
       const partnerSocketId = this._getPrimarySocketId(partnerUserId);
       const partnerSocket = partnerSocketId ? this.io.sockets.sockets.get(partnerSocketId) : null;
       if (partnerSocket) {
-        partnerSocket.emit('partner_left', { roomId: normalizedRoomId, reason });
+        partnerSocket.emit('partner_left', {
+          roomId: normalizedRoomId,
+          reason,
+          message: 'The other reader has left the discussion',
+        });
         partnerSocket.leave(normalizedRoomId);
       }
     }

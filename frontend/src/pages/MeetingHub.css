@@ -116,6 +116,7 @@
 .auth-input:focus,
 .wizard-input:focus {
   border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 48%, transparent);
 }
 
 
@@ -465,6 +466,20 @@
   gap: 0.75rem;
 }
 
+.btn-leave {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--intent-danger-text) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--intent-danger-bg) 35%, var(--surface-1));
+  color: color-mix(in srgb, var(--intent-danger-text) 85%, var(--text-primary));
+}
+
+.btn-leave:hover {
+  border-color: color-mix(in srgb, var(--intent-danger-text) 45%, var(--border-soft));
+  background: color-mix(in srgb, var(--intent-danger-bg) 55%, var(--surface-1));
+}
+
 .chat-interface {
   flex: 1;
   display: flex;
@@ -515,12 +530,21 @@
 
 .chat-input {
   border-radius: var(--radius-pill);
+  min-height: 2.75rem;
+  max-height: 7.5rem;
+  resize: none;
+  line-height: 1.4;
 }
 
 .send-btn {
   width: 2.8rem;
   min-width: 2.8rem;
   padding: 0;
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .media-stage {

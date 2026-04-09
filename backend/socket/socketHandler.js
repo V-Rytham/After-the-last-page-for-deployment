@@ -131,10 +131,10 @@ export default function registerSocketEvents(io, sessionManager) {
       socket.to(roomId).emit('webrtc_ice_candidate', { candidate });
     });
 
-    socket.on('disconnect', () => {
-      log(`[SOCKET] User disconnected: ${socket.id}`);
+    socket.on('disconnect', (reason) => {
+      log(`[SOCKET] User disconnected: ${socket.id} (${reason || 'unknown'})`);
       onlineCount = Math.max(0, onlineCount - 1);
-      sessionManager.unregisterSocket({ socketId: socket.id });
+      sessionManager.unregisterSocket({ socketId: socket.id, reason: reason || 'disconnect' });
       emitStats();
     });
   });

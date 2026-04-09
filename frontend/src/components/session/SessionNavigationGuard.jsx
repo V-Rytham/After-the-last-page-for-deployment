@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../utils/api';
 import { getStoredToken } from '../../utils/auth';
 import './SessionNavigationGuard.css';
@@ -22,10 +23,12 @@ const parseHashRouteFromHref = (href) => {
 };
 
 export default function SessionNavigationGuard() {
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [pendingHash, setPendingHash] = useState(null);
   const [sessionState, setSessionState] = useState('IDLE');
   const isSensitive = useMemo(() => SENSITIVE_STATES.has(String(sessionState || '').toUpperCase()), [sessionState]);
+  const isMeetRoute = location.pathname.startsWith('/meet/');
 
   const lastSafeHashRef = useRef(getCurrentHashRoute());
   const allowNavigationRef = useRef(false);
@@ -149,7 +152,7 @@ export default function SessionNavigationGuard() {
         return;
       }
 
-      if (!isSensitive) {
+      if (!isSensitive || isMeetRoute) {
         lastSafeHashRef.current = nextHash;
         return;
       }
@@ -169,11 +172,11 @@ export default function SessionNavigationGuard() {
       window.removeEventListener('hashchange', handleHashNavigation);
       window.removeEventListener('popstate', handleHashNavigation);
     };
-  }, [isSensitive]);
+  }, [isMeetRoute, isSensitive]);
 
   useEffect(() => {
     const handleClickCapture = (event) => {
-      if (!isSensitive) {
+      if (!isSensitive || isMeetRoute) {
         return;
       }
 
@@ -205,7 +208,7 @@ export default function SessionNavigationGuard() {
 
     document.addEventListener('click', handleClickCapture, true);
     return () => document.removeEventListener('click', handleClickCapture, true);
-  }, [isSensitive]);
+  }, [isMeetRoute, isSensitive]);
 
   if (!isOpen) {
     return null;
