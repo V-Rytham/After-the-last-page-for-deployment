@@ -26,9 +26,21 @@ export const connectDB = async () => {
     throw error;
   }
 
+  const mongoUri = String(process.env.MONGODB_URI || '').trim();
+
+  const shouldDisableRetryWrites = (uri) => {
+    if (!uri) return false;
+    const normalized = uri.toLowerCase();
+    if (normalized.includes('retrywrites=')) return false;
+    const isLocal = normalized.includes('mongodb://localhost') || normalized.includes('mongodb://127.0.0.1');
+    if (!isLocal) return false;
+    return !normalized.includes('replicaset=');
+  };
+
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const conn = await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 5000,
+      ...(shouldDisableRetryWrites(mongoUri) ? { retryWrites: false } : {}),
     });
     lastDbError = null;
     log(`[DB] MongoDB Connected: ${conn.connection.host}`);

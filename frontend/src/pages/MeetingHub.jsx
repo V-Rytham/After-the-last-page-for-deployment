@@ -125,7 +125,7 @@ const MeetingHub = () => {
           return;
         }
 
-        setBook({ _id: matchBookId, id: matchBookId, title: 'Discussion Room', author: 'Verified book', source: '', sourceId: '' });
+        setBook({ _id: matchBookId, id: matchBookId, title: 'Private chat', author: 'Verified book', source: '', sourceId: '' });
       } catch (error) {
         console.error('Fetch error:', error);
         setBook(null);
@@ -149,7 +149,7 @@ const MeetingHub = () => {
     const onConnectError = (error) => {
       console.error('Socket connection failed:', error);
       setSocketReady(false);
-      setMatchNotice('Live matching is offline right now. You can still enter the community thread.');
+      setMatchNotice('Live matching is offline right now. You can still open the book threads.');
     };
 
     const onMatchFound = ({ roomId: matchedRoomId, role, partnerUsername, partnerName }) => {
@@ -164,7 +164,7 @@ const MeetingHub = () => {
     };
 
     const onAccessDenied = ({ message }) => {
-      setMatchNotice(String(message || 'Live reading rooms are only available for open-access books.'));
+      setMatchNotice(String(message || 'Live chats are only available for open-access books.'));
     };
 
     const onMatchStats = (payload) => {
@@ -200,7 +200,7 @@ const MeetingHub = () => {
       pendingOfferRef.current = null;
       setMediaStatus('idle');
       setMediaError('');
-      setMatchNotice(String(message || 'The other reader has left the discussion.'));
+      setMatchNotice(String(message || 'The other reader has left the chat.'));
       setRoomId(null);
       setPartnerDisplayName('Reader');
       setMessages([]);
@@ -502,7 +502,7 @@ const MeetingHub = () => {
       try {
         await ensureConnected();
       } catch {
-        setMatchNotice('Live matching is unavailable right now. Please try again shortly, or enter the community thread.');
+      setMatchNotice('Live matching is unavailable right now. Please try again shortly, or open the book threads.');
         return;
       }
     }
@@ -643,9 +643,9 @@ const MeetingHub = () => {
             </button>
 
             <h2 className="font-serif text-center mb-2">How would you like to connect?</h2>
-            <p className="text-muted text-center mb-8">Select your preferred medium to discuss <em>{book.title}</em>. Your identity remains anonymous.</p>
+            <p className="text-muted text-center mb-8">Select your preferred medium to chat about <em>{book.title}</em>. Your identity remains anonymous.</p>
             <div className="pref-options">
-              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><MessageSquare className="pref-icon" size={26} strokeWidth={2.1} /><h3>Text Chat</h3><p>Quiet, thoughtful discussion.</p></button>
+              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><MessageSquare className="pref-icon" size={26} strokeWidth={2.1} /><h3>Text Chat</h3><p>Quiet, thoughtful chat.</p></button>
               <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}><Mic className="pref-icon" size={26} strokeWidth={2.1} /><h3>Voice Call</h3><p>Vocalize your thoughts securely.</p></button>
               <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}><Video className="pref-icon" size={26} strokeWidth={2.1} /><h3>Video Call</h3><p>Face-to-face, masked connection.</p></button>
             </div>
@@ -655,7 +655,7 @@ const MeetingHub = () => {
                 Find a reading partner <ArrowRight size={18} />
               </button>
                   {isObjectId ? (
-                    <button className="btn-secondary" onClick={() => navigate(`/thread/${bookId}`)}>Skip to Community Thread instead</button>
+                    <button className="btn-secondary" onClick={() => navigate(`/thread/${bookId}`)}>Open the book threads instead</button>
                   ) : null}
                 </div>
           </div>
@@ -857,7 +857,7 @@ const MeetingHub = () => {
       {leavePromptOpen && (
         <div className="leave-guard-overlay" role="dialog" aria-modal="true" aria-label="Leave session confirmation">
           <div className="leave-guard-card glass-panel">
-            <h2 className="font-serif">Leave discussion?</h2>
+            <h2 className="font-serif">Leave chat?</h2>
             <p>{leavePromptBody}</p>
             <div className="leave-guard-actions">
               <button

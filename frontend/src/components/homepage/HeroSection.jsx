@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { MoveRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const MotionLink = motion(Link);
+const MotionLink = motion.create(Link);
 
 const HeroSection = ({ primaryHref = '/auth', secondaryHref = '/meet', primaryLabel = 'Start Reading' }) => (
   <section className="home2-hero" aria-label="Homepage hero">

@@ -2,9 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  BookOpen,
   Heart,
-  PenSquare,
   ScrollText,
   Send,
   Share2,
@@ -16,15 +14,8 @@ import './BookThread.css';
 
 const initialThreadForm = { title: '', chapterReference: '', content: '' };
 const MAX_VISUAL_REPLY_DEPTH = 3;
-const COLLAPSE_REPLY_DEPTH = 4;
 const BOOK_READ_TIMEOUT_MS = 120000;
 const THREAD_CONTENT_MAX = 1000;
-const WRITING_ASSIST_CHIPS = [
-  { label: 'Ask a question', starter: 'Why do you think the author chose to...' },
-  { label: 'Share an interpretation', starter: 'One way to read this moment is...' },
-  { label: 'Highlight a character', starter: 'A character choice that stood out to me was...' },
-  { label: 'Discuss a theme', starter: 'A theme that keeps surfacing here is...' },
-];
 
 const canonicalizeThreadKey = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -32,11 +23,12 @@ const canonicalizeThreadKey = (value) => {
   return raw.replace(/\s+/g, ' ').slice(0, 120);
 };
 
-const formatCalendarDate = (value) => new Date(value).toLocaleDateString(undefined, {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-});
+const formatCalendarDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const month = new Intl.DateTimeFormat('en', { month: 'short' }).format(date);
+  return `${date.getDate()} ${month} ${date.getFullYear()}`;
+};
 
 const formatRelativeTime = (value) => {
   const timestamp = new Date(value).getTime();
@@ -66,10 +58,6 @@ const countReplies = (comments = []) => comments.reduce(
   0,
 );
 
-const getChapterReferenceLabel = (value) => value?.trim() || 'Whole book';
-
-const getHeartCount = (count = 0) => (count > 0 ? count : null);
-
 const hasHeartFromActor = (likedBy, actorId) => (
   Boolean(actorId && Array.isArray(likedBy) && likedBy.some((value) => String(value) === String(actorId)))
 );
@@ -83,8 +71,12 @@ const getExcerpt = (text = '', maxLength = 260) => {
   return `${normalized.slice(0, maxLength).trim()}...`;
 };
 
-const getResponseCountLabel = (count) => (count === 1 ? '1 response' : `${count} responses`);
-const getContributionCountLabel = (count) => (count === 1 ? '1 contribution' : `${count} contributions`);
+const getReplyCountLabel = (count) => (count === 1 ? '1 reply' : `${count} replies`);
+
+const getAuthorDisplayName = (item) => {
+  const username = String(item?.authorUsername || '').trim();
+  return username || 'Anonymous';
+};
 
 const renderRichText = (text) => text
   .split(/\n{2,}/)
@@ -102,9 +94,7 @@ const ReplyTree = ({
   replyingTo,
   replyDrafts,
   pendingReplyKey,
-  collapsedBranches,
   onToggleReply,
-  onToggleBranch,
   onReplyDraftChange,
   onSubmitReply,
   onLikeComment,
@@ -113,36 +103,23 @@ const ReplyTree = ({
     {comments.map((comment) => {
       const replyKey = `comment-${comment._id}`;
       const isReplying = replyingTo === replyKey;
-      const replyCount = countReplies(comment.replies || []);
       const visualDepth = Math.min(depth, MAX_VISUAL_REPLY_DEPTH);
       const hasReplies = (comment.replies || []).length > 0;
-      const canCollapseBranch = depth >= COLLAPSE_REPLY_DEPTH && hasReplies;
-      const isBranchCollapsed = canCollapseBranch ? collapsedBranches[comment._id] !== false : false;
-      const heartCount = getHeartCount(comment.likes || 0);
       const isHearted = hasHeartFromActor(comment.likedBy, actorId);
 
       return (
         <article
           key={comment._id}
-          className={`reply-node ${depth > 0 ? 'is-nested' : ''} ${depth > MAX_VISUAL_REPLY_DEPTH ? 'depth-capped' : ''}`}
+          className={`reply-node ${depth > MAX_VISUAL_REPLY_DEPTH ? 'depth-capped' : ''}`}
           style={{ '--reply-depth': visualDepth }}
         >
           <div className="reply-main">
             <div className="reply-meta">
-              <span className="reply-author">{comment.authorAnonId}</span>
-              <span className="reply-dot" aria-hidden="true">/</span>
+              <span className="reply-author">{getAuthorDisplayName(comment)}</span>
+              <span className="reply-dot" aria-hidden="true">·</span>
               <time dateTime={comment.createdAt} className="reply-time">
                 {formatRelativeTime(comment.createdAt)}
               </time>
-              {heartCount && (
-                <>
-                  <span className="reply-dot" aria-hidden="true">/</span>
-                  <span className="reply-resonance resonance-pill" aria-label={`${heartCount} hearts`}>
-                    <Heart size={14} aria-hidden="true" />
-                    <span>{heartCount}</span>
-                  </span>
-                </>
-              )}
             </div>
 
             <div className="reply-content">
@@ -151,7 +128,7 @@ const ReplyTree = ({
 
             <div className="reply-actions">
               <button type="button" className="reply-action" onClick={() => onToggleReply(isReplying ? null : replyKey)}>
-                Respond
+                Reply
               </button>
               <button
                 type="button"
@@ -163,12 +140,6 @@ const ReplyTree = ({
                 <Heart size={16} aria-hidden="true" fill={isHearted ? 'currentColor' : 'none'} />
                 {comment.likes > 0 && <span className="like-count">{comment.likes}</span>}
               </button>
-              {replyCount > 0 && <span className="reply-action-meta">{getResponseCountLabel(replyCount)} continue below</span>}
-              {canCollapseBranch && (
-                <button type="button" className="branch-toggle" onClick={() => onToggleBranch(comment._id)}>
-                  {isBranchCollapsed ? `Open ${getResponseCountLabel(replyCount).toLowerCase()}` : 'Fold deeper exchange'}
-                </button>
-              )}
             </div>
 
             {isReplying && (
@@ -181,14 +152,14 @@ const ReplyTree = ({
               >
                 <div className="writing-surface-copy">
                   <span className="writing-label">Response</span>
-                  <p>Write as though you are adding a margin note for everyone still seated at the table.</p>
+                  <p>Add your response to this thread</p>
                 </div>
                 <textarea
                   className="thread-textarea compact"
                   rows={4}
                   value={replyDrafts[replyKey] || ''}
                   onChange={(event) => onReplyDraftChange(replyKey, event.target.value)}
-                  placeholder={`Reply to ${comment.authorAnonId} with a considered reading...`}
+                  placeholder={`Reply to ${getAuthorDisplayName(comment)}...`}
                 />
                 <div className="inline-reply-actions">
                   <button type="button" className="text-button" onClick={() => onToggleReply(null)}>
@@ -202,7 +173,7 @@ const ReplyTree = ({
               </form>
             )}
 
-            {hasReplies && !isBranchCollapsed && (
+            {hasReplies && (
               <div className="reply-children">
                 <ReplyTree
                   comments={comment.replies}
@@ -212,9 +183,7 @@ const ReplyTree = ({
                   replyingTo={replyingTo}
                   replyDrafts={replyDrafts}
                   pendingReplyKey={pendingReplyKey}
-                  collapsedBranches={collapsedBranches}
                   onToggleReply={onToggleReply}
-                  onToggleBranch={onToggleBranch}
                   onReplyDraftChange={onReplyDraftChange}
                   onSubmitReply={onSubmitReply}
                   onLikeComment={onLikeComment}
@@ -270,7 +239,6 @@ export default function BookThread() {
   const [replyDrafts, setReplyDrafts] = useState({});
   const [submittingThread, setSubmittingThread] = useState(false);
   const [pendingReplyKey, setPendingReplyKey] = useState(null);
-  const [collapsedBranches, setCollapsedBranches] = useState({});
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const trimmedThreadTitle = threadForm.title.trim();
@@ -318,9 +286,18 @@ export default function BookThread() {
         return api.get(`/books/${encodeURIComponent(bookId)}`);
       })();
 
+      const threadsRequest = isCustomThread
+        ? Promise.resolve({ data: { items: [] } })
+        : api.get(`/books/${encodeURIComponent(threadBookKey)}/threads`, {
+            params: {
+              page: 1,
+              limit: 25,
+            },
+          });
+
       const [bookResult, threadsResult] = await Promise.allSettled([
         bookRequest,
-        api.get(`/threads/${encodeURIComponent(threadBookKey)}?sort=new`),
+        threadsRequest,
       ]);
 
       if (bookResult.status === 'fulfilled') {
@@ -358,6 +335,104 @@ export default function BookThread() {
     fetchData();
   }, [bookId, customThreadTitle, isCustomThread, location?.state?.book, navigate, parsedSourceRoute, threadBookKey]);
 
+  const buildReplyTree = (messages, rootMessageId) => {
+    const nodes = new Map();
+    const roots = [];
+
+    (Array.isArray(messages) ? messages : []).forEach((message) => {
+      if (!message?._id) return;
+      if (rootMessageId && message._id === rootMessageId) return;
+      nodes.set(message._id, { ...message, replies: Array.isArray(message.replies) ? message.replies : [] });
+    });
+
+    nodes.forEach((node) => {
+      const parentId = node.parentMessageId || node.parentId || '';
+      if (parentId && nodes.has(parentId)) {
+        const parent = nodes.get(parentId);
+        parent.replies = Array.isArray(parent.replies) ? parent.replies : [];
+        parent.replies.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    return roots;
+  };
+
+  const findCommentNode = (comments, commentId) => {
+    for (const comment of comments || []) {
+      if (!comment) continue;
+      if (comment._id === commentId) return comment;
+      const nested = findCommentNode(comment.replies || [], commentId);
+      if (nested) return nested;
+    }
+    return null;
+  };
+
+  const insertMessageIntoComments = (comments, message) => {
+    const parentId = message.parentMessageId || '';
+    if (!parentId) {
+      return [...(comments || []), { ...message, replies: [] }];
+    }
+
+    const cloneTree = (nodes) => (nodes || []).map((node) => ({
+      ...node,
+      replies: cloneTree(node.replies),
+    }));
+
+    const next = cloneTree(comments || []);
+    const parent = findCommentNode(next, parentId);
+    if (!parent) {
+      return [...next, { ...message, replies: [] }];
+    }
+    parent.replies = Array.isArray(parent.replies) ? parent.replies : [];
+    parent.replies.push({ ...message, replies: [] });
+    return next;
+  };
+
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    const target = threads.find((thread) => thread._id === selectedThreadId);
+    if (!target || Array.isArray(target.comments)) {
+      return;
+    }
+
+    const loadAllMessages = async () => {
+      try {
+        setError('');
+        setFeedback('');
+
+        const aggregated = [];
+        const pageLimit = 100;
+        const maxPages = 20;
+
+        for (let page = 1; page <= maxPages; page += 1) {
+          const { data } = await api.get(`/threads/${encodeURIComponent(selectedThreadId)}/messages`, {
+            params: { page, limit: pageLimit, order: 'asc' },
+          });
+
+          const items = Array.isArray(data?.items) ? data.items : [];
+          aggregated.push(...items);
+
+          const totalPages = Number(data?.pagination?.totalPages || 1);
+          if (page >= totalPages || items.length < pageLimit) {
+            break;
+          }
+        }
+
+        const nextComments = buildReplyTree(aggregated, target.rootMessageId);
+
+        setThreads((prev) => prev.map((thread) => (
+          thread._id === selectedThreadId ? { ...thread, comments: nextComments } : thread
+        )));
+      } catch (requestError) {
+        setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to load responses right now.');
+      }
+    };
+
+    loadAllMessages();
+  }, [selectedThreadId, threads]);
+
   useEffect(() => {
     if (location.state?.notice) {
       setFeedback(location.state.notice);
@@ -381,13 +456,10 @@ export default function BookThread() {
     [threads, selectedThreadId],
   );
 
-  const selectedThreadReplyCount = countReplies(selectedThread?.comments || []);
-  const selectedThreadHearts = getHeartCount(selectedThread?.likes || 0);
+  const selectedThreadReplyCount = selectedThread?.messageCount
+    ? Math.max(0, Number(selectedThread.messageCount) - 1)
+    : countReplies(selectedThread?.comments || []);
   const selectedThreadIsHearted = hasHeartFromActor(selectedThread?.likedBy, actorId);
-
-  const setThreadInState = (updatedThread) => {
-    setThreads((prev) => prev.map((thread) => (thread._id === updatedThread._id ? updatedThread : thread)));
-  };
 
   const updateThreadQuery = (threadId) => {
     const params = new URLSearchParams(location.search || '');
@@ -408,7 +480,6 @@ export default function BookThread() {
     setSelectedThreadId(threadId);
     setShowComposer(false);
     setReplyingTo(null);
-    setCollapsedBranches({});
     setFeedback('');
     setError('');
     updateThreadQuery(threadId);
@@ -418,7 +489,6 @@ export default function BookThread() {
   const handleCloseThread = () => {
     setSelectedThreadId(null);
     setReplyingTo(null);
-    setCollapsedBranches({});
     setFeedback('');
     setError('');
     updateThreadQuery('');
@@ -430,19 +500,8 @@ export default function BookThread() {
     setThreadForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
-  const handleApplyStarter = (starter) => {
-    setThreadForm((prev) => ({ ...prev, content: starter }));
-  };
-
   const handleReplyDraftChange = (key, value) => {
     setReplyDrafts((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleToggleBranch = (commentId) => {
-    setCollapsedBranches((prev) => ({
-      ...prev,
-      [commentId]: prev[commentId] === false,
-    }));
   };
 
   const handleCreateThread = async (event) => {
@@ -455,11 +514,7 @@ export default function BookThread() {
     setSubmittingThread(true);
 
     try {
-      const storedUser = getStoredUser();
-      const { data } = await api.post('/threads', {
-        bookKey: threadBookKey,
-        bookId: threadBookKey,
-        userId: storedUser?._id || null,
+      const { data } = await api.post(`/books/${encodeURIComponent(threadBookKey)}/threads`, {
         title: threadForm.title,
         chapterReference: threadForm.chapterReference,
         content: threadForm.content,
@@ -472,7 +527,7 @@ export default function BookThread() {
       setFeedback('Your discussion note has been placed into the room.');
       updateThreadQuery(data._id);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Unable to publish this discussion right now.');
+      setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to publish this discussion right now.');
     } finally {
       setSubmittingThread(false);
     }
@@ -491,17 +546,26 @@ export default function BookThread() {
     setPendingReplyKey(replyKey);
 
     try {
-      const { data } = await api.post(`/threads/${threadId}/comments`, {
+      const { data } = await api.post(`/threads/${threadId}/messages`, {
         content,
-        parentId,
+        parentMessageId: parentId,
       });
 
-      setThreadInState(data);
+      setThreads((prev) => prev.map((thread) => {
+        if (thread._id !== threadId) return thread;
+        const existing = Array.isArray(thread.comments) ? thread.comments : [];
+        const nextComments = insertMessageIntoComments(existing, data);
+        return {
+          ...thread,
+          comments: nextComments,
+          messageCount: Number(thread.messageCount || 0) + 1,
+        };
+      }));
       setReplyDrafts((prev) => ({ ...prev, [replyKey]: '' }));
       setReplyingTo(null);
       setFeedback(parentId ? 'Your response has been added.' : 'Your note has joined the discussion.');
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Unable to post your response right now.');
+      setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to post your response right now.');
     } finally {
       setPendingReplyKey(null);
     }
@@ -510,18 +574,31 @@ export default function BookThread() {
   const handleLikeThread = async (threadId) => {
     try {
       const { data } = await api.post(`/threads/${threadId}/like`);
-      setThreadInState(data);
+      setThreads((prev) => prev.map((thread) => (thread._id === threadId ? { ...thread, ...data } : thread)));
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Unable to heart this thread right now.');
+      setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to heart this thread right now.');
     }
   };
 
   const handleLikeComment = async (threadId, commentId) => {
     try {
-      const { data } = await api.post(`/threads/${threadId}/comments/${commentId}/like`);
-      setThreadInState(data);
+      const { data } = await api.post(`/threads/${threadId}/messages/${commentId}/like`);
+      setThreads((prev) => prev.map((thread) => {
+        if (thread._id !== threadId) return thread;
+        const existing = Array.isArray(thread.comments) ? thread.comments : [];
+
+        const replaceNode = (nodes) => (nodes || []).map((node) => {
+          if (!node) return node;
+          if (node._id === commentId) {
+            return { ...node, ...data, replies: Array.isArray(node.replies) ? node.replies : [] };
+          }
+          return { ...node, replies: replaceNode(node.replies) };
+        });
+
+        return { ...thread, comments: replaceNode(existing) };
+      }));
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Unable to heart this response right now.');
+      setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to heart this response right now.');
     }
   };
 
@@ -575,65 +652,46 @@ export default function BookThread() {
                   <div className="salon-kicker-row">
                     <span className="salon-room-label">{book.author}</span>
                   </div>
-                  <h1 className="thread-title font-serif">{book.title}</h1>
+                  <div className="nexus-toolbar" role="toolbar" aria-label="Thread controls">
+                    <h1 className="thread-title font-serif">{book.title}</h1>
+                    <button
+                      type="button"
+                      className={showComposer ? 'btn-secondary sm' : 'thread-cta'}
+                      onClick={() => setShowComposer((prev) => !prev)}
+                    >
+                      {showComposer ? 'Cancel' : 'Write'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div className="nexus-toolbar" role="toolbar" aria-label="Discussion controls">
-                <button type="button" className="thread-cta" onClick={() => setShowComposer((prev) => !prev)}>
-                  <PenSquare size={16} />
-                  {showComposer ? 'Close writing desk' : 'Open writing desk'}
-                </button>
               </div>
             </header>
 
             {showComposer && (
               <form className="composer-surface" onSubmit={handleCreateThread}>
-                <div className="composer-copy">
-                  <span className="writing-label">Start a discussion</span>
-                  <h2 className="font-serif">Start a discussion</h2>
-                  <p>Share one clear idea others can respond to.</p>
-                </div>
-
-                <label className="writing-field">
-                  <span>Discussion title</span>
+                <div className="writing-field">
                   <input
                     name="title"
                     value={threadForm.title}
                     onChange={handleThreadFieldChange}
                     className="thread-input"
-                    placeholder="What question or idea are you exploring?"
+                    placeholder="What's your thought?"
                     maxLength={100}
                     required
                   />
-                </label>
+                </div>
 
-                <label className="writing-field">
-                  <span>Reference (optional)</span>
+                <div className="writing-field">
                   <input
                     name="chapterReference"
                     value={threadForm.chapterReference}
                     onChange={handleThreadFieldChange}
                     className="thread-input"
-                    placeholder="Chapter, scene, or moment (e.g., 'Chapter 7 ending')"
+                    placeholder="Reference (optional)"
                     maxLength={80}
                   />
-                </label>
+                </div>
 
-                <label className="writing-field">
-                  <span>Your perspective</span>
-                  <div className="helper-chips" role="group" aria-label="Writing assistance">
-                    {WRITING_ASSIST_CHIPS.map((chip) => (
-                      <button
-                        key={chip.label}
-                        type="button"
-                        className="helper-chip"
-                        onClick={() => handleApplyStarter(chip.starter)}
-                      >
-                        {chip.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="writing-field">
                   <div className="textarea-wrap">
                     <textarea
                       name="content"
@@ -642,18 +700,18 @@ export default function BookThread() {
                       className="thread-textarea"
                       rows={9}
                       maxLength={THREAD_CONTENT_MAX}
-                      placeholder={`What stood out to you?\n\n– A moment, idea, or conflict from the book\n– Why it matters or felt interesting\n– What you want others to think about or respond to`}
+                      placeholder=""
                       required
                     />
                     <span className={`composer-count inside ${threadForm.content.length >= THREAD_CONTENT_MAX * 0.8 ? 'near-limit' : ''}`}>
                       {threadForm.content.length}/{THREAD_CONTENT_MAX}
                     </span>
                   </div>
-                </label>
+                </div>
 
                 <div className="composer-actions">
                   <button type="submit" className="thread-cta composer-submit" disabled={isComposerSubmitDisabled}>
-                    {submittingThread ? 'Starting discussion...' : 'Start discussion'}
+                    {submittingThread ? 'Publishing...' : 'Publish'}
                   </button>
                 </div>
               </form>
@@ -666,42 +724,30 @@ export default function BookThread() {
             )}
 
             <section className="thread-journal-header" aria-labelledby="thread-list-heading">
-              <div>
-                <span className="writing-label">Open conversations</span>
-                <h2 id="thread-list-heading" className="font-serif">Discussion threads</h2>
-              </div>
+              <h2 id="thread-list-heading" className="font-serif">Threads</h2>
             </section>
 
             <section className="thread-list-surface" aria-live="polite">
               {threads.length > 0 ? threads.map((thread) => {
-                const responseCount = countReplies(thread.comments || []);
-                const heartCount = getHeartCount(thread.likes || 0);
+                const responseCount = thread?.messageCount
+                  ? Math.max(0, Number(thread.messageCount) - 1)
+                  : countReplies(thread.comments || []);
 
                 return (
                   <article key={thread._id} className="thread-list-item">
                     <button type="button" className="thread-list-button" onClick={() => handleOpenThread(thread._id)}>
                       <div className="thread-list-main">
-                        <div className="thread-entry-context">
-                          <span className="thread-entry-reference">{getChapterReferenceLabel(thread.chapterReference)}</span>
-                          <span className="reply-dot" aria-hidden="true">/</span>
-                          <span>{thread.authorAnonId}</span>
-                          <span className="reply-dot" aria-hidden="true">/</span>
-                          <span>{formatRelativeTime(thread.updatedAt || thread.createdAt)}</span>
-                        </div>
                         <h3 className="thread-list-title font-serif">{thread.title}</h3>
-                        <p className="thread-list-preview">{getExcerpt(thread.content)}</p>
-                        <div className="thread-list-footer">
-                          <span>{getResponseCountLabel(responseCount)}</span>
-                          {heartCount && (
-                            <>
-                              <span className="reply-dot" aria-hidden="true">/</span>
-                              <span className="reply-resonance resonance-pill" aria-label={`${heartCount} hearts`}>
-                                <Heart size={14} aria-hidden="true" />
-                                <span>{heartCount}</span>
-                              </span>
-                            </>
-                          )}
+                        <div className="thread-entry-context">
+                          <span>{getAuthorDisplayName(thread)}</span>
+                          <span className="reply-dot" aria-hidden="true">·</span>
+                          <time dateTime={thread.createdAt || thread.updatedAt}>
+                            {formatCalendarDate(thread.createdAt || thread.updatedAt)}
+                          </time>
+                          <span className="reply-dot" aria-hidden="true">·</span>
+                          <span>{getReplyCountLabel(responseCount)}</span>
                         </div>
+                        <p className="thread-list-preview">{getExcerpt(thread.content)}</p>
                       </div>
                     </button>
                   </article>
@@ -729,54 +775,16 @@ export default function BookThread() {
               </div>
             )}
 
-            <section className="thread-book-context">
-              <div className="thread-book-mini-cover" style={{ '--book-accent': book.coverColor || '#6f614d' }}>
-                <BookCoverArt
-                  book={book}
-                  imgClassName="thread-book-mini-image"
-                  fallbackClassName="thread-book-mini-fallback"
-                  showSpine
-                  showPattern={false}
-                  spineClassName="thread-book-mini-spine"
-                />
-              </div>
-
-              <div className="thread-book-copy">
-                <span className="salon-kicker">BookThread</span>
-                <h2 className="font-serif">{book.title}</h2>
-                <div className="thread-book-meta">
-                  <BookOpen size={15} />
-                  <span>{book.author}</span>
-                  <span className="reply-dot" aria-hidden="true">/</span>
-                  <span>{getChapterReferenceLabel(selectedThread.chapterReference)}</span>
-                </div>
-              </div>
-
-              <div className="thread-book-aside">
-                <span className="writing-label">Room note</span>
-                <p>The book stays in view so every response remains answerable to the text.</p>
-              </div>
-            </section>
-
             <article className="thread-focus-post" id={selectedThread._id}>
-              <div className="thread-focus-meta">
-                <span className="thread-focus-author">{selectedThread.authorAnonId}</span>
-                <span className="reply-dot" aria-hidden="true">/</span>
-                <time dateTime={selectedThread.createdAt}>{formatCalendarDate(selectedThread.createdAt)}</time>
-                <span className="reply-dot" aria-hidden="true">/</span>
-                <span>{getResponseCountLabel(selectedThreadReplyCount)}</span>
-                {selectedThreadHearts && (
-                  <>
-                    <span className="reply-dot" aria-hidden="true">/</span>
-                    <span className="reply-resonance resonance-pill" aria-label={`${selectedThreadHearts} hearts`}>
-                      <Heart size={14} aria-hidden="true" />
-                      <span>{selectedThreadHearts}</span>
-                    </span>
-                  </>
-                )}
-              </div>
-
               <h1 className="thread-focus-title font-serif">{selectedThread.title}</h1>
+
+              <div className="thread-focus-meta">
+                <span className="thread-focus-author">{getAuthorDisplayName(selectedThread)}</span>
+                <span className="reply-dot" aria-hidden="true">·</span>
+                <time dateTime={selectedThread.createdAt}>{formatCalendarDate(selectedThread.createdAt)}</time>
+                <span className="reply-dot" aria-hidden="true">·</span>
+                <span>{getReplyCountLabel(selectedThreadReplyCount)}</span>
+              </div>
 
               <div className="thread-focus-content">
                 {renderRichText(selectedThread.content)}
@@ -818,8 +826,8 @@ export default function BookThread() {
               >
                 <div className="writing-surface-copy">
                   <span className="writing-label">Your response</span>
-                  <h2 className="font-serif">Write a contribution, not a reaction.</h2>
-                  <p>Bring in a passage, an interpretation, or a feeling that belongs at the table with other readers.</p>
+                  <h2 className="font-serif">Add your response to this thread</h2>
+                  <p>Write your response</p>
                 </div>
                 <textarea
                   className="thread-textarea compact"
@@ -845,14 +853,6 @@ export default function BookThread() {
             )}
 
             <section className="thread-replies">
-              <div className="thread-replies-heading">
-                <div>
-                  <span className="writing-label">Responses</span>
-                  <h2 className="font-serif">Readers answer with their own considered readings.</h2>
-                </div>
-                <span>{getContributionCountLabel(selectedThreadReplyCount)} in this exchange</span>
-              </div>
-
               {(selectedThread.comments || []).length > 0 ? (
                 <ReplyTree
                   comments={selectedThread.comments}
@@ -861,9 +861,7 @@ export default function BookThread() {
                   replyingTo={replyingTo}
                   replyDrafts={replyDrafts}
                   pendingReplyKey={pendingReplyKey}
-                  collapsedBranches={collapsedBranches}
                   onToggleReply={setReplyingTo}
-                  onToggleBranch={handleToggleBranch}
                   onReplyDraftChange={handleReplyDraftChange}
                   onSubmitReply={handleSubmitReply}
                   onLikeComment={handleLikeComment}
@@ -871,7 +869,7 @@ export default function BookThread() {
               ) : (
                 <div className="empty-replies">
                   <ScrollText size={22} />
-                  <h3 className="font-serif">No responses yet.</h3>
+                  <h3 className="font-serif">No replies yet.</h3>
                   <p>Be the first reader to answer this idea with care.</p>
                 </div>
               )}

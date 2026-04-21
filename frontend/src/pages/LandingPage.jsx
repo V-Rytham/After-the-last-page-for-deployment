@@ -145,13 +145,10 @@ export default function LandingPage({ currentUser }) {
 
         for (const id of sampleIds) {
           try {
-            const { data } = await api.get(`/threads/${encodeURIComponent(id)}`, { params: { limit: 5 } });
+            const { data } = await api.get(`/books/${encodeURIComponent(id)}/threads`, { params: { page: 1, limit: 5 } });
             const items = Array.isArray(data?.items) ? data.items : [];
             items.forEach((item) => {
               if (item?.authorAnonId) authors.add(String(item.authorAnonId));
-              (item?.comments || []).slice(0, 3).forEach((comment) => {
-                if (comment?.authorAnonId) authors.add(String(comment.authorAnonId));
-              });
             });
 
             if (!preview && items.length > 0) {

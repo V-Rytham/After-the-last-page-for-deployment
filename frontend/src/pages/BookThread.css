@@ -459,12 +459,33 @@
 }
 
 .thread-focus-content,
-.reply-content,
-.reply-main,
 .reply-children,
 .thread-replies {
   display: grid;
+}
+
+.thread-focus-post {
+  display: grid;
   gap: 0.65rem;
+}
+
+.thread-focus-content {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reply-content {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.thread-replies,
+.reply-children {
+  gap: 1.1rem;
+}
+
+.reply-main {
+  display: block;
 }
 
 .inline-reply-form {
@@ -473,28 +494,26 @@
   padding: 0.8rem;
 }
 
-.thread-replies-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
 .reply-node {
   display: grid;
-  gap: 0.58rem;
-  padding: 0.8rem 0;
-  border-top: 1px solid color-mix(in srgb, var(--border-soft) 85%, transparent);
-}
-
-.reply-node.is-nested {
-  margin-left: calc(var(--reply-depth) * 0.85rem);
-  padding-left: 0.78rem;
-  border-left: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  gap: 0.55rem;
+  margin-left: calc(var(--reply-depth) * 0.9rem);
 }
 
 .reply-node.depth-capped {
-  margin-left: calc(3 * 0.85rem);
+  margin-left: calc(3 * 0.9rem);
+}
+
+.reply-meta {
+  margin-bottom: 0.45rem;
+}
+
+.reply-actions {
+  margin-top: 0.6rem;
+}
+
+.reply-children {
+  margin-top: 1.1rem;
 }
 
 .branch-toggle {
@@ -560,11 +579,6 @@
   .composer-actions {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .reply-node.is-nested {
-    margin-left: calc(var(--reply-depth) * 0.6rem);
-    padding-left: 0.55rem;
   }
 
   .thread-focus-actions .reply-action,

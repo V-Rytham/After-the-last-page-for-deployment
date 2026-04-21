@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { revealScale } from './motionPresets';
 
-const MotionLink = motion(Link);
+const MotionLink = motion.create(Link);
 
 const EmotionalSection = () => (
   <motion.section

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Search, ShieldCheck } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
@@ -29,6 +29,7 @@ export default function MeetingAccessHub({ currentUser }) {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredBooks, setFeaturedBooks] = useState([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
   const [joiningKey, setJoiningKey] = useState('');
   const [joinNotice, setJoinNotice] = useState('');
   const { books, loading, error, query } = useGlobalSearch(searchTerm);
@@ -42,12 +43,15 @@ export default function MeetingAccessHub({ currentUser }) {
     let cancelled = false;
 
     const loadFeaturedBooks = async () => {
+      setFeaturedLoading(true);
       try {
         const { data } = await api.get('/books/search', { params: { q: 'classic literature' } });
         if (cancelled) return;
         setFeaturedBooks(toList(data?.results).slice(0, 12));
       } catch {
         if (!cancelled) setFeaturedBooks([]);
+      } finally {
+        if (!cancelled) setFeaturedLoading(false);
       }
     };
 
@@ -63,7 +67,7 @@ export default function MeetingAccessHub({ currentUser }) {
   const handleJoinDiscussion = async (book) => {
     const key = `${book.source}:${book.source_book_id}`;
     if (!socketConnected) {
-      setJoinNotice(socketConnecting ? 'Connecting…' : 'Connecting to live room…');
+      setJoinNotice(socketConnecting ? 'Connectingâ€¦' : 'Connecting to chatâ€¦');
       return;
     }
 
@@ -80,7 +84,7 @@ export default function MeetingAccessHub({ currentUser }) {
       const { data } = await attemptJoin();
 
       const roomId = String(data?.room_id || data?.canonical_book_id || '').trim();
-      if (!roomId) throw new Error('Could not start discussion room.');
+      if (!roomId) throw new Error('Could not start chat.');
 
       navigate(`/meet/${encodeURIComponent(roomId)}`, {
         state: {
@@ -101,7 +105,7 @@ export default function MeetingAccessHub({ currentUser }) {
         && (/no active socket connection/i.test(serverMessage) || serverMessage === 'SOCKET_NOT_CONNECTED');
 
       if (socketMismatch) {
-        setJoinNotice('Reconnecting to live room…');
+        setJoinNotice('Reconnectingâ€¦');
         try {
           await ensureConnected({ forceReconnect: true });
           const { data } = await attemptJoin();
@@ -126,7 +130,7 @@ export default function MeetingAccessHub({ currentUser }) {
         }
       }
 
-      setJoinNotice('Could not join this discussion right now. Please try again in a moment.');
+      setJoinNotice('Could not start this chat right now. Please try again in a moment.');
     } finally {
       setJoiningKey('');
     }
@@ -136,12 +140,12 @@ export default function MeetingAccessHub({ currentUser }) {
     return (
       <div className="meeting-access-page is-gated animate-fade-in">
         <section className="meeting-access-gate" aria-label="Meet">
-          <h1 className="font-serif">Join conversations beyond the final page.</h1>
-          <p>Sign in to meet readers anonymously by selecting a real verified book.</p>
+          <h1 className="font-serif">Start a private chat beyond the final page.</h1>
+          <p>Sign in to chat one-on-one with another reader around a real verified book.</p>
 
           <div className="meeting-access-gate-actions">
             <button type="button" className="btn-primary" onClick={() => navigate('/auth')}>
-              Sign in to join conversations <ArrowRight size={16} />
+              Sign in to start chatting <ArrowRight size={16} />
             </button>
           </div>
 
@@ -158,10 +162,10 @@ export default function MeetingAccessHub({ currentUser }) {
     <div className="meeting-access-page animate-fade-in">
       <section className="meeting-access-hero">
         <div className="meeting-access-hero-copy">
-          <h1 className="font-serif">Find a book. Start a discussion.</h1>
-          <p>Join readers already discussing a book or start your own.</p>
+          <h1 className="font-serif">Find a book. Start a chat.</h1>
+          <p>Start a private conversation with another reader.</p>
           <p className="meeting-access-live-state">
-            {socketConnected ? 'Connected' : (socketConnecting ? 'Connecting…' : 'Connecting…')}
+            {socketConnected ? 'Ready' : (socketConnecting ? 'Connectingâ€¦' : 'Connectingâ€¦')}
           </p>
           {!socketConnected && socketError ? <p className="meeting-access-live-error">{socketError}</p> : null}
           {joinNotice ? <p className="meeting-access-live-error">{joinNotice}</p> : null}
@@ -197,6 +201,17 @@ export default function MeetingAccessHub({ currentUser }) {
         </section>
       ) : null}
 
+      {!loading && !hasQuery && featuredLoading && visibleBooks.length === 0 ? (
+        <section className="meeting-access-results" aria-label="Loading books">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <article key={`featured-skeleton-${index}`} className="meeting-book-card meeting-book-card--skeleton glass-panel" aria-hidden="true">
+              <div className="meeting-book-skeleton-line meeting-book-skeleton-line--title" />
+              <div className="meeting-book-skeleton-line meeting-book-skeleton-line--subtitle" />
+            </article>
+          ))}
+        </section>
+      ) : null}
+
       {!loading && visibleBooks.length > 0 ? (
         <section className="meeting-access-results" aria-label="Meet books">
           {visibleBooks.map((book) => {
@@ -215,7 +230,7 @@ export default function MeetingAccessHub({ currentUser }) {
                   onClick={() => handleJoinDiscussion(book)}
                 >
                   {isJoining || !socketConnected ? <span className="meeting-cta-spinner" aria-hidden="true" /> : null}
-                  {isJoining ? 'Joining…' : (socketConnected ? 'Join Discussion' : 'Connecting…')}
+                  {isJoining ? 'Startingâ€¦' : (socketConnected ? 'Start Chat' : 'Connectingâ€¦')}
                 </button>
               </article>
             );
@@ -232,3 +247,4 @@ export default function MeetingAccessHub({ currentUser }) {
     </div>
   );
 }
+

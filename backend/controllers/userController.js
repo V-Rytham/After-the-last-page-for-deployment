@@ -1,6 +1,7 @@
 import { User } from '../models/User.js';
-import { Thread } from '../models/Thread.js';
 import { UserProgress } from '../models/UserProgress.js';
+import { BookThread } from '../models/BookThread.js';
+import { BookThreadMessage } from '../models/BookThreadMessage.js';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs/promises';
@@ -45,15 +46,6 @@ const validateUsername = (username) => {
   return { ok: true, username: formatted, usernameLower: normalizeUsername(formatted) };
 };
 
-const countRepliesByAuthor = (comments = [], authorAnonId) => comments.reduce((total, comment) => {
-  if (!comment) {
-    return total;
-  }
-
-  const matchesAuthor = String(comment.authorAnonId || '') === String(authorAnonId || '');
-  return total + (matchesAuthor ? 1 : 0) + countRepliesByAuthor(comment.replies || [], authorAnonId);
-}, 0);
-
 const buildProfileStats = async (user) => {
   if (!user?._id) {
     return {
@@ -62,27 +54,15 @@ const buildProfileStats = async (user) => {
     };
   }
 
-  const [booksCompleted, relatedThreads] = await Promise.all([
+  const [booksCompleted, createdThreadIds, messageThreadIds] = await Promise.all([
     UserProgress.countDocuments({ userId: user._id, quizPassed: true }),
-    Thread.find({
-      $or: [
-        { authorAnonId: user.anonymousId },
-        { 'comments.authorAnonId': user.anonymousId },
-        { 'comments.replies.authorAnonId': user.anonymousId },
-      ],
-    }).select('comments authorAnonId'),
+    BookThread.distinct('_id', { userId: user._id }),
+    BookThreadMessage.distinct('threadId', { userId: user._id }),
   ]);
 
   const participatedThreadIds = new Set();
-
-  relatedThreads.forEach((thread) => {
-    if (
-      String(thread.authorAnonId || '') === String(user.anonymousId || '')
-      || countRepliesByAuthor(thread.comments || [], user.anonymousId) > 0
-    ) {
-      participatedThreadIds.add(String(thread._id));
-    }
-  });
+  (Array.isArray(createdThreadIds) ? createdThreadIds : []).forEach((id) => participatedThreadIds.add(String(id)));
+  (Array.isArray(messageThreadIds) ? messageThreadIds : []).forEach((id) => participatedThreadIds.add(String(id)));
 
   return {
     booksCompleted,
@@ -228,7 +208,6 @@ export const registerAnonymousUser = async (req, res) => {
     const user = await User.create({
       anonymousId,
       name: '',
-      username: '',
       bio: '',
       isAnonymous: true,
       provider: 'local',

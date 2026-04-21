@@ -82,8 +82,8 @@ export default function ThreadAccessHub({ currentUser }) {
       <section className="thread-access-hero">
         <div className="thread-access-hero-row">
           <div className="thread-access-copy">
-            <h1 className="font-serif">Step into the book thread.</h1>
-            <p>A universal space to post threads and replies about one book.</p>
+            <h1 className="font-serif">Discuss books with other readers</h1>
+            <p>Open a book to view or start conversations</p>
           </div>
 
           <label className="thread-access-search" htmlFor="thread-search-input">
@@ -101,12 +101,6 @@ export default function ThreadAccessHub({ currentUser }) {
       </section>
 
       <section className="thread-access-grid">
-        {!hasInput && (
-          <div className="thread-access-loading glass-panel">
-            <p>Explore threads by opening any of these featured books.</p>
-          </div>
-        )}
-
         {hasQuery && loading && (
           <div className="thread-access-loading glass-panel">
             <p>Searching…</p>
