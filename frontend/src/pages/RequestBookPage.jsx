@@ -25,9 +25,7 @@ const RequestBookPage = () => {
     <div className="request-book-page">
       <section className="request-book-shell">
         <header className="request-book-header">
-          <p className="request-book-kicker">Gutenberg Reader</p>
           <h1 className="font-serif">Open a Gutenberg book by ID</h1>
-          <p>Enter a Project Gutenberg ID to fetch and read it instantly.</p>
         </header>
 
         <form className="request-book-form" onSubmit={handleSubmit}>

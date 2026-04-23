@@ -32,17 +32,11 @@
   max-width: 100%;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.7rem;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
   border-radius: var(--radius-pill);
-  background: var(--surface-muted);
+  background: var(--surface-1);
   border: 1px solid var(--border-soft);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition:
-    border-color var(--transition-fast),
-    background-color var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 
 .thread-access-search svg {
@@ -66,8 +60,8 @@
 }
 
 .thread-access-search:focus-within {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px var(--selection);
+  border-color: var(--border-soft);
+  box-shadow: none;
 }
 
 .thread-access-badge {

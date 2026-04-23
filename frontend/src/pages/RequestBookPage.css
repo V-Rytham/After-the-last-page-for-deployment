@@ -6,21 +6,15 @@
 
 .request-book-shell {
   display: grid;
-  gap: 1rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  background: var(--surface-1);
-  padding: clamp(1rem, 2vw, 1.5rem);
+  gap: 0.8rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: clamp(0.25rem, 1vw, 0.75rem) 0;
 }
 
 .request-book-header p {
   color: var(--text-secondary);
-}
-
-.request-book-kicker {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.75rem;
 }
 
 .request-book-form {
