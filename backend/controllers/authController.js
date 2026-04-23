@@ -113,12 +113,18 @@ export const login = async (req, res) => {
 };
 
 export const googleCallbackSuccess = async (req, res) => {
-  const callbackUrl = String(process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const callbackUrl = String(process.env.CLIENT_URL || req.get('origin') || '').trim().replace(/\/$/, '');
+  if (!callbackUrl) {
+    return res.status(500).json({ message: 'CLIENT_URL is not configured for Google auth callback.' });
+  }
   return res.redirect(`${callbackUrl}/#/auth?error=google_login_failed`);
 };
 
 export const googleAuthFailure = async (_req, res) => {
-  const callbackUrl = String(process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const callbackUrl = String(process.env.CLIENT_URL || '').trim().replace(/\/$/, '');
+  if (!callbackUrl) {
+    return res.status(500).json({ message: 'CLIENT_URL is not configured for Google auth callback.' });
+  }
   return res.redirect(`${callbackUrl}/#/auth?error=google_login_failed`);
 };
 
