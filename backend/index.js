@@ -152,7 +152,6 @@ const corsOptions = {
 
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-  // 🔥 THIS FIXES YOUR ERROR
   allowedHeaders: (req, callback) => {
     callback(null, req.headers['access-control-request-headers']);
   },
@@ -162,7 +161,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.options(/.*/, cors(corsOptions));
 app.use(cookieParser());
 app.use(passport.initialize());
 app.use(securityHeaders);
