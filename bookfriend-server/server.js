@@ -27,39 +27,26 @@ process.on('uncaughtException', (error) => {
 
 const isProd = () => String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
 
-const corsOrigin = (origin, callback) => {
-  const allowList = new Set([
-    process.env.CLIENT_URL,
-    process.env.BACKEND_URL,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:5000',
-    'http://127.0.0.1:5000',
-  ].filter(Boolean));
-
-  if (!origin) {
-    callback(null, true);
-    return;
-  }
-
-  if (allowList.has(origin)) {
-    callback(null, true);
-    return;
-  }
-
-  if (!isProd()) {
-    callback(null, true);
-    return;
-  }
-
-  callback(new Error('Origin not allowed by CORS.'));
-};
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
 
 app.use(cors({
-  origin: corsOrigin,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
-  maxAge: 600,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.onrender.com')
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
 }));
 
 app.use((req, res, next) => {
@@ -121,8 +108,7 @@ app.get('/health', (req, res) => {
 
 app.use('/agent', agentRoutes);
 
-const port = process.env.PORT || 5050;
-
+const port = process.env.PORT || 10000;
 // Centralized error handling (keep responses safe in production).
 app.use((err, req, res, next) => {
   if (res.headersSent) {
