@@ -134,14 +134,35 @@ const buildCorsOriginValidator = () => {
 
 configurePassport();
 
-app.use(cors({
-  origin: buildCorsOriginValidator(),
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowList = buildAllowedOrigins();
+
+    if (!origin) return callback(null, true);
+
+    if (
+      allowList.has(origin) ||
+      origin.endsWith('.onrender.com')
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Book-Action-Id', 'X-Book-Action-Name', 'X-User-Id'],
-  exposedHeaders: ['X-Request-Id'],
-  maxAge: 600,
+
+  // 🔥 THIS FIXES YOUR ERROR
+  allowedHeaders: (req, callback) => {
+    callback(null, req.headers['access-control-request-headers']);
+  },
+
   credentials: true,
-}));
+};
+
+app.use(cors(corsOptions));
+
+app.options('*', cors(corsOptions));
 app.use(cookieParser());
 app.use(passport.initialize());
 app.use(securityHeaders);
