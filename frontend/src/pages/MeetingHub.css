@@ -403,35 +403,44 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 
 .room-container {
   width: min(100%, 64rem);
-  min-height: 70vh;
+  min-height: 78vh;
   display: grid;
-  gap: 1rem;
+  gap: 0;
 }
 
 .room-header {
-  padding: 1rem 1.2rem;
-  border-radius: var(--radius-lg);
+  padding: 1rem 1.2rem 0.95rem;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 75%, transparent);
+}
+
+.room-header--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .partner-info {
   display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
+  align-items: center;
+  gap: 0.9rem;
 }
 
 .partner-avatar,
 .wizard-avatar {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3rem;
+  height: 3rem;
   border-radius: 999px;
-  border: 1px solid var(--accent-border);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 68%, var(--border-soft));
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface-muted));
   color: var(--accent-ink);
 }
 
@@ -463,16 +472,18 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 }
 
 .room-main {
-  min-height: 32rem;
+  min-height: min(82vh, 46rem);
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: color-mix(in srgb, var(--surface-1) 84%, var(--page-bg-alt));
+  box-shadow: 0 16px 36px rgba(10, 14, 25, 0.18);
 }
 
 .room-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75rem;
 }
 
@@ -494,75 +505,174 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .chat-messages {
   flex: 1;
-  padding: 1.25rem;
+  padding: 1.15rem 1.1rem 1.2rem;
   overflow-y: auto;
   display: grid;
   align-content: start;
-  gap: 0.9rem;
-  background: var(--page-bg-alt);
+  gap: 0.24rem;
+  background: color-mix(in srgb, var(--page-bg-alt) 75%, var(--surface-1));
 }
 
 .message {
   display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: messageIn 180ms ease-out forwards;
+}
+
+.message.received {
+  justify-content: flex-start;
 }
 
 .message.sent {
   justify-content: flex-end;
 }
 
+.message.group-start {
+  margin-top: 0.62rem;
+}
+
+.message.group-mid {
+  margin-top: 0.1rem;
+}
+
+.message-content {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.message.sent .message-content {
+  justify-items: end;
+}
+
+.message-avatar {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-muted) 66%, var(--surface-1));
+  border: 1px solid color-mix(in srgb, var(--border-soft) 75%, transparent);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  margin-bottom: 0.14rem;
+}
+
 .msg-bubble {
-  max-width: min(80%, 36rem);
-  padding: 0.8rem 1rem;
-  border-radius: 1.15rem;
-  line-height: 1.65;
-  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-soft) 85%, transparent);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  max-width: min(72%, 34rem);
+  padding: 0.72rem 0.96rem;
+  border-radius: 1.05rem;
+  line-height: 1.55;
+  background: color-mix(in srgb, #212b3e 64%, var(--surface-1));
+  border: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
+  color: color-mix(in srgb, var(--text-primary) 96%, white);
 }
 
 .sent .msg-bubble {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent-soft) 85%, #4967ff 15%), color-mix(in srgb, var(--accent-soft) 58%, #5f76ff 42%));
+  border-color: color-mix(in srgb, var(--accent-border) 80%, transparent);
   color: var(--accent-ink);
+}
+
+.msg-time {
+  font-size: 0.7rem;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+  letter-spacing: 0.01em;
+}
+
+.chat-empty-state {
+  margin: auto;
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  text-align: center;
+  color: color-mix(in srgb, var(--text-muted) 80%, transparent);
+  padding: 1.25rem;
+}
+
+.chat-empty-state p {
+  margin: 0;
+  font-size: 0.92rem;
 }
 
 .chat-input-area {
   display: flex;
+  align-items: flex-end;
   gap: 0.75rem;
-  padding: 1rem;
-  border-top: 1px solid var(--border-soft);
-  background: var(--surface-1);
+  padding: 0.85rem 1rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 92%, var(--page-bg-alt));
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  box-shadow: 0 -10px 24px rgba(8, 10, 20, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .chat-input {
   border-radius: var(--radius-pill);
   min-height: 2.75rem;
   max-height: 7.5rem;
+  padding: 0.75rem 1rem;
   resize: none;
   line-height: 1.4;
+  background: color-mix(in srgb, var(--surface-muted) 66%, var(--surface-1));
+  border-color: color-mix(in srgb, var(--border-soft) 72%, transparent);
+}
+
+.chat-input:focus {
+  border-color: color-mix(in srgb, var(--accent-border) 92%, white);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 36%, transparent);
 }
 
 .send-btn {
-  width: 2.8rem;
-  min-width: 2.8rem;
+  width: 2.95rem;
+  min-width: 2.95rem;
+  height: 2.95rem;
   padding: 0;
+  border-radius: 999px;
+  transition: transform 160ms ease, box-shadow 200ms ease, filter 160ms ease;
+}
+
+.send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .send-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.44;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .media-stage {
   padding: 1rem 1.1rem;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
   background: color-mix(in srgb, var(--page-bg-alt) 70%, transparent);
   display: grid;
   gap: 0.75rem;
+}
+
+@keyframes messageIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .video-grid {
