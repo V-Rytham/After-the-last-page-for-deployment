@@ -5,16 +5,28 @@ import { motion } from 'framer-motion';
 
 const MotionLink = motion.create(Link);
 
-const HeroSection = ({ primaryHref = '/meet', secondaryHref = '/threads', primaryLabel = 'Start Exploring' }) => (
-  <section className="home2-hero" aria-label="Homepage hero">
+const HeroSection = ({ primaryHref = '/meet', secondaryHref = '/threads', primaryLabel = 'Start Exploring' }) => {
+  const text = 'Where the story ends, the conversation begins.';
+  const words = text.split(' ');
+
+  return (
+    <section className="home2-hero" aria-label="Homepage hero">
     <div className="home2-hero-inner">
       <motion.h1
-        className="home2-hero-title home2-hero-title-shimmer font-serif"
+        className="home2-hero-title font-serif hero-text"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.78, ease: 'easeOut', delay: 0 }}
       >
-        Where the story ends, the conversation begins.
+        {words.map((word, index) => (
+          <span
+            key={index}
+            className="word"
+            style={{ animationDelay: `${index * 0.2}s` }}
+          >
+            {word}&nbsp;
+          </span>
+        ))}
       </motion.h1>
       <motion.p
         className="home2-hero-subtitle"
@@ -50,7 +62,8 @@ const HeroSection = ({ primaryHref = '/meet', secondaryHref = '/threads', primar
         </MotionLink>
       </motion.div>
     </div>
-  </section>
-);
+    </section>
+  );
+};
 
 export default HeroSection;
