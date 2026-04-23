@@ -152,9 +152,12 @@ const corsOptions = {
 
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-  allowedHeaders: (req, callback) => {
-    callback(null, req.headers['access-control-request-headers']);
-  },
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'x-user-id',
+  ],
 
   credentials: true,
 };
