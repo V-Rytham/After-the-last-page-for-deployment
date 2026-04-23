@@ -1,4 +1,5 @@
 import { Book } from '../../models/Book.js';
+import { getCanonicalBook } from '../../services/canonicalBookService.js';
 import { badRequest, notFound } from './httpErrors.js';
 
 const parseGutenbergParam = (value) => {
@@ -30,15 +31,48 @@ export const resolveBookOrThrow = async (bookIdParam) => {
   }
 
   const gutenbergId = parseGutenbergParam(raw);
-  if (!gutenbergId) {
+  if (gutenbergId) {
+    const book = await Book.findOne({ gutenbergId }).select('_id title author gutenbergId').lean();
+    if (!book) {
+      throw notFound('Book not found.');
+    }
+    return book;
+  }
+
+  const sourceMatch = raw.match(/^([a-z0-9_-]+):(.+)$/i);
+  if (!sourceMatch) {
     throw badRequest('Invalid book id.');
   }
 
-  const book = await Book.findOne({ gutenbergId }).select('_id title author gutenbergId').lean();
-  if (!book) {
-    throw notFound('Book not found.');
+  const source = String(sourceMatch[1] || '').trim().toLowerCase();
+  const sourceBookId = String(sourceMatch[2] || '').trim();
+  if (!source || !sourceBookId || source === 'custom') {
+    throw badRequest('Invalid book id.');
   }
 
-  return book;
-};
+  const canonical = await getCanonicalBook({ source, source_book_id: sourceBookId });
+  const canonicalId = String(canonical?.canonical_book_id || '').trim();
+  if (!canonicalId) {
+    throw badRequest('Invalid book id.');
+  }
 
+  const syntheticBase = Number.parseInt(canonicalId.slice(-8), 16);
+  const syntheticGutenbergId = Number.isFinite(syntheticBase)
+    ? 1_500_000_000 + syntheticBase
+    : 1_900_000_000;
+
+  const persisted = await Book.findOneAndUpdate(
+    { gutenbergId: syntheticGutenbergId },
+    {
+      $set: {
+        title: String(canonical?.title || sourceBookId).trim() || sourceBookId,
+        author: String(canonical?.author || 'Unknown author').trim() || 'Unknown author',
+        gutenbergId: syntheticGutenbergId,
+        lastAccessedAt: new Date(),
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  ).select('_id title author gutenbergId').lean();
+
+  return persisted;
+};
