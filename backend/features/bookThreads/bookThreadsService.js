@@ -48,6 +48,8 @@ const normalizeObjectIdList = (values) => {
   return normalized;
 };
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const toThreadListItem = ({ thread, rootMessage }) => ({
   id: normalizeId(thread._id),
   _id: normalizeId(thread._id),
@@ -91,6 +93,40 @@ const isStandaloneTransactionError = (error) => {
 };
 
 export class BookThreadsService {
+  async searchThreads({ query }) {
+    const raw = String(query?.q || '').trim();
+    if (!raw) {
+      return { items: [] };
+    }
+
+    const safeQuery = escapeRegex(raw);
+    const matcher = { $regex: safeQuery, $options: 'i' };
+    const dbQuery = {
+      $or: [
+        { title: matcher },
+        { displayName: matcher },
+      ],
+    };
+
+    const threads = await BookThread.find(dbQuery)
+      .sort({ lastMessageAt: -1, _id: -1 })
+      .limit(20)
+      .lean();
+
+    const rootMessageIds = normalizeObjectIdList(threads.map((thread) => thread.rootMessageId));
+    const roots = rootMessageIds.length
+      ? await BookThreadMessage.find({ _id: mongoose.trusted({ $in: rootMessageIds }) }).select('_id content').lean()
+      : [];
+    const rootById = new Map(roots.map((msg) => [String(msg._id), msg]));
+
+    return {
+      items: threads.map((thread) => toThreadListItem({
+        thread,
+        rootMessage: rootById.get(String(thread.rootMessageId)) || null,
+      })),
+    };
+  }
+
   async createThread({ bookId, userId, displayName, title, content, chapterReference }) {
     const sanitizedTitle = sanitizeText(title, 100);
     const sanitizedContent = sanitizeText(content, 3000);
@@ -228,11 +264,6 @@ export class BookThreadsService {
 
     const rootMessageIds = normalizeObjectIdList(threads.map((thread) => thread.rootMessageId));
     const rootMessagesQuery = { _id: mongoose.trusted({ $in: rootMessageIds }) };
-    if (rootMessageIds.length) {
-      console.debug('[THREADS] root message lookup query', {
-        _id: { $in: rootMessageIds.map((id) => String(id)) },
-      });
-    }
 
     const roots = rootMessageIds.length
       ? await BookThreadMessage.find(rootMessagesQuery).select('_id content').lean()

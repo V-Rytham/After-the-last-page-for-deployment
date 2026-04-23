@@ -59,6 +59,15 @@ export const listThreadsByBook = async (req, res) => {
   }
 };
 
+export const searchThreads = async (req, res) => {
+  try {
+    const payload = await service.searchThreads({ query: req.query });
+    return sendSuccess(res, payload);
+  } catch (error) {
+    return sendError(res, error, 'Unable to search threads.');
+  }
+};
+
 export const getThread = async (req, res) => {
   try {
     const threadId = parseObjectId(req.params.threadId, 'thread id');
