@@ -11,7 +11,7 @@
   border-radius: 16px;
   border: 1px solid var(--nav-capsule-border);
   background: var(--nav-capsule-bg);
-  box-shadow: 0 12px 28px rgba(12, 18, 33, 0.16);
+  box-shadow: var(--nav-capsule-shadow);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
   display: grid;

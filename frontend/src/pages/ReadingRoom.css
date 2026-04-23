@@ -46,8 +46,8 @@
 }
 
 .theme-dark {
-  background: #101010;
-  color: #e7e8eb;
+  background: var(--bg-dark);
+  color: var(--text-primary);
 }
 
 .theme-light .reader-toolbar {
@@ -85,7 +85,7 @@
 .theme-dark .reading-column strong,
 .theme-dark .reader-book-name,
 .theme-dark .chapter-title {
-  color: #e7e8eb;
+  color: var(--text-primary);
 }
 
 .theme-light .reader-overline,
@@ -112,7 +112,7 @@
 .theme-dark .reader-footer,
 .theme-dark .settings-label,
 .theme-dark .finish-banner p {
-  color: #adb2c0;
+  color: var(--text-secondary);
 }
 
 .theme-light .settings-panel {
@@ -126,7 +126,7 @@
 }
 
 .theme-dark .settings-panel {
-  background: rgba(25, 24, 22, 0.96);
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
   border-color: rgba(229, 229, 229, 0.12);
 }
 
@@ -930,7 +930,11 @@
 }
 
 .theme-dark .reader-surface {
-  background: linear-gradient(180deg, #121315 0%, #0a0a0b 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-dark) 72%, #fff) 0%,
+    var(--bg-dark) 100%
+  );
 }
 
 .theme-light.reader-root {
@@ -942,7 +946,11 @@
 }
 
 .theme-dark.reader-root {
-  background: linear-gradient(180deg, #121315 0%, #0a0a0b 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-dark) 72%, #fff) 0%,
+    var(--bg-dark) 100%
+  );
 }
 
 .theme-dark .reader-footer {
@@ -972,7 +980,7 @@
 }
 
 .theme-dark .finish-overlay .finish-banner {
-  background: rgba(25, 24, 22, 0.84);
+  background: color-mix(in srgb, var(--card-bg) 84%, transparent);
 }
 
 .finish-icon {
