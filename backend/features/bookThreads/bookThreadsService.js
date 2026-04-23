@@ -227,7 +227,7 @@ export class BookThreadsService {
     ]);
 
     const rootMessageIds = normalizeObjectIdList(threads.map((thread) => thread.rootMessageId));
-    const rootMessagesQuery = { _id: { $in: rootMessageIds } };
+    const rootMessagesQuery = { _id: mongoose.trusted({ $in: rootMessageIds }) };
     if (rootMessageIds.length) {
       console.debug('[THREADS] root message lookup query', {
         _id: { $in: rootMessageIds.map((id) => String(id)) },
