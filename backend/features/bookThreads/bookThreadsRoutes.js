@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../../middleware/authMiddleware.js';
+import { attachIdentity } from '../../middleware/identityMiddleware.js';
 import {
   addMessage,
   createThread,
@@ -13,15 +13,15 @@ import {
 export const buildBookThreadsRoutes = () => {
   const router = express.Router();
 
-  router.post('/books/:bookId/threads', requireAuth, createThread);
-  router.get('/books/:bookId/threads', requireAuth, listThreadsByBook);
+  router.post('/books/:bookId/threads', attachIdentity, createThread);
+  router.get('/books/:bookId/threads', attachIdentity, listThreadsByBook);
 
-  router.get('/threads/:threadId', requireAuth, getThread);
-  router.post('/threads/:threadId/like', requireAuth, toggleThreadLike);
+  router.get('/threads/:threadId', attachIdentity, getThread);
+  router.post('/threads/:threadId/like', attachIdentity, toggleThreadLike);
 
-  router.get('/threads/:threadId/messages', requireAuth, listMessages);
-  router.post('/threads/:threadId/messages', requireAuth, addMessage);
-  router.post('/threads/:threadId/messages/:messageId/like', requireAuth, toggleMessageLike);
+  router.get('/threads/:threadId/messages', attachIdentity, listMessages);
+  router.post('/threads/:threadId/messages', attachIdentity, addMessage);
+  router.post('/threads/:threadId/messages/:messageId/like', attachIdentity, toggleMessageLike);
 
   return router;
 };

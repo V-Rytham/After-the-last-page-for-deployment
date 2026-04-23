@@ -1,6 +1,5 @@
 import { SessionStore } from './sessionStore.js';
 import { SESSION_STATES } from '../utils/sessionStates.js';
-import { User } from '../models/User.js';
 
 const normalizeId = (value) => String(value || '').trim();
 const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
@@ -19,6 +18,7 @@ export class RealtimeSessionManager {
 
     this.roomMembers = new Map(); // roomId -> Set(userId)
     this.userToRoomId = new Map(); // userId -> roomId
+    this.userProfiles = new Map(); // userId -> displayName
 
     setInterval(() => {
       this.sessions.sweep();
@@ -42,7 +42,7 @@ export class RealtimeSessionManager {
     return this.sessions.upsert(userId, patch);
   }
 
-  registerSocket({ userId, socketId }) {
+  registerSocket({ userId, socketId, displayName = "Reader" }) {
     const normalizedUserId = normalizeId(userId);
     const normalizedSocketId = normalizeId(socketId);
     if (!normalizedUserId || !normalizedSocketId) {
@@ -50,6 +50,7 @@ export class RealtimeSessionManager {
     }
 
     this.socketToUser.set(normalizedSocketId, normalizedUserId);
+    this.userProfiles.set(normalizedUserId, String(displayName || "Reader").trim() || "Reader");
 
     const existing = this.userSockets.get(normalizedUserId) || new Set();
     existing.add(normalizedSocketId);
@@ -91,9 +92,10 @@ export class RealtimeSessionManager {
     return last;
   }
 
-  async joinMatchmaking({ userId, bookId, prefType }) {
+  async joinMatchmaking({ userId, displayName = "Reader", bookId, prefType }) {
     const normalizedUserId = normalizeId(userId);
     const normalizedBookId = normalizeId(bookId);
+    this.userProfiles.set(normalizedUserId, String(displayName || "Reader").trim() || "Reader");
     const requestedPrefType = normalizeId(prefType).toLowerCase();
     const normalizedPrefType = requestedPrefType || 'text';
     if (!normalizedUserId || !normalizedBookId) {
@@ -220,24 +222,20 @@ export class RealtimeSessionManager {
     this.sessions.setState(aUserId, SESSION_STATES.MATCHED, { roomId, partnerUserId: bUserId });
     this.sessions.setState(bUserId, SESSION_STATES.MATCHED, { roomId, partnerUserId: aUserId });
 
-    const [aUser, bUser] = await Promise.all([
-      User.findById(aUserId).select('username').lean().catch(() => null),
-      User.findById(bUserId).select('username').lean().catch(() => null),
-    ]);
-    const aUsername = String(aUser?.username || '').trim();
-    const bUsername = String(bUser?.username || '').trim();
+    const aDisplayName = String(this.userProfiles.get(aUserId) || 'Reader').trim();
+    const bDisplayName = String(this.userProfiles.get(bUserId) || 'Reader').trim();
 
     aSocket.emit('match_found', {
       roomId,
       role: 'initiator',
       message: 'You have been paired with a reader.',
-      partnerUsername: bUsername || null,
+      partnerUsername: bDisplayName || null,
     });
     bSocket.emit('match_found', {
       roomId,
       role: 'responder',
       message: 'You have been paired with a reader.',
-      partnerUsername: aUsername || null,
+      partnerUsername: aDisplayName || null,
     });
   }
 

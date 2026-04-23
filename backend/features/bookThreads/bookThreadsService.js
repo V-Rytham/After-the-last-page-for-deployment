@@ -4,27 +4,17 @@ import { BookThreadMessage } from '../../models/BookThreadMessage.js';
 import { badRequest, notFound } from './httpErrors.js';
 import { parsePagination, sanitizeText } from './validators.js';
 
-const deriveAuthorLabel = (user) => {
-  const preferred = String(user?.anonymousId || '').trim();
-  if (preferred) return preferred;
+const deriveAuthorLabel = (record) => {
+  const displayName = String(record?.displayName || '').trim();
+  if (displayName) return displayName;
 
-  const username = String(user?.username || '').trim();
-  if (username) return username;
-
-  const name = String(user?.name || '').trim();
-  if (name) return name;
-
-  const id = user?._id ? String(user._id) : '';
-  if (id) return `Reader ${id.slice(-6)}`;
+  const userId = String(record?.userId || '').trim();
+  if (userId) return `Reader ${userId.slice(-4)}`;
 
   return 'Anonymous Reader';
 };
 
-const deriveUsername = (user) => {
-  if (!user || typeof user !== 'object') return '';
-  if (user?.isAnonymous) return '';
-  return String(user?.username || '').trim();
-};
+const deriveUsername = () => '';
 
 const normalizeId = (value) => (value ? String(value) : '');
 
@@ -33,8 +23,8 @@ const toThreadListItem = ({ thread, rootMessage }) => ({
   _id: normalizeId(thread._id),
   bookId: normalizeId(thread.bookId),
   userId: normalizeId(thread.userId?._id || thread.userId),
-  authorAnonId: deriveAuthorLabel(thread.userId),
-  authorUsername: deriveUsername(thread.userId),
+  authorAnonId: deriveAuthorLabel(thread),
+  authorUsername: deriveUsername(thread),
   title: thread.title,
   chapterReference: thread.chapterReference || '',
   content: rootMessage?.content || '',
@@ -56,8 +46,8 @@ const toMessageDto = (message) => ({
   _id: normalizeId(message._id),
   threadId: normalizeId(message.threadId),
   userId: normalizeId(message.userId?._id || message.userId),
-  authorAnonId: deriveAuthorLabel(message.userId),
-  authorUsername: deriveUsername(message.userId),
+  authorAnonId: deriveAuthorLabel(message),
+  authorUsername: deriveUsername(message),
   content: message.content,
   parentMessageId: normalizeId(message.parentMessageId),
   createdAt: message.createdAt,
@@ -71,7 +61,7 @@ const isStandaloneTransactionError = (error) => {
 };
 
 export class BookThreadsService {
-  async createThread({ bookId, userId, title, content, chapterReference }) {
+  async createThread({ bookId, userId, displayName, title, content, chapterReference }) {
     const sanitizedTitle = sanitizeText(title, 100);
     const sanitizedContent = sanitizeText(content, 3000);
     const sanitizedReference = sanitizeText(chapterReference, 80);
@@ -88,6 +78,7 @@ export class BookThreadsService {
       const createdThread = await BookThread.create({
         bookId,
         userId,
+        displayName,
         title: sanitizedTitle,
         chapterReference: sanitizedReference,
         rootMessageId: null,
@@ -102,6 +93,7 @@ export class BookThreadsService {
         createdRoot = await BookThreadMessage.create({
           threadId: createdThread._id,
           userId,
+          displayName,
           content: sanitizedContent,
           parentMessageId: null,
           likes: 0,
@@ -117,9 +109,7 @@ export class BookThreadsService {
       createdThread.lastMessageAt = createdRoot.createdAt;
       await createdThread.save();
 
-      const hydratedThread = await BookThread.findById(createdThread._id)
-        .populate('userId', 'anonymousId username name isAnonymous')
-        .lean();
+      const hydratedThread = await BookThread.findById(createdThread._id).lean();
       const rootMessage = await BookThreadMessage.findById(createdRoot._id).lean();
 
       return toThreadDetail({ thread: hydratedThread, rootMessage });
@@ -135,6 +125,7 @@ export class BookThreadsService {
           createdThread = await BookThread.create([{
             bookId,
             userId,
+            displayName,
             title: sanitizedTitle,
             chapterReference: sanitizedReference,
             rootMessageId: null,
@@ -147,6 +138,7 @@ export class BookThreadsService {
           createdRoot = await BookThreadMessage.create([{
             threadId: createdThread._id,
             userId,
+            displayName,
             content: sanitizedContent,
             parentMessageId: null,
             likes: 0,
@@ -165,9 +157,7 @@ export class BookThreadsService {
         throw error;
       }
 
-      const hydratedThread = await BookThread.findById(createdThread._id)
-        .populate('userId', 'anonymousId username name')
-        .lean();
+      const hydratedThread = await BookThread.findById(createdThread._id).lean();
       const rootMessage = await BookThreadMessage.findById(createdRoot._id).lean();
 
       return toThreadDetail({ thread: hydratedThread, rootMessage });
@@ -184,7 +174,6 @@ export class BookThreadsService {
         .sort({ lastMessageAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('userId', 'anonymousId username name isAnonymous')
         .lean(),
       BookThread.countDocuments({ bookId }),
     ]);
@@ -212,9 +201,7 @@ export class BookThreadsService {
   }
 
   async getThreadById({ threadId }) {
-    const thread = await BookThread.findById(threadId)
-      .populate('userId', 'anonymousId username name isAnonymous')
-      .lean();
+    const thread = await BookThread.findById(threadId).lean();
     if (!thread) {
       throw notFound('Thread not found.');
     }
@@ -236,7 +223,6 @@ export class BookThreadsService {
         .sort({ createdAt: order, _id: order })
         .skip(skip)
         .limit(limit)
-        .populate('userId', 'anonymousId username name isAnonymous')
         .lean(),
       BookThreadMessage.countDocuments({ threadId }),
     ]);
@@ -256,7 +242,7 @@ export class BookThreadsService {
     };
   }
 
-  async addMessage({ threadId, userId, content, parentMessageId = null }) {
+  async addMessage({ threadId, userId, displayName, content, parentMessageId = null }) {
     const sanitizedContent = sanitizeText(content, 1200);
     if (!sanitizedContent) {
       throw badRequest('Message content is required.');
@@ -281,6 +267,7 @@ export class BookThreadsService {
     const message = await BookThreadMessage.create({
       threadId,
       userId,
+      displayName,
       content: sanitizedContent,
       parentMessageId: parent ? parent._id : null,
       likes: 0,
@@ -295,9 +282,7 @@ export class BookThreadsService {
       },
     );
 
-    const hydrated = await BookThreadMessage.findById(message._id)
-      .populate('userId', 'anonymousId username name isAnonymous')
-      .lean();
+    const hydrated = await BookThreadMessage.findById(message._id).lean();
 
     return toMessageDto(hydrated);
   }
@@ -317,9 +302,7 @@ export class BookThreadsService {
       : { $addToSet: { likedBy: actorId }, $inc: { likes: 1 } };
 
     await BookThread.updateOne({ _id: threadId }, update);
-    const updated = await BookThread.findById(threadId)
-      .populate('userId', 'anonymousId username name isAnonymous')
-      .lean();
+    const updated = await BookThread.findById(threadId).lean();
     const rootMessage = updated?.rootMessageId
       ? await BookThreadMessage.findById(updated.rootMessageId).select('_id content').lean()
       : null;
@@ -344,9 +327,7 @@ export class BookThreadsService {
       : { $addToSet: { likedBy: actorId }, $inc: { likes: 1 } };
 
     await BookThreadMessage.updateOne({ _id: messageId }, update);
-    const updated = await BookThreadMessage.findById(messageId)
-      .populate('userId', 'anonymousId username name isAnonymous')
-      .lean();
+    const updated = await BookThreadMessage.findById(messageId).lean();
     return toMessageDto(updated);
   }
 }

@@ -5,6 +5,11 @@ import { getCanonicalBook } from '../services/canonicalBookService.js';
 const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
 const MAX_BOOK_ID_LEN = 140;
 
+const resolveIdentity = (req) => ({
+  userId: String(req.identity?.userId || req.body?.userId || '').trim(),
+  displayName: String(req.identity?.displayName || req.body?.displayName || '').trim() || 'Reader',
+});
+
 export const createMatchmakingController = (sessionManager) => {
   if (!sessionManager) {
     throw new Error('sessionManager is required');
@@ -12,15 +17,11 @@ export const createMatchmakingController = (sessionManager) => {
 
   const join = async (req, res) => {
     try {
-      const userId = req.user?._id;
+      const { userId, displayName } = resolveIdentity(req);
       const { source, source_book_id: sourceBookId, prefType } = req.body || {};
 
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized.' });
-      }
-
-      if (req.user?.isAnonymous) {
-        return res.status(403).json({ message: 'Please sign in to use Meet.' });
+        return res.status(400).json({ message: 'userId is required.' });
       }
 
       const normalizedSource = String(source || '').trim().toLowerCase();
@@ -47,6 +48,7 @@ export const createMatchmakingController = (sessionManager) => {
 
       const result = await sessionManager.joinMatchmaking({
         userId,
+        displayName,
         bookId: canonicalBookId,
         prefType: normalizedPrefType,
       });
@@ -75,13 +77,9 @@ export const createMatchmakingController = (sessionManager) => {
 
   const leave = async (req, res) => {
     try {
-      const userId = req.user?._id;
+      const { userId } = resolveIdentity(req);
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized.' });
-      }
-
-      if (req.user?.isAnonymous) {
-        return res.status(403).json({ message: 'Please sign in to use Meet.' });
+        return res.status(400).json({ message: 'userId is required.' });
       }
 
       sessionManager.leaveMatchmaking({ userId });

@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import { getStoredToken } from './auth';
+import { getOrCreateIdentity } from './identity';
 import { getSocketServerUrl } from './serviceUrls';
 
 const socketServer = getSocketServerUrl();
@@ -14,7 +14,7 @@ export const meetSocket = io(socketServer, {
 });
 
 export const syncMeetSocketAuth = () => {
-  const token = getStoredToken();
-  meetSocket.auth = token ? { token } : {};
+  const identity = getOrCreateIdentity();
+  meetSocket.auth = identity ? { userId: identity.userId, displayName: identity.displayName } : {};
 };
 

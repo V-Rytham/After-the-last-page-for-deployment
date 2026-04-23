@@ -1,13 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
+import { attachIdentity } from '../middleware/identityMiddleware.js';
 import { createMatchmakingController } from '../controllers/matchmakingController.js';
 
 export const buildMeetRoutes = (sessionManager) => {
   const router = express.Router();
   const controller = createMatchmakingController(sessionManager);
 
-  router.post('/join', protect, controller.join);
-  router.post('/leave', protect, controller.leave);
+  router.post('/join', attachIdentity, controller.join);
+  router.post('/leave', attachIdentity, controller.leave);
 
   return router;
 };
