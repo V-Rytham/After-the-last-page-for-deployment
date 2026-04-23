@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 import { badRequest } from './httpErrors.js';
 
+const OBJECT_ID_HEX_RE = /^[a-fA-F0-9]{24}$/;
+
 export const parseObjectId = (value, label) => {
   const raw = String(value || '').trim();
-  if (!mongoose.Types.ObjectId.isValid(raw)) {
+  if (!OBJECT_ID_HEX_RE.test(raw)) {
     throw badRequest(`Invalid ${label}.`);
   }
   return new mongoose.Types.ObjectId(raw);
@@ -28,4 +30,3 @@ export const sanitizeText = (value, maxLen) => String(value || '')
   .replace(/\s+/g, ' ')
   .trim()
   .slice(0, maxLen);
-

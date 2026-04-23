@@ -17,6 +17,36 @@ const deriveAuthorLabel = (record) => {
 const deriveUsername = () => '';
 
 const normalizeId = (value) => (value ? String(value) : '');
+const OBJECT_ID_HEX_RE = /^[a-fA-F0-9]{24}$/;
+
+const toObjectIdOrNull = (value) => {
+  if (value instanceof mongoose.Types.ObjectId) return value;
+  if (typeof value !== 'string') return null;
+
+  const raw = value.trim();
+  if (!OBJECT_ID_HEX_RE.test(raw)) return null;
+  return new mongoose.Types.ObjectId(raw);
+};
+
+const normalizeObjectIdList = (values) => {
+  if (!Array.isArray(values)) return [];
+
+  const seen = new Set();
+  const normalized = [];
+
+  for (const value of values) {
+    const asString = String(value || '').trim();
+    if (!asString || seen.has(asString)) continue;
+
+    const objectId = toObjectIdOrNull(value);
+    if (!objectId) continue;
+
+    seen.add(asString);
+    normalized.push(objectId);
+  }
+
+  return normalized;
+};
 
 const toThreadListItem = ({ thread, rootMessage }) => ({
   id: normalizeId(thread._id),
@@ -196,9 +226,16 @@ export class BookThreadsService {
       BookThread.countDocuments({ bookId }),
     ]);
 
-    const rootIds = threads.map((thread) => thread.rootMessageId).filter(Boolean);
-    const roots = rootIds.length
-      ? await BookThreadMessage.find({ _id: { $in: rootIds } }).select('_id content').lean()
+    const rootMessageIds = normalizeObjectIdList(threads.map((thread) => thread.rootMessageId));
+    const rootMessagesQuery = { _id: { $in: rootMessageIds } };
+    if (rootMessageIds.length) {
+      console.debug('[THREADS] root message lookup query', {
+        _id: { $in: rootMessageIds.map((id) => String(id)) },
+      });
+    }
+
+    const roots = rootMessageIds.length
+      ? await BookThreadMessage.find(rootMessagesQuery).select('_id content').lean()
       : [];
     const rootById = new Map(roots.map((msg) => [String(msg._id), msg]));
 
