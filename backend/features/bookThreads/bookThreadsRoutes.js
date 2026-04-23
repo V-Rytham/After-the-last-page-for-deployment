@@ -4,6 +4,7 @@ import {
   createThread,
   getThread,
   listMessages,
+  searchThreads,
   listThreadsByBook,
   toggleMessageLike,
   toggleThreadLike,
@@ -15,6 +16,7 @@ export const buildBookThreadsRoutes = () => {
   router.post('/books/:bookId/threads', createThread);
   router.get('/books/:bookId/threads', listThreadsByBook);
 
+  router.get('/threads/search', searchThreads);
   router.get('/threads/:threadId', getThread);
   router.post('/threads/:threadId/like', toggleThreadLike);
 

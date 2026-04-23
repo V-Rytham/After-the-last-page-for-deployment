@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Heart,
   ScrollText,
+  Search,
   Send,
   Share2,
 } from 'lucide-react';
@@ -255,9 +256,15 @@ export default function BookThread() {
   const [pendingReplyKey, setPendingReplyKey] = useState(null);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
+  const [threadSearchQuery, setThreadSearchQuery] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [searchedThreads, setSearchedThreads] = useState([]);
   const trimmedThreadTitle = threadForm.title.trim();
   const trimmedThreadContent = threadForm.content.trim();
   const isComposerSubmitDisabled = submittingThread || !trimmedThreadTitle || !trimmedThreadContent;
+  const normalizedThreadSearchQuery = String(threadSearchQuery || '').trim();
+  const isSearchActive = Boolean(normalizedThreadSearchQuery);
 
   const fetchThreadsWithRetry = async (bookKey) => {
     let lastError = null;
@@ -361,6 +368,46 @@ export default function BookThread() {
 
     fetchData();
   }, [bookId, customThreadTitle, isCustomThread, location?.state?.book, parsedSourceRoute, threadBookKey]);
+
+  useEffect(() => {
+    if (!isSearchActive) {
+      setSearchLoading(false);
+      setSearchError('');
+      setSearchedThreads([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSearchError('');
+    setSearchLoading(true);
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const response = await api.get('/threads/search', {
+          params: { q: normalizedThreadSearchQuery },
+        });
+        if (cancelled) return;
+        const payload = unwrapApiData(response);
+        const items = Array.isArray(payload?.items)
+          ? payload.items
+          : (Array.isArray(payload) ? payload : []);
+        setSearchedThreads(items);
+      } catch (requestError) {
+        if (cancelled) return;
+        setSearchedThreads([]);
+        setSearchError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to search threads right now.');
+      } finally {
+        if (!cancelled) {
+          setSearchLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [isSearchActive, normalizedThreadSearchQuery]);
 
   const buildReplyTree = (messages, rootMessageId) => {
     const nodes = new Map();
@@ -524,6 +571,7 @@ export default function BookThread() {
     () => threads.find((thread) => thread._id === selectedThreadId) || null,
     [threads, selectedThreadId],
   );
+  const visibleThreads = isSearchActive ? searchedThreads : threads;
 
   const selectedThreadReplyCount = selectedThread?.messageCount
     ? Math.max(0, Number(selectedThread.messageCount) - 1)
@@ -545,7 +593,10 @@ export default function BookThread() {
     }, { replace: true });
   };
 
-  const handleOpenThread = (threadId) => {
+  const handleOpenThread = (threadId, threadRecord = null) => {
+    if (threadRecord?._id) {
+      setThreads((prev) => [threadRecord, ...prev.filter((thread) => thread._id !== threadRecord._id)]);
+    }
     setSelectedThreadId(threadId);
     setShowComposer(false);
     setReplyingTo(null);
@@ -829,17 +880,40 @@ export default function BookThread() {
 
             <section className="thread-journal-header" aria-labelledby="thread-list-heading">
               <h2 id="thread-list-heading" className="font-serif">Threads</h2>
+              <label className="thread-search-input-wrap" htmlFor="thread-global-search-input">
+                <Search size={15} aria-hidden="true" />
+                <input
+                  id="thread-global-search-input"
+                  type="search"
+                  value={threadSearchQuery}
+                  onChange={(event) => setThreadSearchQuery(event.target.value)}
+                  placeholder="Search all threads"
+                  aria-label="Search all threads"
+                />
+              </label>
             </section>
 
             <section className="thread-list-surface" aria-live="polite">
-              {threads.length > 0 ? threads.map((thread) => {
+              {searchLoading && (
+                <div className="empty-state">
+                  <h3 className="font-serif">Searching threads…</h3>
+                </div>
+              )}
+
+              {!searchLoading && searchError && (
+                <div className="empty-state">
+                  <h3 className="font-serif">{searchError}</h3>
+                </div>
+              )}
+
+              {!searchLoading && !searchError && visibleThreads.length > 0 ? visibleThreads.map((thread) => {
                 const responseCount = thread?.messageCount
                   ? Math.max(0, Number(thread.messageCount) - 1)
                   : countReplies(thread.comments || []);
 
                 return (
                   <article key={thread._id} className="thread-list-item">
-                    <button type="button" className="thread-list-button" onClick={() => handleOpenThread(thread._id)}>
+                    <button type="button" className="thread-list-button" onClick={() => handleOpenThread(thread._id, thread)}>
                       <div className="thread-list-main">
                         <h3 className="thread-list-title font-serif">{thread.title}</h3>
                         <div className="thread-entry-context">
@@ -859,7 +933,7 @@ export default function BookThread() {
               }) : (
                 <div className="empty-state">
                   <ScrollText size={22} />
-                  <h3 className="font-serif">No discussions yet.</h3>
+                  <h3 className="font-serif">{isSearchActive ? 'No threads found.' : 'No discussions yet.'}</h3>
                 </div>
               )}
             </section>

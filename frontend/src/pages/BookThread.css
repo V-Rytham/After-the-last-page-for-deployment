@@ -377,6 +377,30 @@
   gap: 0.75rem;
 }
 
+.thread-journal-header {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.thread-search-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: min(100%, 24rem);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 85%, transparent);
+  border-radius: 0.8rem;
+  padding: 0.45rem 0.6rem;
+  background: color-mix(in srgb, var(--surface-1) 96%, transparent);
+  color: var(--text-muted);
+}
+
+.thread-search-input-wrap input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+}
+
 .thread-list-button {
   width: 100%;
   text-align: left;

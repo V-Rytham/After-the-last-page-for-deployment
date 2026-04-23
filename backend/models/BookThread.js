@@ -20,5 +20,6 @@ const bookThreadSchema = new Schema(
 
 bookThreadSchema.index({ bookId: 1, lastMessageAt: -1, _id: -1 });
 bookThreadSchema.index({ userId: 1, updatedAt: -1, _id: -1 });
+bookThreadSchema.index({ title: 1 });
 
 export const BookThread = mongoose.model('BookThread', bookThreadSchema);
