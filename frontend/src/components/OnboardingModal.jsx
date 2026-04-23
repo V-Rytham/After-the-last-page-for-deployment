@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import OnboardingCard from './OnboardingCard';
 
 const cards = [
@@ -23,14 +23,15 @@ const cards = [
 const ONBOARDING_KEY = 'hasSeenOnboarding';
 
 export default function OnboardingModal() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      return !window.localStorage.getItem(ONBOARDING_KEY);
+    } catch {
+      return false;
+    }
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
   const touchStartX = useRef(null);
-
-  useEffect(() => {
-    const seen = window.localStorage.getItem(ONBOARDING_KEY);
-    setIsOpen(!seen);
-  }, []);
 
   const closeModal = () => {
     window.localStorage.setItem(ONBOARDING_KEY, 'true');
