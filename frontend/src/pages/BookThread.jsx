@@ -8,7 +8,7 @@ import {
   Share2,
 } from 'lucide-react';
 import api from '../utils/api';
-import { getStoredUser } from '../utils/auth';
+import { getOrCreateIdentity } from '../utils/identity';
 import BookCoverArt from '../components/books/BookCoverArt';
 import './BookThread.css';
 
@@ -226,8 +226,8 @@ export default function BookThread() {
     return parsedSourceRoute ? parsedSourceRoute.composite : String(bookId || '').trim();
   }, [bookId, customThreadTitle, isCustomThread, parsedSourceRoute]);
   const actorId = useMemo(() => {
-    const stored = getStoredUser();
-    return stored?._id ? String(stored._id) : null;
+    const identity = getOrCreateIdentity();
+    return identity?.userId ? String(identity.userId) : null;
   }, []);
   const [book, setBook] = useState(null);
   const [threads, setThreads] = useState([]);

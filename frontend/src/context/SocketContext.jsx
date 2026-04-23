@@ -1,6 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { getStoredToken } from '../utils/auth';
 import { meetSocket, syncMeetSocketAuth } from '../utils/socket';
 
 const SocketContext = createContext(null);
@@ -41,11 +40,6 @@ export const SocketProvider = ({ currentUser, children }) => {
   }, []);
 
   const ensureConnected = useCallback(async ({ forceReconnect = false } = {}) => {
-    const token = getStoredToken();
-    if (!token) {
-      throw new Error('Socket auth token unavailable.');
-    }
-
     syncMeetSocketAuth();
 
     if (forceReconnect && meetSocket.connected) {
@@ -88,10 +82,7 @@ export const SocketProvider = ({ currentUser, children }) => {
   }, []);
 
   useEffect(() => {
-    const token = getStoredToken();
-    const shouldConnect = Boolean(token && currentUser);
-
-    if (!shouldConnect) {
+    if (!currentUser) {
       if (meetSocket.connected) {
         meetSocket.disconnect();
       }

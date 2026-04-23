@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3, LogOut } from 'lucide-react';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
-import { getStoredToken } from '../utils/auth';
+import { getOrCreateIdentity } from '../utils/identity';
 import { getApiBaseUrl } from '../utils/serviceUrls';
 import { log } from '../utils/logger';
 import './MeetingHub.css';
@@ -329,10 +329,6 @@ const MeetingHub = () => {
     if (!socketReady) {
       return;
     }
-    if (!getStoredToken()) {
-      return;
-    }
-
     api.get('/session/status')
       .then(({ data }) => {
         const state = data?.session?.state;
@@ -354,9 +350,9 @@ const MeetingHub = () => {
 
     const handleBeforeUnload = (event) => {
       try {
-        const token = getStoredToken();
-        if (token && navigator.sendBeacon) {
-          const payload = JSON.stringify({ token, reason: 'beforeunload' });
+        const identity = getOrCreateIdentity();
+        if (identity?.userId && navigator.sendBeacon) {
+          const payload = JSON.stringify({ ...identity, reason: 'beforeunload' });
           const blob = new Blob([payload], { type: 'application/json' });
           navigator.sendBeacon(`${getApiBaseUrl()}/session/end`, blob);
         }

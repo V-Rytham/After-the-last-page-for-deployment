@@ -1,47 +1,55 @@
-const TOKEN_KEY = 'token';
-const USER_KEY = 'currentUser';
+import { getOrCreateIdentity, getStoredIdentity, saveIdentity } from './identity';
 
-export const getStoredToken = () => localStorage.getItem(TOKEN_KEY);
+export const getStoredToken = () => '';
 
 export const getStoredUser = () => {
-  const rawUser = localStorage.getItem(USER_KEY);
-  if (!rawUser) {
-    return null;
-  }
+  const identity = getStoredIdentity() || getOrCreateIdentity();
+  if (!identity) return null;
 
-  try {
-    return JSON.parse(rawUser);
-  } catch {
-    return null;
-  }
+  return {
+    _id: identity.userId,
+    anonymousId: identity.displayName,
+    displayName: identity.displayName,
+    isAnonymous: false,
+  };
 };
 
 export const saveAuthSession = (payload) => {
-  const { token, ...user } = payload || {};
-  const normalizedToken = String(token || '').trim();
-  if (normalizedToken) {
-    localStorage.setItem(TOKEN_KEY, normalizedToken);
-  } else if (!localStorage.getItem(TOKEN_KEY)) {
-    localStorage.removeItem(TOKEN_KEY);
-  }
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
-  localStorage.setItem('anonId', user.anonymousId || '');
-  return user;
+  const nextIdentity = {
+    userId: payload?.userId || payload?._id || payload?.id,
+    displayName: payload?.displayName || payload?.anonymousId || payload?.username,
+  };
+
+  const saved = saveIdentity(nextIdentity) || getOrCreateIdentity();
+  if (!saved) return null;
+
+  return {
+    _id: saved.userId,
+    anonymousId: saved.displayName,
+    displayName: saved.displayName,
+    isAnonymous: false,
+  };
 };
 
 export const clearAuthSession = () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem('anonId');
+  localStorage.removeItem('ephemeralIdentity');
 };
 
 export const updateStoredUser = (patch) => {
-  const current = getStoredUser();
-  if (!current) {
-    return null;
-  }
+  const current = getStoredIdentity() || getOrCreateIdentity();
+  if (!current) return null;
 
-  const nextUser = { ...current, ...patch };
-  localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
-  return nextUser;
+  const next = saveIdentity({
+    userId: patch?.userId || patch?._id || current.userId,
+    displayName: patch?.displayName || patch?.anonymousId || current.displayName,
+  });
+
+  if (!next) return null;
+
+  return {
+    _id: next.userId,
+    anonymousId: next.displayName,
+    displayName: next.displayName,
+    isAnonymous: false,
+  };
 };

@@ -1,7 +1,7 @@
-import jwt from 'jsonwebtoken';
 import { checkMeetAccess } from '../services/accessService.js';
 import { getCanonicalBook } from '../services/canonicalBookService.js';
 import { log } from '../utils/logger.js';
+import { resolveSocketIdentity } from '../middleware/identityMiddleware.js';
 
 export default function registerSocketEvents(io, sessionManager) {
   if (!sessionManager) {
@@ -22,47 +22,15 @@ export default function registerSocketEvents(io, sessionManager) {
   };
 
   io.use((socket, next) => {
-    try {
-      const token = socket.handshake?.auth?.token
-        || socket.handshake?.headers?.authorization?.split('Bearer ')[1]
-        || socket.handshake?.query?.token;
-
-      if (!token) {
-        const error = new Error('Unauthorized');
-        error.data = { code: 'UNAUTHORIZED' };
-        next(error);
-        return;
-      }
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded?.id || decoded?._id || null;
-      socket.isAnonymous = Boolean(decoded?.isAnonymous);
-
-      if (!socket.userId) {
-        const error = new Error('Unauthorized');
-        error.data = { code: 'UNAUTHORIZED' };
-        next(error);
-        return;
-      }
-
-      if (socket.isAnonymous) {
-        const error = new Error('Unauthorized');
-        error.data = { code: 'UNAUTHORIZED', message: 'Sign in required.' };
-        next(error);
-        return;
-      }
-
-      next();
-    } catch (error) {
-      const authError = new Error('Unauthorized');
-      authError.data = { code: 'UNAUTHORIZED', message: error.message };
-      next(authError);
-    }
+    const identity = resolveSocketIdentity(socket);
+    socket.userId = identity.userId;
+    socket.displayName = identity.displayName;
+    next();
   });
 
   io.on('connection', (socket) => {
     log(`[SOCKET] User connected: ${socket.id}`);
-    sessionManager.registerSocket({ userId: socket.userId, socketId: socket.id });
+    sessionManager.registerSocket({ userId: socket.userId, socketId: socket.id, displayName: socket.displayName });
     onlineCount += 1;
     emitStats();
 
@@ -73,11 +41,6 @@ export default function registerSocketEvents(io, sessionManager) {
     });
 
     socket.on('join_matchmaking', async ({ source, source_book_id: sourceBookId, prefType }) => {
-      if (socket.isAnonymous) {
-        socket.emit('access_denied', { message: 'Please sign in to use Meet.' });
-        return;
-      }
-
       const normalizedSource = String(source || '').trim().toLowerCase();
       const normalizedSourceBookId = String(sourceBookId || '').trim();
       if (!normalizedSource || !normalizedSourceBookId) {
@@ -93,7 +56,7 @@ export default function registerSocketEvents(io, sessionManager) {
         }
 
         const canonical = await getCanonicalBook({ source: normalizedSource, source_book_id: normalizedSourceBookId });
-        await sessionManager.joinMatchmaking({ userId: socket.userId, bookId: canonical.canonical_book_id, prefType });
+        await sessionManager.joinMatchmaking({ userId: socket.userId, displayName: socket.displayName, bookId: canonical.canonical_book_id, prefType });
       } catch (error) {
         socket.emit('access_denied', { message: error.message || 'Unable to join matchmaking.' });
       } finally {

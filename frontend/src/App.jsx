@@ -1,10 +1,10 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
 import { SocketProvider } from './context/SocketContext';
-import api from './utils/api';
 import { getStoredUser, saveAuthSession } from './utils/auth';
+import { getOrCreateIdentity } from './utils/identity';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
 import { applyThemeTokens } from './styles/theme';
 import FirstChapterExperience from './components/onboarding/FirstChapterExperience';
@@ -21,46 +21,6 @@ const ThreadAccessHub = lazy(() => import('./pages/ThreadAccessHub'));
 const WizardMerch = lazy(() => import('./pages/WizardMerch'));
 const BookQuiz = lazy(() => import('./pages/BookQuiz'));
 const RequestBookPage = lazy(() => import('./pages/RequestBookPage'));
-
-let isFetchingUser = false;
-
-const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-const shouldRetry = (error) => {
-  const status = Number(error?.statusCode || error?.response?.status || 0);
-  if (status === 429) return true;
-  if (status >= 500) return true;
-  return !status;
-};
-
-const getRetryDelayMs = (error, attempt) => {
-  const retryAfterHeader = error?.response?.headers?.['retry-after'];
-  const retryAfter = Number(retryAfterHeader);
-  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
-    return Math.round(retryAfter * 1000);
-  }
-
-  const baseMs = 600;
-  return Math.min(8000, baseMs * (2 ** attempt));
-};
-
-const retry = async (fn, retries = 3, attempt = 0) => {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries <= 0 || !shouldRetry(error)) {
-      throw error;
-    }
-
-    await sleep(getRetryDelayMs(error, attempt));
-    return retry(fn, retries - 1, attempt + 1);
-  }
-};
-
-const createAnonymousUserWithRetry = async () => {
-  const { data } = await retry(() => api.post('/users/anonymous'), 3);
-  return data;
-};
 
 const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
   const location = useLocation();
@@ -101,8 +61,12 @@ const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
 };
 
 const App = () => {
-  const [currentUser, setCurrentUser] = useState(getStoredUser());
-  const bootstrapStartedRef = useRef(false);
+  const [currentUser] = useState(() => {
+    const existing = getStoredUser();
+    if (existing) return existing;
+    const identity = getOrCreateIdentity();
+    return identity ? saveAuthSession(identity) : null;
+  });
   const [uiTheme, setUiTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (storedTheme === 'midnight' || storedTheme === 'mocha') {
@@ -129,35 +93,6 @@ const App = () => {
     } catch {
       // ignore
     }
-  }, []);
-
-  useEffect(() => {
-    if (bootstrapStartedRef.current) {
-      return;
-    }
-
-    bootstrapStartedRef.current = true;
-
-    const bootstrapUser = async () => {
-      if (isFetchingUser) {
-        return;
-      }
-
-      isFetchingUser = true;
-
-      try {
-        const data = await createAnonymousUserWithRetry();
-        const user = saveAuthSession(data);
-        setCurrentUser(user);
-      } catch (error) {
-        console.error('[APP] Failed to bootstrap session:', error);
-        setCurrentUser(null);
-      } finally {
-        isFetchingUser = false;
-      }
-    };
-
-    bootstrapUser();
   }, []);
 
   useEffect(() => {

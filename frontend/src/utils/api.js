@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getApiBaseUrl } from './serviceUrls';
+import { getOrCreateIdentity } from './identity';
 
 const baseURL = getApiBaseUrl();
 let rateLimitedUntil = 0;
@@ -40,10 +41,14 @@ api.interceptors.request.use(
       await sleep(rateLimitedUntil - Date.now());
     }
 
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const identity = getOrCreateIdentity();
+    if (identity?.userId) {
+      config.headers['X-User-Id'] = identity.userId;
     }
+    if (identity?.displayName) {
+      config.headers['X-Display-Name'] = identity.displayName;
+    }
+
     return config;
   },
   (error) => {
