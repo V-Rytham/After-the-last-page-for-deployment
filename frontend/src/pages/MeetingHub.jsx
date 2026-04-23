@@ -632,6 +632,42 @@ const MeetingHub = () => {
       ? 'Video'
       : 'Text';
 
+  const getMessageTimeLabel = (timestamp) => {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const renderMessageList = () => (
+    <div className="chat-messages" aria-label="Chat messages">
+      {messages.length === 0 && (
+        <div className="chat-empty-state" role="status" aria-live="polite">
+          <MessageSquare size={20} />
+          <p>You’re now connected. Start the conversation.</p>
+        </div>
+      )}
+      {messages.map((m, i) => {
+        const previous = messages[i - 1];
+        const next = messages[i + 1];
+        const isMine = m.sender === 'me';
+        const isFirstInGroup = !previous || previous.sender !== m.sender;
+        const isLastInGroup = !next || next.sender !== m.sender;
+        return (
+          <div
+            key={`${m.sender}-${i}`}
+            className={`message ${isMine ? 'sent' : 'received'} ${isFirstInGroup ? 'group-start' : 'group-mid'} ${isLastInGroup ? 'group-end' : ''}`}
+          >
+            {!isMine && isFirstInGroup && <div className="message-avatar" aria-hidden="true"><User size={14} /></div>}
+            <div className="message-content">
+              <div className="msg-bubble">{m.text}</div>
+              {isLastInGroup && <span className="msg-time">{getMessageTimeLabel(m.timestamp)}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className={`meeting-hub meeting-hub--${phase} animate-fade-in`}>
       {phase === 'preferences' && (
@@ -731,41 +767,35 @@ const MeetingHub = () => {
 
       {phase === 'bookfriend' && (
         <div className="room-container animate-fade-in">
-          <header className="room-header glass-panel">
-            <div className="partner-info">
-              <div className="wizard-avatar" aria-hidden="true">
-                <Bot size={18} />
-              </div>
-              <div className="partner-copy">
-                <div className="room-title font-serif">BookFriend</div>
-                <div className="room-subtitle text-muted">A quiet companion for this book.</div>
-              </div>
-            </div>
-            <div className="room-actions">
-              <button
-                type="button"
-                className="btn-secondary sm"
-                onClick={() => {
-                  closeBookFriendSession();
-                  setMessages([]);
-                  setChatInput('');
-                  setPhase('preferences');
-                }}
-              >
-                Leave
-              </button>
-            </div>
-          </header>
-
           <section className="room-main glass-panel">
-            <div className="chat-interface">
-              <div className="chat-messages" aria-label="Chat messages">
-                {messages.map((m, i) => (
-                  <div key={`${m.sender}-${i}`} className={`message ${m.sender === 'me' ? 'sent' : ''}`}>
-                    <div className="msg-bubble">{m.text}</div>
-                  </div>
-                ))}
+            <header className="room-header room-header--sticky">
+              <div className="partner-info">
+                <div className="wizard-avatar" aria-hidden="true">
+                  <Bot size={18} />
+                </div>
+                <div className="partner-copy">
+                  <div className="room-title font-serif">BookFriend</div>
+                  <div className="room-subtitle text-muted">Connected</div>
+                </div>
               </div>
+
+              <div className="room-actions">
+                <button
+                  type="button"
+                  className="btn-secondary sm"
+                  onClick={() => {
+                    closeBookFriendSession();
+                    setMessages([]);
+                    setChatInput('');
+                    setPhase('preferences');
+                  }}
+                >
+                  Leave
+                </button>
+              </div>
+            </header>
+            <div className="chat-interface">
+              {renderMessageList()}
               <form className="chat-input-area" onSubmit={sendBookFriendMessage}>
                 <textarea
                   className="chat-input"
@@ -786,37 +816,37 @@ const MeetingHub = () => {
 
       {phase === 'connected' && (
         <div className="room-container animate-fade-in">
-          <header className="room-header glass-panel">
-            <div className="partner-info">
-              <div className="partner-avatar" aria-hidden="true">
-                <User size={18} />
-              </div>
-              <div className="partner-copy">
-                <div className="room-title font-serif">{partnerDisplayName || 'Reader'}</div>
-              </div>
-            </div>
-
-            <div className="room-actions">
-              <button
-                type="button"
-                className="btn-leave sm"
-                onClick={() => {
-                  setLeavePromptBody('You will disconnect from this reader.');
-                  pendingLeaveActionRef.current = () => {
-                    setRoomId(null);
-                    setMessages([]);
-                    setPhase('preferences');
-                  };
-                  setLeavePromptOpen(true);
-                }}
-              >
-                <LogOut size={15} aria-hidden="true" />
-                Leave
-              </button>
-            </div>
-          </header>
-
           <section className="room-main glass-panel">
+            <header className="room-header room-header--sticky">
+              <div className="partner-info">
+                <div className="partner-avatar" aria-hidden="true">
+                  <User size={18} />
+                </div>
+                <div className="partner-copy">
+                  <div className="room-title font-serif">{partnerDisplayName || 'Reader'}</div>
+                  <div className="room-subtitle text-muted">Online</div>
+                </div>
+              </div>
+
+              <div className="room-actions">
+                <button
+                  type="button"
+                  className="btn-leave sm"
+                  onClick={() => {
+                    setLeavePromptBody('You will disconnect from this reader.');
+                    pendingLeaveActionRef.current = () => {
+                      setRoomId(null);
+                      setMessages([]);
+                      setPhase('preferences');
+                    };
+                    setLeavePromptOpen(true);
+                  }}
+                >
+                  <LogOut size={15} aria-hidden="true" />
+                  Leave
+                </button>
+              </div>
+            </header>
             {prefType !== 'text' && (
               <div className="media-stage" aria-label="Call area">
                 {prefType === 'video' && (
@@ -839,13 +869,7 @@ const MeetingHub = () => {
             )}
 
             <div className="chat-interface">
-              <div className="chat-messages" aria-label="Chat messages">
-                {messages.map((m, i) => (
-                  <div key={`${m.sender}-${i}`} className={`message ${m.sender === 'me' ? 'sent' : ''}`}>
-                    <div className="msg-bubble">{m.text}</div>
-                  </div>
-                ))}
-              </div>
+              {renderMessageList()}
               <form className="chat-input-area" onSubmit={sendMessage}>
                 <textarea
                   className="chat-input"
