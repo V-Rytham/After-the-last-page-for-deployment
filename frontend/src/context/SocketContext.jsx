@@ -89,7 +89,7 @@ export const SocketProvider = ({ currentUser, children }) => {
 
   useEffect(() => {
     const token = getStoredToken();
-    const shouldConnect = Boolean(token && currentUser && !currentUser.isAnonymous);
+    const shouldConnect = Boolean(token && currentUser);
 
     if (!shouldConnect) {
       if (meetSocket.connected) {

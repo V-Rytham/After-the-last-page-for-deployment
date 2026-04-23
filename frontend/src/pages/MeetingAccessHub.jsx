@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Search, ShieldCheck } from 'lucide-react';
+import { Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
@@ -22,9 +22,8 @@ const normalizeBook = (book) => {
   };
 };
 
-export default function MeetingAccessHub({ currentUser }) {
+export default function MeetingAccessHub() {
   const navigate = useNavigate();
-  const isMember = Boolean(currentUser && !currentUser.isAnonymous);
   const { socketConnected, socketConnecting, socketError, ensureConnected } = useSocketConnection();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,19 +54,17 @@ export default function MeetingAccessHub({ currentUser }) {
       }
     };
 
-    if (isMember) {
-      loadFeaturedBooks();
-    }
+    loadFeaturedBooks();
 
     return () => {
       cancelled = true;
     };
-  }, [isMember]);
+  }, []);
 
   const handleJoinDiscussion = async (book) => {
     const key = `${book.source}:${book.source_book_id}`;
     if (!socketConnected) {
-      setJoinNotice(socketConnecting ? 'Connectingâ€¦' : 'Connecting to chatâ€¦');
+      setJoinNotice(socketConnecting ? 'Connecting…' : 'Connecting to chat…');
       return;
     }
 
@@ -105,7 +102,7 @@ export default function MeetingAccessHub({ currentUser }) {
         && (/no active socket connection/i.test(serverMessage) || serverMessage === 'SOCKET_NOT_CONNECTED');
 
       if (socketMismatch) {
-        setJoinNotice('Reconnectingâ€¦');
+        setJoinNotice('Reconnecting…');
         try {
           await ensureConnected({ forceReconnect: true });
           const { data } = await attemptJoin();
@@ -136,28 +133,6 @@ export default function MeetingAccessHub({ currentUser }) {
     }
   };
 
-  if (!isMember) {
-    return (
-      <div className="meeting-access-page is-gated animate-fade-in">
-        <section className="meeting-access-gate" aria-label="Meet">
-          <h1 className="font-serif">Start a private chat beyond the final page.</h1>
-          <p>Sign in to chat one-on-one with another reader around a real verified book.</p>
-
-          <div className="meeting-access-gate-actions">
-            <button type="button" className="btn-primary" onClick={() => navigate('/auth')}>
-              Sign in to start chatting <ArrowRight size={16} />
-            </button>
-          </div>
-
-          <div className="meeting-access-gate-footnote">
-            <ShieldCheck size={16} />
-            <span>Anonymous by default. No identity shared from our end.</span>
-          </div>
-        </section>
-      </div>
-    );
-  }
-
   return (
     <div className="meeting-access-page animate-fade-in">
       <section className="meeting-access-hero">
@@ -165,7 +140,7 @@ export default function MeetingAccessHub({ currentUser }) {
           <h1 className="font-serif">Find a book. Start a chat.</h1>
           <p>Start a private conversation with another reader.</p>
           <p className="meeting-access-live-state">
-            {socketConnected ? 'Ready' : (socketConnecting ? 'Connectingâ€¦' : 'Connectingâ€¦')}
+            {socketConnected ? 'Ready' : (socketConnecting ? 'Connecting…' : 'Connecting…')}
           </p>
           {!socketConnected && socketError ? <p className="meeting-access-live-error">{socketError}</p> : null}
           {joinNotice ? <p className="meeting-access-live-error">{joinNotice}</p> : null}
@@ -230,7 +205,7 @@ export default function MeetingAccessHub({ currentUser }) {
                   onClick={() => handleJoinDiscussion(book)}
                 >
                   {isJoining || !socketConnected ? <span className="meeting-cta-spinner" aria-hidden="true" /> : null}
-                  {isJoining ? 'Startingâ€¦' : (socketConnected ? 'Start Chat' : 'Connectingâ€¦')}
+                  {isJoining ? 'Starting…' : (socketConnected ? 'Start Chat' : 'Connecting…')}
                 </button>
               </article>
             );

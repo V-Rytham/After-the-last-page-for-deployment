@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 
 const MotionLink = motion.create(Link);
 
-const HeroSection = ({ primaryHref = '/auth', secondaryHref = '/meet', primaryLabel = 'Start Reading' }) => (
+const HeroSection = ({ primaryHref = '/meet', secondaryHref = '/threads', primaryLabel = 'Start Exploring' }) => (
   <section className="home2-hero" aria-label="Homepage hero">
     <div className="home2-hero-inner">
       <motion.h1

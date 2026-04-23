@@ -1,12 +1,10 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
-import PrivateRoute from './components/auth/PrivateRoute';
-import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import api from './utils/api';
-import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
+import { getStoredUser, saveAuthSession } from './utils/auth';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
 import { applyThemeTokens } from './styles/theme';
 import FirstChapterExperience from './components/onboarding/FirstChapterExperience';
@@ -15,20 +13,14 @@ import './index.css';
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
-const Library = lazy(() => import('./pages/Library'));
-const BooksLibrary = lazy(() => import('./pages/BooksLibrary'));
 const MeetingAccessHub = lazy(() => import('./pages/MeetingAccessHub'));
 const ReadingRoom = lazy(() => import('./pages/ReadingRoom'));
 const MeetingHub = lazy(() => import('./pages/MeetingHub'));
 const BookThread = lazy(() => import('./pages/BookThread'));
 const ThreadAccessHub = lazy(() => import('./pages/ThreadAccessHub'));
 const WizardMerch = lazy(() => import('./pages/WizardMerch'));
-const AuthPage = lazy(() => import('./pages/AuthPage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const BookQuiz = lazy(() => import('./pages/BookQuiz'));
 const RequestBookPage = lazy(() => import('./pages/RequestBookPage'));
-const GenreOnboardingPage = lazy(() => import('./pages/GenreOnboardingPage'));
 
 let isFetchingUser = false;
 
@@ -70,7 +62,7 @@ const createAnonymousUserWithRetry = async () => {
   return data;
 };
 
-const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange, onAuthSuccess }) => {
+const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
   const location = useLocation();
   const hideNavbar = location.pathname.startsWith('/read/');
 
@@ -78,30 +70,29 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
     <div className="app-container">
       <SessionNavigationGuard />
       {!hideNavbar && (
-        <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />
+        <Navbar currentUser={currentUser} uiTheme={uiTheme} onThemeChange={onThemeChange} />
       )}
       <main className="main-content">
         <Suspense fallback={<div className="content-container"><p className="text-muted">Loading…</p></div>}>
-        <Routes>
-          <Route path="/" element={<LandingPage currentUser={currentUser} />} />
-          <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
-          <Route path="/desk" element={<PrivateRoute><BooksLibrary currentUser={currentUser} /></PrivateRoute>} />
-          <Route path="/library" element={<PrivateRoute><Library currentUser={currentUser} /></PrivateRoute>} />
-          <Route path="/onboarding/genres" element={<PrivateRoute><GenreOnboardingPage onUserUpdate={onUserUpdate} /></PrivateRoute>} />
-          <Route path="/books" element={<Navigate to="/desk" replace />} />
-          <Route path="/request-book" element={<PrivateRoute><RequestBookPage /></PrivateRoute>} />
-          <Route path="/read" element={<PrivateRoute><Navigate to="/request-book" replace /></PrivateRoute>} />
-          <Route path="/meet" element={<MeetingAccessHub currentUser={currentUser} />} />
-          <Route path="/threads" element={<ThreadAccessHub currentUser={currentUser} />} />
-          <Route path="/profile" element={<PrivateRoute><ProfilePage currentUser={currentUser} onUserUpdate={onUserUpdate} /></PrivateRoute>} />
-          <Route path="/settings" element={<PrivateRoute><SettingsPage uiTheme={uiTheme} onThemeChange={onThemeChange} currentUser={currentUser} onUserUpdate={onUserUpdate} /></PrivateRoute>} />
-          <Route path="/read/gutenberg/:gutenbergId" element={<PrivateRoute><ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} /></PrivateRoute>} />
-          <Route path="/read/:bookId" element={<PrivateRoute><ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} /></PrivateRoute>} />
-          <Route path="/quiz/:bookId" element={<PrivateRoute><BookQuiz /></PrivateRoute>} />
-          <Route path="/meet/:bookId" element={<PrivateRoute><MeetingHub /></PrivateRoute>} />
-          <Route path="/thread/:bookId" element={<PrivateRoute><BookThread /></PrivateRoute>} />
-          <Route path="/merch" element={<WizardMerch />} />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<LandingPage currentUser={currentUser} />} />
+            <Route path="/meet" element={<MeetingAccessHub currentUser={currentUser} />} />
+            <Route path="/threads" element={<ThreadAccessHub currentUser={currentUser} />} />
+            <Route path="/request-book" element={<RequestBookPage />} />
+            <Route path="/read" element={<Navigate to="/request-book" replace />} />
+            <Route path="/read/gutenberg/:gutenbergId" element={<ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} />} />
+            <Route path="/read/:bookId" element={<ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} />} />
+            <Route path="/quiz/:bookId" element={<BookQuiz />} />
+            <Route path="/meet/:bookId" element={<MeetingHub />} />
+            <Route path="/thread/:bookId" element={<BookThread />} />
+            <Route path="/merch" element={<WizardMerch />} />
+            <Route path="/desk" element={<Navigate to="/" replace />} />
+            <Route path="/library" element={<Navigate to="/" replace />} />
+            <Route path="/profile" element={<Navigate to="/" replace />} />
+            <Route path="/auth" element={<Navigate to="/" replace />} />
+            <Route path="/settings" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </Suspense>
         <FirstChapterExperience />
       </main>
@@ -112,7 +103,6 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
 const App = () => {
   const [currentUser, setCurrentUser] = useState(getStoredUser());
   const bootstrapStartedRef = useRef(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const [uiTheme, setUiTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (storedTheme === 'midnight' || storedTheme === 'mocha') {
@@ -123,8 +113,6 @@ const App = () => {
   });
 
   useEffect(() => {
-    // HashRouter should ignore pathname, but stray prefixes (e.g. "/$#/desk") confuse users and break
-    // any code that reads `window.location.pathname`. Normalize once at startup.
     try {
       if (typeof window !== 'undefined') {
         if (window.location.hash.startsWith('#/') && window.location.pathname !== '/') {
@@ -156,49 +144,16 @@ const App = () => {
       }
 
       isFetchingUser = true;
-      const token = getStoredToken();
 
       try {
-        try {
-          const { data } = await api.get('/auth/me');
-          const user = saveAuthSession({ ...data, token: token || '' });
-          setCurrentUser(user);
-          return;
-        } catch (error) {
-          const status = Number(error?.statusCode || error?.response?.status || 0);
-          if (!(status === 401 || status === 403)) {
-            console.warn('[AUTH] Could not validate cookie session:', error);
-          }
-        }
-
-        if (token) {
-          try {
-            const { data } = await api.get('/users/profile');
-            const user = updateStoredUser(data) || data;
-            setCurrentUser(user);
-            return;
-          } catch (error) {
-            const status = Number(error?.statusCode || error?.response?.status || 0);
-            if (status === 401 || status === 403) {
-              console.error('[AUTH] Stored session is invalid, replacing with guest session:', error);
-              clearAuthSession();
-            } else {
-              console.warn('[AUTH] Could not validate stored session, keeping existing user for now:', error);
-              setCurrentUser(getStoredUser());
-              return;
-            }
-          }
-        }
-
         const data = await createAnonymousUserWithRetry();
         const user = saveAuthSession(data);
         setCurrentUser(user);
       } catch (error) {
-        console.error('[AUTH] Failed to register anonymous user:', error);
+        console.error('[APP] Failed to bootstrap session:', error);
         setCurrentUser(null);
       } finally {
         isFetchingUser = false;
-        setAuthLoading(false);
       }
     };
 
@@ -211,44 +166,16 @@ const App = () => {
     applyThemeTokens(uiTheme);
   }, [uiTheme]);
 
-  const handleAuthSuccess = useCallback((user) => {
-    setCurrentUser(user);
-  }, []);
-
-  const handleUserUpdate = useCallback((userPatch) => {
-    const nextUser = updateStoredUser(userPatch) || userPatch;
-    setCurrentUser((prev) => ({ ...(prev || {}), ...nextUser }));
-  }, []);
-
-  const handleLogout = async () => {
-    clearAuthSession();
-
-    try {
-      await api.post('/auth/logout');
-      const data = await createAnonymousUserWithRetry();
-      const guestUser = saveAuthSession(data);
-      setCurrentUser(guestUser);
-    } catch (error) {
-      console.error('[AUTH] Failed to create guest session after logout:', error);
-      setCurrentUser(null);
-    }
-  };
-
   return (
-    <AuthProvider value={{ currentUser, setCurrentUser, authLoading }}>
-      <SocketProvider currentUser={currentUser}>
-        <Router>
-          <AppShell
+    <SocketProvider currentUser={currentUser}>
+      <Router>
+        <AppShell
           currentUser={currentUser}
-          onLogout={handleLogout}
-          onUserUpdate={handleUserUpdate}
           uiTheme={uiTheme}
           onThemeChange={setUiTheme}
-          onAuthSuccess={handleAuthSuccess}
         />
-        </Router>
-      </SocketProvider>
-    </AuthProvider>
+      </Router>
+    </SocketProvider>
   );
 };
 

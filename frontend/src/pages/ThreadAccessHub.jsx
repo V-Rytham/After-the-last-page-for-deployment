@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, LockKeyhole, Search } from 'lucide-react';
+import { ArrowRight, Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import api from '../utils/api';
 import './ThreadAccessHub.css';
@@ -18,10 +18,8 @@ const getArchiveBadge = (book) => {
   return book?.isPublicDomain ? 'Open Access' : 'External';
 };
 
-export default function ThreadAccessHub({ currentUser }) {
+export default function ThreadAccessHub() {
   const navigate = useNavigate();
-  const isMember = Boolean(currentUser && !currentUser.isAnonymous);
-
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredBooks, setFeaturedBooks] = useState([]);
   const { books, loading, error, query } = useGlobalSearch(searchTerm);
@@ -52,30 +50,12 @@ export default function ThreadAccessHub({ currentUser }) {
       }
     };
 
-    if (isMember) {
-      loadFeaturedBooks();
-    }
+    loadFeaturedBooks();
 
     return () => {
       cancelled = true;
     };
-  }, [isMember]);
-
-  if (!isMember) {
-    return (
-      <div className="thread-access-page animate-fade-in">
-        <section className="thread-access-grid">
-          <div className="thread-access-loading glass-panel">
-            <LockKeyhole size={18} />
-            <p>Sign in to join book threads.</p>
-            <button className="btn-primary sm thread-access-button" onClick={() => navigate('/auth')}>
-              Sign in
-            </button>
-          </div>
-        </section>
-      </div>
-    );
-  }
+  }, []);
 
   return (
     <div className="thread-access-page animate-fade-in">

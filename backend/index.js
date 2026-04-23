@@ -23,7 +23,6 @@ import { RealtimeSessionManager } from './services/realtimeSessionManager.js';
 import { requestTracing } from './middleware/requestLogging.js';
 import recommendationsRoutes from './routes/recommendationsRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
-import authRoutes from './routes/authRoutes.js';
 import { bootstrapFeatureModules } from './core/bootstrapModules.js';
 import passport from './config/passport.js';
 import { configurePassport } from './config/passport.js';
@@ -162,11 +161,6 @@ app.use('/uploads', express.static(path.resolve(process.cwd(), 'backend', 'uploa
 // Baseline abuse protection for all endpoints.
 app.use(rateLimit({ windowMs: 15 * 60_000, max: 100 }));
 // Tighten common abuse targets.
-app.use('/api/users/login', rateLimit({ windowMs: 60_000, max: 20 }));
-app.use('/api/users/signup', rateLimit({ windowMs: 60_000, max: 15 }));
-app.use('/api/auth/signup', rateLimit({ windowMs: 60_000, max: 8 }));
-app.use('/api/auth/verify-otp', rateLimit({ windowMs: 60_000, max: 10 }));
-app.use('/api/auth/login', rateLimit({ windowMs: 60_000, max: 20 }));
 app.use('/api/users/anonymous', rateLimit({ windowMs: 60_000, max: 40 }));
 app.use('/api/quiz', rateLimit({ windowMs: 60_000, max: 60 }));
 app.use('/api/access', rateLimit({ windowMs: 60_000, max: 90 }));
@@ -182,7 +176,6 @@ registerSocketEvents(io, sessionManager);
 const { booksModule } = bootstrapFeatureModules();
 
 // Routes
-app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/books', booksModule.router);
 app.use('/api', requireDatabase({ status: 503, feature: 'Threads' }), buildBookThreadsRoutes());
