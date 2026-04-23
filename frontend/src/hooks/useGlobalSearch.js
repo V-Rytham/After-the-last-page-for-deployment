@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useDebouncedValue from './useDebouncedValue';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
-import { getApiBaseUrl } from '../utils/serviceUrls';
-import { log } from '../utils/logger';
 
 const normalizeQuery = (value) => String(value || '').trim();
-const BASE_URL = getApiBaseUrl();
 
 export default function useGlobalSearch(query) {
   const debounced = useDebouncedValue(query, 300);
@@ -31,26 +28,19 @@ export default function useGlobalSearch(query) {
     abortRef.current = controller;
     Promise.resolve().then(() => setState((prev) => ({ ...prev, loading: true, error: '' })));
 
-    const url = `${BASE_URL}/search?q=${encodeURIComponent(normalized)}`;
-    log('Search Query:', normalized);
-    log('Request URL:', url);
-
-    fetch(url, { signal: controller.signal, credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`API failed (${res.status})`);
-        }
-        return res.json();
-      })
-      .then((data) => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/search?q=${normalized}`, { signal: controller.signal, credentials: 'include' });
+        if (!res.ok) throw new Error(`API failed (${res.status})`);
+        const data = await res.json();
         const books = Array.isArray(data?.books) ? data.books : [];
         setCachedSearch(normalized, books);
         Promise.resolve().then(() => setState({ loading: false, error: '', books }));
-      })
-      .catch((err) => {
+      } catch (err) {
         if (err?.name === 'AbortError') return;
         Promise.resolve().then(() => setState({ loading: false, error: err?.message || 'Search failed.', books: [] }));
-      });
+      }
+    })();
 
     return () => controller.abort();
   }, [normalized]);

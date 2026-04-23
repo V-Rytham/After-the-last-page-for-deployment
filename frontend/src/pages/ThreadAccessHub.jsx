@@ -2,18 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
+import normalizeSearchResults from '../utils/normalizeSearchResults';
 import api from '../utils/api';
 import './ThreadAccessHub.css';
-
-const canonicalizeThreadKey = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw.replace(/\s+/g, ' ').slice(0, 120);
-};
-
-const normalizeBookKey = (title, author) => (
-  `${canonicalizeThreadKey(title)}::${canonicalizeThreadKey(author)}`
-);
 
 const getArchiveBadge = (book) => {
   const source = String(book?.source || '').trim().toLowerCase();
@@ -27,35 +18,11 @@ export default function ThreadAccessHub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredBooks, setFeaturedBooks] = useState([]);
   const { books, loading, error, query } = useGlobalSearch(searchTerm);
-  const worldBooksByKey = useMemo(() => {
-    const map = new Map();
-    for (const book of Array.isArray(featuredBooks) ? featuredBooks : []) {
-      const key = normalizeBookKey(book?.title, book?.author);
-      if (!key || map.has(key)) continue;
-      map.set(key, book);
-    }
-    return map;
-  }, [featuredBooks]);
-  const visibleSearch = useMemo(() => {
-    const deduped = [];
-    const seen = new Set();
 
-    for (const result of Array.isArray(books) ? books : []) {
-      const key = normalizeBookKey(result?.title, result?.author);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-
-      const worldBook = worldBooksByKey.get(key);
-      if (!worldBook) continue;
-      deduped.push(worldBook);
-    }
-    return deduped;
-  }, [books, worldBooksByKey]);
-
-  const typedQuery = String(searchTerm || '').trim();
-  const hasInput = Boolean(typedQuery);
   const hasQuery = Boolean(query);
-  const visible = hasInput ? visibleSearch : featuredBooks;
+  const normalizedSearchResults = useMemo(() => normalizeSearchResults(books), [books]);
+  const normalizedFeatured = useMemo(() => normalizeSearchResults(featuredBooks), [featuredBooks]);
+  const visible = hasQuery ? normalizedSearchResults : normalizedFeatured;
   const hasResults = visible.length > 0;
 
   useEffect(() => {
@@ -69,6 +36,7 @@ export default function ThreadAccessHub() {
           ...book,
           source: String(book?.source || (book?.gutenbergId ? 'gutenberg' : 'local')),
           sourceId: String(book?.sourceId || book?.gutenbergId || book?._id || ''),
+          coverImage: String(book?.coverImage || book?.cover || ''),
         })).filter((book) => book.sourceId));
       } catch {
         if (!cancelled) setFeaturedBooks([]);
@@ -126,14 +94,12 @@ export default function ThreadAccessHub() {
 
         {!loading && !error && hasResults && visible.map((book) => {
           const source = String(book?.source || '').trim().toLowerCase();
-          const sourceId = String(book?.sourceId || '').trim();
+          const sourceId = String(book?.source_book_id || book?.id || '').trim();
           if (!source || !sourceId) return null;
-          const compositeId = `${source}:${sourceId}`;
-          const legacyId = String(book?.internalBookId || '').trim();
-          const threadRouteId = legacyId || compositeId;
+          const threadRouteId = `${source}:${sourceId}`;
 
           return (
-            <article key={`${source}:${sourceId}`} className="thread-access-card glass-panel">
+            <article key={threadRouteId} className="thread-access-card glass-panel">
               <div className="thread-access-card-body">
                 <h3 className="thread-access-title font-serif">{book.title}</h3>
                 <p className="thread-access-author">{book.author}</p>
