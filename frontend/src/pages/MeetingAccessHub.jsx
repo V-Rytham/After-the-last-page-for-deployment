@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
+import { getOrCreateIdentity } from '../utils/identity';
 import './MeetingAccessHub.css';
 
 const toList = (value) => (Array.isArray(value) ? value : []);
@@ -71,10 +72,13 @@ export default function MeetingAccessHub() {
     setJoiningKey(key);
     setJoinNotice('');
 
+    const identity = getOrCreateIdentity();
     const attemptJoin = async () => api.post('/meet/join', {
       source: book.source,
       source_book_id: book.source_book_id,
       prefType: 'text',
+      userId: identity?.userId,
+      displayName: identity?.displayName,
     });
 
     try {
@@ -222,4 +226,3 @@ export default function MeetingAccessHub() {
     </div>
   );
 }
-

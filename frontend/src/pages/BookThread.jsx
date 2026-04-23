@@ -16,6 +16,8 @@ const initialThreadForm = { title: '', chapterReference: '', content: '' };
 const MAX_VISUAL_REPLY_DEPTH = 3;
 const BOOK_READ_TIMEOUT_MS = 120000;
 const THREAD_CONTENT_MAX = 1000;
+const THREAD_FETCH_MAX_ATTEMPTS = 3;
+const THREAD_FETCH_RETRY_MS = 250;
 
 const canonicalizeThreadKey = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -77,6 +79,8 @@ const getAuthorDisplayName = (item) => {
   const username = String(item?.authorUsername || '').trim();
   return username || 'Anonymous';
 };
+
+const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const renderRichText = (text) => text
   .split(/\n{2,}/)
@@ -231,7 +235,7 @@ export default function BookThread() {
   }, []);
   const [book, setBook] = useState(null);
   const [threads, setThreads] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [pageStatus, setPageStatus] = useState('loading');
   const [showComposer, setShowComposer] = useState(false);
   const [threadForm, setThreadForm] = useState(initialThreadForm);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
@@ -245,9 +249,27 @@ export default function BookThread() {
   const trimmedThreadContent = threadForm.content.trim();
   const isComposerSubmitDisabled = submittingThread || !trimmedThreadTitle || !trimmedThreadContent;
 
+  const fetchThreadsWithRetry = async (bookKey) => {
+    let lastError = null;
+    for (let attempt = 1; attempt <= THREAD_FETCH_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const { data } = await api.get(`/books/${encodeURIComponent(bookKey)}/threads`, {
+          params: { page: 1, limit: 25 },
+        });
+        return data;
+      } catch (requestError) {
+        lastError = requestError;
+        if (attempt < THREAD_FETCH_MAX_ATTEMPTS) {
+          await wait(THREAD_FETCH_RETRY_MS * attempt);
+        }
+      }
+    }
+    throw lastError;
+  };
+
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setPageStatus('loading');
       setError('');
 
       const bookRequest = (() => {
@@ -287,13 +309,8 @@ export default function BookThread() {
       })();
 
       const threadsRequest = isCustomThread
-        ? Promise.resolve({ data: { items: [] } })
-        : api.get(`/books/${encodeURIComponent(threadBookKey)}/threads`, {
-            params: {
-              page: 1,
-              limit: 25,
-            },
-          });
+        ? Promise.resolve({ items: [] })
+        : fetchThreadsWithRetry(threadBookKey);
 
       const [bookResult, threadsResult] = await Promise.allSettled([
         bookRequest,
@@ -318,18 +335,18 @@ export default function BookThread() {
       }
 
       if (threadsResult.status === 'fulfilled') {
-        const payload = threadsResult.value.data;
+        const payload = threadsResult.value;
         const normalized = Array.isArray(payload?.items)
           ? payload.items
           : (Array.isArray(payload) ? payload : []);
         setThreads(normalized);
+        setPageStatus('ready');
       } else {
         console.error('Failed to fetch thread data:', threadsResult.reason);
         setThreads([]);
         setError('The discussion room is unavailable right now.');
+        setPageStatus('ready');
       }
-
-      setLoading(false);
     };
 
     fetchData();
@@ -519,13 +536,19 @@ export default function BookThread() {
         chapterReference: threadForm.chapterReference,
         content: threadForm.content,
       });
+      const createdThreadId = String(data?._id || '').trim();
+      if (!createdThreadId) {
+        throw new Error('Thread created without id.');
+      }
 
-      setThreads((prev) => [data, ...prev]);
+      const { data: confirmedThread } = await api.get(`/threads/${encodeURIComponent(createdThreadId)}`);
+
+      setThreads((prev) => [confirmedThread, ...prev.filter((thread) => thread._id !== createdThreadId)]);
       setThreadForm(initialThreadForm);
       setShowComposer(false);
-      setSelectedThreadId(data._id);
+      setSelectedThreadId(createdThreadId);
       setFeedback('Your discussion note has been placed into the room.');
-      updateThreadQuery(data._id);
+      updateThreadQuery(createdThreadId);
     } catch (requestError) {
       setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to publish this discussion right now.');
     } finally {
@@ -613,7 +636,7 @@ export default function BookThread() {
     }
   };
 
-  if (loading) {
+  if (pageStatus === 'loading') {
     return (
       <div className="thread-loader" role="status" aria-live="polite" aria-label="Opening the discussion room">
         <p>

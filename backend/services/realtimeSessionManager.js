@@ -19,6 +19,7 @@ export class RealtimeSessionManager {
     this.roomMembers = new Map(); // roomId -> Set(userId)
     this.userToRoomId = new Map(); // userId -> roomId
     this.userProfiles = new Map(); // userId -> displayName
+    this.matchmakingLock = Promise.resolve();
 
     setInterval(() => {
       this.sessions.sweep();
@@ -119,26 +120,32 @@ export class RealtimeSessionManager {
 
     const queueKey = `${normalizedBookId}_${normalizedPrefType}`;
 
-    this.leaveMatchmaking({ userId: normalizedUserId });
-    this.sessions.setState(normalizedUserId, SESSION_STATES.SEARCHING, {
-      bookId: normalizedBookId,
-      prefType: normalizedPrefType,
-      roomId: null,
-      partnerUserId: null,
+    return this._withMatchmakingLock(() => {
+      this.leaveMatchmaking({ userId: normalizedUserId });
+      this.sessions.setState(normalizedUserId, SESSION_STATES.SEARCHING, {
+        bookId: normalizedBookId,
+        prefType: normalizedPrefType,
+        roomId: null,
+        partnerUserId: null,
+      });
+
+      const items = this.queue.get(queueKey) || [];
+      items.push({ userId: normalizedUserId, socketId, queuedAt: Date.now(), bookId: normalizedBookId, prefType: normalizedPrefType });
+      this.queue.set(queueKey, items);
+      this.userToQueueKey.set(normalizedUserId, queueKey);
+
+      const match = this._tryDequeueMatch(queueKey);
+      if (!match) {
+        return { matched: false };
+      }
+
+      const finalizedMatch = this._finalizeMatch(match);
+      if (!finalizedMatch) {
+        return { matched: false };
+      }
+
+      return { matched: true, roomId: finalizedMatch.roomId };
     });
-
-    const items = this.queue.get(queueKey) || [];
-    items.push({ userId: normalizedUserId, socketId, queuedAt: Date.now(), bookId: normalizedBookId });
-    this.queue.set(queueKey, items);
-    this.userToQueueKey.set(normalizedUserId, queueKey);
-
-    const match = this._tryDequeueMatch(queueKey);
-    if (match) {
-      await this._finalizeMatch(match);
-      return { matched: true, roomId: match.roomId };
-    }
-
-    return { matched: false };
   }
 
   leaveMatchmaking({ userId }) {
@@ -170,9 +177,23 @@ export class RealtimeSessionManager {
   }
 
   _tryDequeueMatch(queueKey) {
+    const staleUserIds = [];
     const items = (this.queue.get(queueKey) || []).filter((item) => {
       const liveSocket = this.io.sockets.sockets.get(item.socketId);
+      if (!liveSocket) {
+        staleUserIds.push(item.userId);
+      }
       return Boolean(liveSocket);
+    });
+
+    staleUserIds.forEach((userId) => {
+      this.userToQueueKey.delete(userId);
+      this.sessions.setState(userId, SESSION_STATES.IDLE, {
+        roomId: null,
+        partnerUserId: null,
+        prefType: null,
+        bookId: null,
+      });
     });
 
     if (items.length < 2) {
@@ -195,21 +216,66 @@ export class RealtimeSessionManager {
 
     const roomId = normalizeId(a.bookId || queueKey.split('_')[0]);
     return {
+      queueKey,
       roomId,
       aUserId: a.userId,
       aSocketId: a.socketId,
       bUserId: b.userId,
       bSocketId: b.socketId,
-      partnerUserId: b.userId,
+      aEntry: a,
+      bEntry: b,
     };
   }
 
-  async _finalizeMatch(match) {
-    const { roomId, aUserId, aSocketId, bUserId, bSocketId } = match;
+  _finalizeMatch(match) {
+    const {
+      roomId, queueKey, aUserId, aSocketId, bUserId, bSocketId, aEntry, bEntry,
+    } = match;
     const aSocket = this.io.sockets.sockets.get(aSocketId);
     const bSocket = this.io.sockets.sockets.get(bSocketId);
     if (!aSocket || !bSocket) {
-      return;
+      const survivor = aSocket ? { userId: aUserId, socketId: aSocketId, entry: aEntry } : (bSocket ? { userId: bUserId, socketId: bSocketId, entry: bEntry } : null);
+      const missingUserId = aSocket ? bUserId : (bSocket ? aUserId : null);
+
+      if (missingUserId) {
+        this.sessions.setState(missingUserId, SESSION_STATES.IDLE, {
+          roomId: null,
+          partnerUserId: null,
+          prefType: null,
+          bookId: null,
+        });
+      }
+
+      if (survivor) {
+        const liveSocket = this.io.sockets.sockets.get(survivor.socketId);
+        if (liveSocket) {
+          const queuedItems = this.queue.get(queueKey) || [];
+          queuedItems.unshift({
+            userId: survivor.userId,
+            socketId: survivor.socketId,
+            queuedAt: Date.now(),
+            bookId: survivor.entry?.bookId || roomId,
+            prefType: survivor.entry?.prefType || null,
+          });
+          this.queue.set(queueKey, queuedItems);
+          this.userToQueueKey.set(survivor.userId, queueKey);
+          this.sessions.setState(survivor.userId, SESSION_STATES.SEARCHING, {
+            roomId: null,
+            partnerUserId: null,
+          });
+          liveSocket.emit('match_requeued', {
+            message: 'The other reader disconnected before the chat opened. We are finding a new match.',
+          });
+        } else {
+          this.sessions.setState(survivor.userId, SESSION_STATES.IDLE, {
+            roomId: null,
+            partnerUserId: null,
+            prefType: null,
+            bookId: null,
+          });
+        }
+      }
+      return null;
     }
 
     aSocket.join(roomId);
@@ -237,6 +303,14 @@ export class RealtimeSessionManager {
       message: 'You have been paired with a reader.',
       partnerUsername: aDisplayName || null,
     });
+    return { roomId, aUserId, bUserId };
+  }
+
+  _withMatchmakingLock(operation) {
+    const run = () => Promise.resolve().then(operation);
+    const next = this.matchmakingLock.then(run, run);
+    this.matchmakingLock = next.catch(() => {});
+    return next;
   }
 
   enterConversation({ userId, roomId }) {

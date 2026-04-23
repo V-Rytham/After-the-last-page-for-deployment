@@ -256,6 +256,17 @@ const MeetingHub = () => {
       }
     };
 
+    activeSocket.off('connect', onConnect);
+    activeSocket.off('connect_error', onConnectError);
+    activeSocket.off('match_found', onMatchFound);
+    activeSocket.off('access_denied', onAccessDenied);
+    activeSocket.off('match_stats', onMatchStats);
+    activeSocket.off('receive_message', onReceiveMessage);
+    activeSocket.off('partner_left', onPartnerLeft);
+    activeSocket.off('webrtc_offer', onWebRtcOffer);
+    activeSocket.off('webrtc_answer', onWebRtcAnswer);
+    activeSocket.off('webrtc_ice_candidate', onWebRtcCandidate);
+
     activeSocket.on('connect', onConnect);
     activeSocket.on('connect_error', onConnectError);
     activeSocket.on('match_found', onMatchFound);
@@ -504,10 +515,13 @@ const MeetingHub = () => {
     }
     setPhase('searching');
     setMatchNotice('');
+    const identity = getOrCreateIdentity();
     const attemptJoin = async () => api.post('/meet/join', {
       source: book?.source,
       source_book_id: book?.sourceId,
       prefType,
+      userId: identity?.userId,
+      displayName: identity?.displayName,
     });
 
     await attemptJoin().then(() => {
