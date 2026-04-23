@@ -66,6 +66,10 @@ export class BookThreadsService {
     const sanitizedContent = sanitizeText(content, 3000);
     const sanitizedReference = sanitizeText(chapterReference, 80);
 
+    if (!String(userId || '').trim() || !String(displayName || '').trim()) {
+      throw badRequest('userId and displayName are required.');
+    }
+
     if (!sanitizedTitle || sanitizedTitle.length < 3) {
       throw badRequest('Thread title must be at least 3 characters.');
     }
@@ -104,14 +108,21 @@ export class BookThreadsService {
         throw error;
       }
 
-      createdThread.rootMessageId = createdRoot._id;
-      createdThread.messageCount = 1;
-      createdThread.lastMessageAt = createdRoot.createdAt;
-      await createdThread.save();
+      await BookThread.updateOne(
+        { _id: createdThread._id },
+        {
+          $set: {
+            rootMessageId: createdRoot._id,
+            messageCount: 1,
+            lastMessageAt: createdRoot.createdAt,
+          },
+        },
+      );
+
+      console.warn('[THREADS] db write completed', { threadId: String(createdThread._id), strategy: 'rollback-safe' });
 
       const hydratedThread = await BookThread.findById(createdThread._id).lean();
       const rootMessage = await BookThreadMessage.findById(createdRoot._id).lean();
-
       return toThreadDetail({ thread: hydratedThread, rootMessage });
     };
 
@@ -145,10 +156,17 @@ export class BookThreadsService {
             likedBy: [],
           }], { session }).then((docs) => docs[0]);
 
-          createdThread.rootMessageId = createdRoot._id;
-          createdThread.messageCount = 1;
-          createdThread.lastMessageAt = createdRoot.createdAt;
-          await createdThread.save({ session });
+          await BookThread.updateOne(
+            { _id: createdThread._id },
+            {
+              $set: {
+                rootMessageId: createdRoot._id,
+                messageCount: 1,
+                lastMessageAt: createdRoot.createdAt,
+              },
+            },
+            { session },
+          );
         });
       } catch (error) {
         if (isStandaloneTransactionError(error)) {
@@ -157,9 +175,9 @@ export class BookThreadsService {
         throw error;
       }
 
+      console.warn('[THREADS] db write completed', { threadId: String(createdThread._id), strategy: 'transaction' });
       const hydratedThread = await BookThread.findById(createdThread._id).lean();
       const rootMessage = await BookThreadMessage.findById(createdRoot._id).lean();
-
       return toThreadDetail({ thread: hydratedThread, rootMessage });
     } finally {
       session.endSession();

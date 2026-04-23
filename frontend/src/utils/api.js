@@ -72,6 +72,7 @@ api.interceptors.response.use(
       ? 'This book is large and taking longer than expected.'
       : (isTimeout ? 'Still loading, please retry.' : null);
     const message = mappedMessage
+      || error?.response?.data?.error?.message
       || error?.response?.data?.message
       || error?.message
       || 'Request failed.';

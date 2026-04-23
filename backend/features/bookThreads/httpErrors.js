@@ -22,13 +22,16 @@ export const sendError = (res, error, fallbackMessage = 'Request failed.') => {
   }
 
   const body = {
-    error: true,
-    code,
-    message,
+    success: false,
+    data: null,
+    error: {
+      code,
+      message,
+    },
   };
 
   if (error?.details) {
-    body.details = error.details;
+    body.error.details = error.details;
   }
 
   return res.status(statusCode).json(body);
