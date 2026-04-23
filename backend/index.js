@@ -137,7 +137,7 @@ configurePassport();
 app.use(cors({
   origin: buildCorsOriginValidator(),
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Book-Action-Id', 'X-Book-Action-Name'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Book-Action-Id', 'X-Book-Action-Name', 'X-User-Id'],
   exposedHeaders: ['X-Request-Id'],
   maxAge: 600,
   credentials: true,

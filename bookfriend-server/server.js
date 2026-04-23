@@ -58,7 +58,7 @@ const corsOrigin = (origin, callback) => {
 app.use(cors({
   origin: corsOrigin,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
   maxAge: 600,
 }));
 
@@ -156,5 +156,4 @@ app.listen(port, () => {
   log(`[BOOKFRIEND] Agent server listening on ${port}`);
   log(`[BOOKFRIEND] LLM provider: ${provider}`);
 });
-
 
