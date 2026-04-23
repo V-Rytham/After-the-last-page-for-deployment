@@ -63,6 +63,12 @@
   border-bottom: 1px solid var(--border-soft);
 }
 
+.thread-page-back {
+  width: fit-content;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
 .salon-book-anchor {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

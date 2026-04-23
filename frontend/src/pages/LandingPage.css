@@ -332,7 +332,7 @@
 }
 
 .home2-emotional {
-  border: 1px solid var(--border-soft);
+  border: 0;
   border-radius: 1.15rem;
   background: var(--surface-1);
   box-shadow: var(--shadow-panel);

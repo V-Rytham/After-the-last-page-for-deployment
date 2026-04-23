@@ -264,6 +264,10 @@ body.is-reading-room::before {
   padding-top: clamp(0.625rem, 1.1vw, 0.875rem);
 }
 
+.main-content.with-navbar {
+  padding-top: calc(var(--chrome-height) + 0.75rem);
+}
+
 .content-container {
   width: 100%;
   max-width: var(--content-max-width);
