@@ -143,9 +143,6 @@ export default function MeetingAccessHub() {
         <div className="meeting-access-hero-copy">
           <h1 className="font-serif">Find a book. Start a chat.</h1>
           <p>Start a private conversation with another reader.</p>
-          <p className="meeting-access-live-state">
-            {socketConnected ? 'Ready' : (socketConnecting ? 'Connecting…' : 'Connecting…')}
-          </p>
           {!socketConnected && socketError ? <p className="meeting-access-live-error">{socketError}</p> : null}
           {joinNotice ? <p className="meeting-access-live-error">{joinNotice}</p> : null}
         </div>
