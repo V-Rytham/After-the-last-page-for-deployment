@@ -4,7 +4,7 @@
   margin: 0 auto;
   padding: clamp(1rem, 2.5vw, 1.75rem) var(--page-gutter) clamp(1.5rem, 3vw, 2.5rem);
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .meeting-access-page.is-gated {
@@ -23,8 +23,12 @@
 .meeting-access-hero {
   display: grid;
   grid-template-columns: 1fr minmax(16rem, 23rem);
-  gap: 1rem;
+  gap: 1.25rem;
   align-items: end;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-1) 94%, var(--surface-2));
 }
 
 .meeting-access-hero-copy h1 { margin: 0; font-size: clamp(1.35rem, 1.08rem + 1.1vw, 2rem); line-height: 1.15; }
@@ -32,6 +36,7 @@
 .meeting-access-live-state {
   font-size: 0.82rem;
   color: var(--text-muted);
+  margin-top: 0.6rem;
 }
 .meeting-access-live-error {
   font-size: 0.8rem;
@@ -42,7 +47,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 0.8rem;
+  padding: 0.65rem 0.85rem;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-soft);
   background: var(--surface-1);
@@ -56,7 +61,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.85rem;
   align-items: center;
-  padding: 0.9rem 1rem;
+  padding: 1rem 1.05rem;
   border-radius: var(--radius-md);
 }
 
