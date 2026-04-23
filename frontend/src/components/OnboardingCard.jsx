@@ -79,8 +79,8 @@ export default function OnboardingCard({ card, currentIndex, total, onSkip, onNe
           style={{
             border: 'none',
             borderRadius: '999px',
-            background: 'var(--intent-btn-bg)',
-            color: 'var(--intent-btn-text)',
+            background: 'var(--accent)',
+            color: '#fff',
             fontSize: '0.95rem',
             fontWeight: 600,
             minHeight: '2.5rem',
