@@ -364,8 +364,6 @@ export default function BookThread() {
               bookContentAvailable,
               previewMessage: bookContentAvailable ? null : 'No readable content available',
             };
-            // eslint-disable-next-line no-console
-            console.log('Parsed book:', parsedBook);
             setBook(parsedBook);
           }
         }

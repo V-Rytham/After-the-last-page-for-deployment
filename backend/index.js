@@ -55,21 +55,20 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+const buildAllowedOrigins = () => (
+  new Set([
+    process.env.CLIENT_URL,
+    process.env.CLIENT_URL_FALLBACK,
+    process.env.DEV_CLIENT_URL,
+  ].filter(Boolean))
+);
+
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      const allowList = new Set([
-        process.env.CLIENT_URL,
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-      ].filter(Boolean));
+      const allowList = buildAllowedOrigins();
 
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-
-      if (allowList.has(origin)) {
+      if (!origin || allowList.has(origin)) {
         callback(null, true);
         return;
       }
@@ -98,11 +97,7 @@ const io = new Server(httpServer, {
 });
 
 const buildCorsOriginValidator = () => {
-  const allowList = new Set([
-    process.env.CLIENT_URL,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-  ].filter(Boolean));
+  const allowList = buildAllowedOrigins();
 
   return (origin, callback) => {
     if (!origin) {
@@ -208,7 +203,7 @@ app.get('/api/health', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 httpServer.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
