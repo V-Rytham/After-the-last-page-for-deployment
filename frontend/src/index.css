@@ -64,6 +64,8 @@
   --intent-btn-hover: #334155;
   --intent-btn-text: #E2E8F0;
   --intent-btn-border: #1E293B;
+  --text-base: #6b7280;
+  --text-highlight: #111827;
   --bg-dark: #07080c;
   --text-primary-dark: #f3f4f6;
   --text-secondary-dark: rgba(243, 244, 246, 0.78);
@@ -160,6 +162,8 @@ html[data-theme='sepia'] {
   --nav-link-hover-bg: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-muted));
   --nav-link-active-bg: var(--accent-soft);
   --nav-link-active-border: var(--accent-border);
+  --text-base: #7c6f64;
+  --text-highlight: #3e2f1c;
 }
 
 html[data-theme='dark'] {
@@ -213,6 +217,8 @@ html[data-theme='dark'] {
   --nav-link-hover-bg: rgba(124, 140, 255, 0.14);
   --nav-link-active-bg: rgba(124, 140, 255, 0.2);
   --nav-link-active-border: rgba(124, 140, 255, 0.32);
+  --text-base: #9ca3af;
+  --text-highlight: #ffffff;
 }
 
 html[data-theme='dark'] body::before {
