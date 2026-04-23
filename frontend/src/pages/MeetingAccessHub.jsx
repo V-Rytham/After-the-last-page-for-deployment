@@ -5,23 +5,8 @@ import useGlobalSearch from '../hooks/useGlobalSearch';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import { getOrCreateIdentity } from '../utils/identity';
+import normalizeSearchResults, { toList } from '../utils/normalizeSearchResults';
 import './MeetingAccessHub.css';
-
-const toList = (value) => (Array.isArray(value) ? value : []);
-
-const normalizeBook = (book) => {
-  const source = String(book?.source || '').trim().toLowerCase();
-  const sourceBookId = String(book?.sourceId || '').trim();
-  if (!source || !sourceBookId) return null;
-
-  return {
-    title: String(book?.title || 'Untitled').trim() || 'Untitled',
-    author: String(book?.author || 'Unknown author').trim() || 'Unknown author',
-    cover: String(book?.coverImage || '').trim(),
-    source,
-    source_book_id: sourceBookId,
-  };
-};
 
 export default function MeetingAccessHub() {
   const navigate = useNavigate();
@@ -35,8 +20,8 @@ export default function MeetingAccessHub() {
   const { books, loading, error, query } = useGlobalSearch(searchTerm);
 
   const hasQuery = Boolean(query);
-  const normalizedSearchResults = useMemo(() => toList(books).map(normalizeBook).filter(Boolean), [books]);
-  const normalizedFeatured = useMemo(() => toList(featuredBooks).map(normalizeBook).filter(Boolean), [featuredBooks]);
+  const normalizedSearchResults = useMemo(() => normalizeSearchResults(books), [books]);
+  const normalizedFeatured = useMemo(() => normalizeSearchResults(featuredBooks), [featuredBooks]);
   const visibleBooks = hasQuery ? normalizedSearchResults : normalizedFeatured;
 
   useEffect(() => {
