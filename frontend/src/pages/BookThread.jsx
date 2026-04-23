@@ -636,6 +636,14 @@ export default function BookThread() {
     }
   };
 
+  const handleBackNavigation = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/threads', { replace: true });
+  };
+
   if (pageStatus === 'loading') {
     return (
       <div className="thread-loader" role="status" aria-live="polite" aria-label="Opening the discussion room">
@@ -658,6 +666,9 @@ export default function BookThread() {
       <div className="thread-shell">
         {!selectedThread ? (
           <>
+            <button type="button" className="back-link button-reset thread-page-back" onClick={handleBackNavigation}>
+              <ArrowLeft size={16} /> Back
+            </button>
             <header className="salon-header">
                 <div className="salon-book-anchor">
                   <div className="salon-book-cover" style={{ '--book-accent': book.coverColor || '#6f614d' }}>
@@ -779,7 +790,6 @@ export default function BookThread() {
                 <div className="empty-state">
                   <ScrollText size={22} />
                   <h3 className="font-serif">No discussions yet.</h3>
-                  <p>Open the first conversation about {book.title} and set the tone for the room.</p>
                 </div>
               )}
             </section>

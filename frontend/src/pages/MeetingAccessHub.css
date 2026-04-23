@@ -27,7 +27,7 @@
   align-items: end;
   padding: 1rem 1.1rem;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
+  border: 0;
   background: color-mix(in srgb, var(--surface-1) 94%, var(--surface-2));
 }
 
@@ -95,6 +95,13 @@
   padding: 0 0.8rem;
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+html[data-theme='dark'] .meeting-access-page .meeting-book-cta {
+  background: linear-gradient(135deg, #6f7cff, #5667ff);
+  border-color: #7f8cff;
+  color: #f8faff;
+  box-shadow: 0 8px 18px rgba(86, 103, 255, 0.28);
 }
 .meeting-book-cta:disabled {
   opacity: 0.7;

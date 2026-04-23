@@ -217,6 +217,16 @@
   border-color: var(--intent-btn-border);
 }
 
+html[data-theme='dark'] .meeting-hub .btn-primary,
+html[data-theme='dark'] .meeting-hub .btn-secondary,
+html[data-theme='dark'] .meeting-hub .send-btn,
+html[data-theme='dark'] .meeting-hub .btn-leave {
+  background: linear-gradient(135deg, #6f7cff, #5667ff);
+  border-color: #7f8cff;
+  color: #f8faff;
+  box-shadow: 0 10px 24px rgba(86, 103, 255, 0.28);
+}
+
 .searching-container {
   display: grid;
   justify-items: center;

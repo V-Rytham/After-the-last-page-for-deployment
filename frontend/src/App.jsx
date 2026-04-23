@@ -32,7 +32,7 @@ const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
       {!hideNavbar && (
         <Navbar currentUser={currentUser} uiTheme={uiTheme} onThemeChange={onThemeChange} />
       )}
-      <main className="main-content">
+      <main className={`main-content ${hideNavbar ? 'no-navbar' : 'with-navbar'}`}>
         <Suspense fallback={<div className="content-container"><p className="text-muted">Loading…</p></div>}>
           <Routes>
             <Route path="/" element={<LandingPage currentUser={currentUser} />} />
