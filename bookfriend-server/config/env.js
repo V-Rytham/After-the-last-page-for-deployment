@@ -20,8 +20,13 @@ export const loadBookFriendEnv = () => {
 
   const candidates = [
     path.resolve(__dirname, '..', '.env'),
+    path.resolve(__dirname, '..', '.env.local'),
     path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '.env.local'),
+    path.resolve(process.cwd(), 'backend', '.env'),
+    path.resolve(process.cwd(), 'backend', '.env.local'),
     path.resolve(process.cwd(), 'bookfriend-server', '.env'),
+    path.resolve(process.cwd(), 'bookfriend-server', '.env.local'),
   ];
 
   for (const envPath of candidates) {

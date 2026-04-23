@@ -13,9 +13,9 @@ export const connectDB = async () => {
     return true;
   }
 
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
   if (!uri) {
-    const error = new Error('Missing MONGODB_URI for BookFriend server.');
+    const error = new Error('Missing MONGODB_URI (or MONGO_URI) for BookFriend server.');
     lastDbError = error;
     throw error;
   }
