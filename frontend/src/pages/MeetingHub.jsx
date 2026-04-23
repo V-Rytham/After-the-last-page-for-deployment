@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, LogOut } from 'lucide-react';
+import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, LogOut } from 'lucide-react';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import { getOrCreateIdentity } from '../utils/identity';
@@ -48,10 +48,7 @@ const MeetingHub = () => {
   const [socketReady, setSocketReady] = useState(false);
   const [matchNotice, setMatchNotice] = useState('');
   const [searchHint, setSearchHint] = useState('');
-  const [bookFriendOffered, setBookFriendOffered] = useState(false);
   const [bookFriendSessionId, setBookFriendSessionId] = useState(null);
-  const [bookFriendLoading, setBookFriendLoading] = useState(false);
-  const [matchStats, setMatchStats] = useState(null);
   const [searchSeconds, setSearchSeconds] = useState(0);
   const [searchingDots, setSearchingDots] = useState('.');
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
@@ -168,7 +165,6 @@ const MeetingHub = () => {
     };
 
     const onMatchFound = ({ roomId: matchedRoomId, role, partnerUsername, partnerName }) => {
-      setBookFriendOffered(false);
       setRoomId(matchedRoomId);
       setMatchRole(role || null);
       const normalizedPartner = String(partnerUsername || partnerName || '').trim();
@@ -180,16 +176,6 @@ const MeetingHub = () => {
 
     const onAccessDenied = ({ message }) => {
       setMatchNotice(String(message || 'Live chats are only available for open-access books.'));
-    };
-
-    const onMatchStats = (payload) => {
-      if (payload && typeof payload === 'object') {
-        setMatchStats({
-          online: Number.isFinite(Number(payload.online)) ? Number(payload.online) : null,
-          searching: Number.isFinite(Number(payload.searching)) ? Number(payload.searching) : null,
-          updatedAt: payload.updatedAt || null,
-        });
-      }
     };
 
     const onReceiveMessage = ({ message }) => {
@@ -275,7 +261,6 @@ const MeetingHub = () => {
     activeSocket.off('connect_error', onConnectError);
     activeSocket.off('match_found', onMatchFound);
     activeSocket.off('access_denied', onAccessDenied);
-    activeSocket.off('match_stats', onMatchStats);
     activeSocket.off('receive_message', onReceiveMessage);
     activeSocket.off('partner_left', onPartnerLeft);
     activeSocket.off('webrtc_offer', onWebRtcOffer);
@@ -286,7 +271,6 @@ const MeetingHub = () => {
     activeSocket.on('connect_error', onConnectError);
     activeSocket.on('match_found', onMatchFound);
     activeSocket.on('access_denied', onAccessDenied);
-    activeSocket.on('match_stats', onMatchStats);
     activeSocket.on('receive_message', onReceiveMessage);
     activeSocket.on('partner_left', onPartnerLeft);
     activeSocket.on('webrtc_offer', onWebRtcOffer);
@@ -300,7 +284,6 @@ const MeetingHub = () => {
       activeSocket.off('connect_error', onConnectError);
       activeSocket.off('match_found', onMatchFound);
       activeSocket.off('access_denied', onAccessDenied);
-      activeSocket.off('match_stats', onMatchStats);
       activeSocket.off('receive_message', onReceiveMessage);
       activeSocket.off('partner_left', onPartnerLeft);
       activeSocket.off('webrtc_offer', onWebRtcOffer);
@@ -479,7 +462,6 @@ const MeetingHub = () => {
     if (phase !== 'searching') return undefined;
     setSearchSeconds(0);
     setSearchingDots('.');
-    setBookFriendOffered(false);
 
     if (searchIntervalRef.current) {
       window.clearInterval(searchIntervalRef.current);
@@ -492,14 +474,9 @@ const MeetingHub = () => {
     setSearchHint('Looking for someone who just finished this book.');
     const nudgeTimeoutId = window.setTimeout(() => setSearchHint('Scanning for someone in the same chapter-afterglow.'), 12000);
     const delayTimeoutId = window.setTimeout(() => setSearchHint('This is taking longer than usual. Hang tight.'), 32000);
-    const bookFriendTimeoutId = window.setTimeout(() => {
-      setBookFriendOffered(true);
-      setSearchHint('No match yet. You can start a text chat with BookFriend while we keep looking.');
-    }, 45000);
     return () => {
       window.clearTimeout(nudgeTimeoutId);
       window.clearTimeout(delayTimeoutId);
-      window.clearTimeout(bookFriendTimeoutId);
       if (searchIntervalRef.current) {
         window.clearInterval(searchIntervalRef.current);
         searchIntervalRef.current = null;
@@ -563,42 +540,6 @@ const MeetingHub = () => {
     });
   };
 
-  const handleCancelSearch = async () => {
-    await api.post('/meet/leave').catch(() => {});
-    setPhase('preferences');
-    setSearchHint('');
-    setSearchSeconds(0);
-    setBookFriendOffered(false);
-    window.dispatchEvent(new Event('atlp-session-hint'));
-  };
-
-  const handleTalkToBookFriend = async () => {
-    log('Bookfriend clicked');
-    setBookFriendLoading(true);
-    setMatchNotice('');
-    try {
-      const inferredBookId = (
-        String(book?.source || '').trim().toLowerCase() === 'gutenberg'
-          ? (book?.sourceId || book?.gutenbergId || '')
-          : (book?._id || book?.id || bookId)
-      );
-      const payload = {
-        book_id: String(inferredBookId || '').trim(),
-        book_title: book?.title || '',
-        book_author: book?.author || '',
-      };
-      log('Payload:', payload);
-      const { data } = await api.post('/agent/start', payload);
-      setBookFriendSessionId(data.session_id);
-      setMessages([]);
-      setPhase('bookfriend');
-    } catch (error) {
-      setMatchNotice(error?.response?.data?.error || error?.response?.data?.message || 'BookFriend is unavailable right now. Please try again shortly.');
-    } finally {
-      setBookFriendLoading(false);
-    }
-  };
-
   const sendBookFriendMessage = async (event) => {
     event.preventDefault();
     const trimmed = chatInput.trim();
@@ -633,13 +574,6 @@ const MeetingHub = () => {
   };
 
   const mediaConnected = mediaStatus === 'ready' || mediaStatus === 'connecting' || mediaStatus === 'connected';
-
-  const searchStage = (() => {
-    if (searchSeconds >= 60) return 'delayed';
-    if (searchSeconds >= 32) return 'lingering';
-    if (searchSeconds >= 12) return 'searching';
-    return 'starting';
-  })();
 
   const getMessageTimeLabel = (timestamp) => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());
@@ -725,10 +659,6 @@ const MeetingHub = () => {
       {phase === 'searching' && (
         <div className="searching-container animate-fade-in">
           <div className="searching-card glass-panel">
-            <div className="radar-animation" aria-hidden="true">
-              <Waves size={22} className="radar-center-icon" />
-            </div>
-
             <div className="searching-header">
               <h2 className="font-serif searching-title">
                 Finding a reader<span className="searching-dots" aria-hidden="true">{searchingDots}</span>
@@ -736,46 +666,13 @@ const MeetingHub = () => {
               <p className="text-muted searching-subtitle">
                 {searchHint}
               </p>
-              <p className="searching-helper text-muted">This usually takes a few seconds</p>
             </div>
 
             <div className="searching-progress" role="status" aria-live="polite">
-              <span>Still searching… ({Math.max(0, searchSeconds)}s)</span>
+              <span>Searching... ({Math.max(0, searchSeconds)}s)</span>
               <div className="searching-progress-line" aria-hidden="true">
                 <span className="searching-progress-line-fill" />
               </div>
-            </div>
-
-            <div className="searching-meta" aria-label="Live activity">
-              <span className="searching-status">
-                ⏱ Searching for {Math.max(0, searchSeconds)}s
-              </span>
-              <span className="searching-status">📖 Matching readers</span>
-              <span className="searching-status">
-                🟢 {matchStats?.online != null
-                  ? `${matchStats.online} users online`
-                  : (socketReady ? 'Users online' : 'Offline')}
-              </span>
-              {matchStats?.searching != null && (
-                <span className="searching-status">🔎 {matchStats.searching} searching now</span>
-              )}
-            </div>
-
-            <div className="searching-actions">
-              {bookFriendOffered && (
-                <button className="btn-secondary" disabled={bookFriendLoading} onClick={handleTalkToBookFriend}>
-                  {bookFriendLoading ? 'Starting BookFriend...' : 'Talk to BookFriend'}
-                </button>
-              )}
-              {searchStage === 'delayed' ? (
-                <button className="btn-secondary sm searching-back-btn" onClick={handleCancelSearch}>
-                  Try again
-                </button>
-              ) : (
-                <button className="btn-secondary sm searching-back-btn" onClick={handleCancelSearch}>
-                  Back
-                </button>
-              )}
             </div>
           </div>
         </div>
