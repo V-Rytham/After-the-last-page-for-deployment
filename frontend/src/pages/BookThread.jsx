@@ -18,6 +18,8 @@ const BOOK_READ_TIMEOUT_MS = 120000;
 const THREAD_CONTENT_MAX = 1000;
 const THREAD_FETCH_MAX_ATTEMPTS = 3;
 const THREAD_FETCH_RETRY_MS = 250;
+const THREAD_LOAD_MAX_ATTEMPTS = 4;
+const THREAD_LOAD_RETRY_MS = 220;
 
 const canonicalizeThreadKey = (value) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -81,6 +83,14 @@ const getAuthorDisplayName = (item) => {
 };
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const unwrapApiData = (response) => {
+  const payload = response?.data;
+  if (payload && typeof payload === 'object' && 'success' in payload) {
+    return payload.data;
+  }
+  return payload;
+};
 
 const renderRichText = (text) => text
   .split(/\n{2,}/)
@@ -253,10 +263,10 @@ export default function BookThread() {
     let lastError = null;
     for (let attempt = 1; attempt <= THREAD_FETCH_MAX_ATTEMPTS; attempt += 1) {
       try {
-        const { data } = await api.get(`/books/${encodeURIComponent(bookKey)}/threads`, {
+        const response = await api.get(`/books/${encodeURIComponent(bookKey)}/threads`, {
           params: { page: 1, limit: 25 },
         });
-        return data;
+        return unwrapApiData(response);
       } catch (requestError) {
         lastError = requestError;
         if (attempt < THREAD_FETCH_MAX_ATTEMPTS) {
@@ -350,7 +360,7 @@ export default function BookThread() {
     };
 
     fetchData();
-  }, [bookId, customThreadTitle, isCustomThread, location?.state?.book, navigate, parsedSourceRoute, threadBookKey]);
+  }, [bookId, customThreadTitle, isCustomThread, location?.state?.book, parsedSourceRoute, threadBookKey]);
 
   const buildReplyTree = (messages, rootMessageId) => {
     const nodes = new Map();
@@ -424,10 +434,11 @@ export default function BookThread() {
         const maxPages = 20;
 
         for (let page = 1; page <= maxPages; page += 1) {
-          const { data } = await api.get(`/threads/${encodeURIComponent(selectedThreadId)}/messages`, {
+          const response = await api.get(`/threads/${encodeURIComponent(selectedThreadId)}/messages`, {
             params: { page, limit: pageLimit, order: 'asc' },
           });
 
+          const data = unwrapApiData(response);
           const items = Array.isArray(data?.items) ? data.items : [];
           aggregated.push(...items);
 
@@ -457,15 +468,56 @@ export default function BookThread() {
   }, [location.state]);
 
   useEffect(() => {
-    const selectedFromQuery = new URLSearchParams(location.search).get('thread');
-    if (!selectedFromQuery) {
-      return;
-    }
+    let cancelled = false;
 
-    const matchingThread = threads.find((thread) => thread._id === selectedFromQuery);
-    if (matchingThread) {
-      setSelectedThreadId(selectedFromQuery);
-    }
+    const ensureThreadFromQuery = async () => {
+      const selectedFromQuery = new URLSearchParams(location.search).get('thread');
+      if (!selectedFromQuery) {
+        return;
+      }
+
+      const existing = threads.find((thread) => thread._id === selectedFromQuery);
+      if (existing) {
+        setSelectedThreadId(selectedFromQuery);
+        return;
+      }
+
+      let foundThread = null;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= THREAD_LOAD_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const response = await api.get(`/threads/${encodeURIComponent(selectedFromQuery)}`);
+          foundThread = unwrapApiData(response);
+          if (foundThread?._id) break;
+        } catch (requestError) {
+          lastError = requestError;
+          if (requestError?.statusCode === 404 && attempt < THREAD_LOAD_MAX_ATTEMPTS) {
+            await wait(THREAD_LOAD_RETRY_MS * attempt);
+            continue;
+          }
+          break;
+        }
+      }
+
+      if (cancelled) return;
+
+      if (foundThread?._id) {
+        setThreads((prev) => [foundThread, ...prev.filter((thread) => thread._id !== foundThread._id)]);
+        setSelectedThreadId(foundThread._id);
+        setError('');
+        return;
+      }
+
+      if (lastError) {
+        setError(lastError?.uiMessage || lastError?.response?.data?.error?.message || 'The discussion room is unavailable right now.');
+      }
+    };
+
+    ensureThreadFromQuery();
+    return () => {
+      cancelled = true;
+    };
   }, [location.search, threads]);
 
   const selectedThread = useMemo(
@@ -531,24 +583,28 @@ export default function BookThread() {
     setSubmittingThread(true);
 
     try {
-      const { data } = await api.post(`/books/${encodeURIComponent(threadBookKey)}/threads`, {
+      const identity = getOrCreateIdentity();
+      console.warn('[THREADS] frontend create request', { bookId: threadBookKey, userId: identity?.userId });
+      const response = await api.post(`/books/${encodeURIComponent(threadBookKey)}/threads`, {
         title: threadForm.title,
         chapterReference: threadForm.chapterReference,
         content: threadForm.content,
+        userId: identity?.userId,
+        displayName: identity?.displayName,
       });
-      const createdThreadId = String(data?._id || '').trim();
+      const createdThread = unwrapApiData(response);
+      const createdThreadId = String(createdThread?._id || '').trim();
       if (!createdThreadId) {
         throw new Error('Thread created without id.');
       }
 
-      const { data: confirmedThread } = await api.get(`/threads/${encodeURIComponent(createdThreadId)}`);
-
-      setThreads((prev) => [confirmedThread, ...prev.filter((thread) => thread._id !== createdThreadId)]);
+      setThreads((prev) => [createdThread, ...prev.filter((thread) => thread._id !== createdThreadId)]);
       setThreadForm(initialThreadForm);
       setShowComposer(false);
       setSelectedThreadId(createdThreadId);
       setFeedback('Your discussion note has been placed into the room.');
       updateThreadQuery(createdThreadId);
+      console.warn('[THREADS] frontend navigation triggered', { threadId: createdThreadId });
     } catch (requestError) {
       setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to publish this discussion right now.');
     } finally {
@@ -569,10 +625,14 @@ export default function BookThread() {
     setPendingReplyKey(replyKey);
 
     try {
-      const { data } = await api.post(`/threads/${threadId}/messages`, {
+      const identity = getOrCreateIdentity();
+      const response = await api.post(`/threads/${threadId}/messages`, {
         content,
         parentMessageId: parentId,
+        userId: identity?.userId,
+        displayName: identity?.displayName,
       });
+      const data = unwrapApiData(response);
 
       setThreads((prev) => prev.map((thread) => {
         if (thread._id !== threadId) return thread;
@@ -596,7 +656,12 @@ export default function BookThread() {
 
   const handleLikeThread = async (threadId) => {
     try {
-      const { data } = await api.post(`/threads/${threadId}/like`);
+      const identity = getOrCreateIdentity();
+      const response = await api.post(`/threads/${threadId}/like`, {
+        userId: identity?.userId,
+        displayName: identity?.displayName,
+      });
+      const data = unwrapApiData(response);
       setThreads((prev) => prev.map((thread) => (thread._id === threadId ? { ...thread, ...data } : thread)));
     } catch (requestError) {
       setError(requestError?.uiMessage || requestError?.response?.data?.message || 'Unable to heart this thread right now.');
@@ -605,7 +670,12 @@ export default function BookThread() {
 
   const handleLikeComment = async (threadId, commentId) => {
     try {
-      const { data } = await api.post(`/threads/${threadId}/messages/${commentId}/like`);
+      const identity = getOrCreateIdentity();
+      const response = await api.post(`/threads/${threadId}/messages/${commentId}/like`, {
+        userId: identity?.userId,
+        displayName: identity?.displayName,
+      });
+      const data = unwrapApiData(response);
       setThreads((prev) => prev.map((thread) => {
         if (thread._id !== threadId) return thread;
         const existing = Array.isArray(thread.comments) ? thread.comments : [];

@@ -1,24 +1,37 @@
 import { BookThreadsService } from './bookThreadsService.js';
 import { resolveBookOrThrow } from './bookResolver.js';
-import { sendError } from './httpErrors.js';
+import { sendError, badRequest } from './httpErrors.js';
 import { parseObjectId } from './validators.js';
 
 const service = new BookThreadsService();
 
-const getIdentity = (req) => {
-  const userId = String(req.identity?.userId || req.body?.userId || '').trim();
-  const displayName = String(req.identity?.displayName || req.body?.displayName || '').trim();
+const toCleanString = (value, maxLen = 80) => String(value || '').trim().slice(0, maxLen);
+
+const getIdentityFromRequest = (req, { required = false } = {}) => {
+  const userId = toCleanString(req.body?.userId || req.headers['x-user-id'] || req.query?.userId, 80);
+  const displayName = toCleanString(req.body?.displayName || req.headers['x-display-name'] || req.query?.displayName, 60);
+
+  if (required && (!userId || !displayName)) {
+    throw badRequest('userId and displayName are required.');
+  }
 
   return {
     userId,
-    displayName: displayName || 'Anonymous Reader',
+    displayName,
   };
 };
 
+const sendSuccess = (res, data, statusCode = 200) => res.status(statusCode).json({ success: true, data, error: null });
+
 export const createThread = async (req, res) => {
   try {
-    const identity = getIdentity(req);
+    const identity = getIdentityFromRequest(req, { required: true });
     const book = await resolveBookOrThrow(req.params.bookId);
+    console.warn('[THREADS] create request received', {
+      bookId: String(book._id),
+      userId: identity.userId,
+      displayName: identity.displayName,
+    });
 
     const payload = await service.createThread({
       bookId: book._id,
@@ -29,7 +42,8 @@ export const createThread = async (req, res) => {
       chapterReference: req.body?.chapterReference,
     });
 
-    return res.status(201).json(payload);
+    console.warn('[THREADS] create response sent', { threadId: payload?._id, bookId: payload?.bookId });
+    return sendSuccess(res, payload, 201);
   } catch (error) {
     return sendError(res, error, 'Unable to create thread.');
   }
@@ -39,7 +53,7 @@ export const listThreadsByBook = async (req, res) => {
   try {
     const book = await resolveBookOrThrow(req.params.bookId);
     const payload = await service.listThreadsByBook({ bookId: book._id, query: req.query });
-    return res.json(payload);
+    return sendSuccess(res, payload);
   } catch (error) {
     return sendError(res, error, 'Unable to fetch threads.');
   }
@@ -49,7 +63,7 @@ export const getThread = async (req, res) => {
   try {
     const threadId = parseObjectId(req.params.threadId, 'thread id');
     const payload = await service.getThreadById({ threadId });
-    return res.json(payload);
+    return sendSuccess(res, payload);
   } catch (error) {
     return sendError(res, error, 'Unable to fetch thread.');
   }
@@ -59,7 +73,7 @@ export const listMessages = async (req, res) => {
   try {
     const threadId = parseObjectId(req.params.threadId, 'thread id');
     const payload = await service.listMessages({ threadId, query: req.query });
-    return res.json(payload);
+    return sendSuccess(res, payload);
   } catch (error) {
     return sendError(res, error, 'Unable to fetch messages.');
   }
@@ -67,7 +81,7 @@ export const listMessages = async (req, res) => {
 
 export const addMessage = async (req, res) => {
   try {
-    const identity = getIdentity(req);
+    const identity = getIdentityFromRequest(req, { required: true });
     const threadId = parseObjectId(req.params.threadId, 'thread id');
 
     const parentMessageIdRaw = req.body?.parentMessageId ? String(req.body.parentMessageId).trim() : '';
@@ -81,7 +95,7 @@ export const addMessage = async (req, res) => {
       parentMessageId,
     });
 
-    return res.status(201).json(payload);
+    return sendSuccess(res, payload, 201);
   } catch (error) {
     return sendError(res, error, 'Unable to add message.');
   }
@@ -89,10 +103,10 @@ export const addMessage = async (req, res) => {
 
 export const toggleThreadLike = async (req, res) => {
   try {
-    const identity = getIdentity(req);
+    const identity = getIdentityFromRequest(req, { required: true });
     const threadId = parseObjectId(req.params.threadId, 'thread id');
     const payload = await service.toggleThreadLike({ threadId, actorId: identity.userId });
-    return res.json(payload);
+    return sendSuccess(res, payload);
   } catch (error) {
     return sendError(res, error, 'Unable to like thread.');
   }
@@ -100,12 +114,12 @@ export const toggleThreadLike = async (req, res) => {
 
 export const toggleMessageLike = async (req, res) => {
   try {
-    const identity = getIdentity(req);
+    const identity = getIdentityFromRequest(req, { required: true });
     const threadId = parseObjectId(req.params.threadId, 'thread id');
     const messageId = parseObjectId(req.params.messageId, 'message id');
 
     const payload = await service.toggleMessageLike({ threadId, messageId, actorId: identity.userId });
-    return res.json(payload);
+    return sendSuccess(res, payload);
   } catch (error) {
     return sendError(res, error, 'Unable to like message.');
   }
