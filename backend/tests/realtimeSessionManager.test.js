@@ -85,3 +85,32 @@ test('RealtimeSessionManager disconnect cleanup ends ghost matchmaking', async (
   assert.equal(searching, 0);
 });
 
+test('RealtimeSessionManager re-queues survivor when partner disconnects during match finalization', async () => {
+  const io = createFakeIo();
+  const manager = new RealtimeSessionManager(io);
+
+  const aSocket = createFakeSocket('s-a');
+  const bSocket = createFakeSocket('s-b');
+  io.sockets.sockets.set('s-a', aSocket);
+  io.sockets.sockets.set('s-b', bSocket);
+
+  manager.registerSocket({ userId: 'u-a', socketId: 's-a' });
+  manager.registerSocket({ userId: 'u-b', socketId: 's-b' });
+  const baseFinalize = manager._finalizeMatch.bind(manager);
+  manager._finalizeMatch = (match) => {
+    io.sockets.sockets.delete(match.bSocketId);
+    return baseFinalize(match);
+  };
+
+  const joinResult = await manager.joinMatchmaking({ userId: 'u-b', bookId: 'book-1', prefType: 'text' });
+  assert.equal(joinResult.matched, false);
+
+  await manager.joinMatchmaking({ userId: 'u-a', bookId: 'book-1', prefType: 'text' });
+
+  assert.equal(manager.getSession('u-a').state, SESSION_STATES.IDLE);
+  assert.equal(manager.getSession('u-b').state, SESSION_STATES.SEARCHING);
+  assert.ok(bSocket.emitted.some((entry) => entry.event === 'match_requeued'));
+
+  const searching = Array.from(manager.queue.values()).reduce((sum, queue) => sum + (queue?.length || 0), 0);
+  assert.equal(searching, 1);
+});
