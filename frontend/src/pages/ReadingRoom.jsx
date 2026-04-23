@@ -14,8 +14,6 @@ import { trackBookOpened, updateReadingSession } from '../utils/readingSession';
 import { UI_THEMES } from '../utils/uiThemes';
 import { PaginationEngine } from '../components/reader/PaginationEngine';
 import PageRenderer from '../components/reader/PageRenderer';
-import useOnboarding from '../hooks/useOnboarding';
-import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
 import UnavailableBookState from '../components/reader/UnavailableBookState';
 import './ReadingRoom.css';
 
@@ -65,8 +63,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
   const [goToDraft, setGoToDraft] = useState('1');
   const [goToPageDraft, setGoToPageDraft] = useState('1');
   const [restoreSnapshot, setRestoreSnapshot] = useState(null);
-
-  const { step: onboardingStep, completed: onboardingCompleted, nextStep: nextOnboardingStep } = useOnboarding();
 
   const chromeTimeoutRef = useRef(null);
   const pointerDownRef = useRef(null);
@@ -836,13 +832,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
 
   return (
     <div className={`reader-root theme-${uiTheme} animate-fade-in`}>
-      {!onboardingCompleted && onboardingStep === 3 ? (
-        <OnboardingTooltip
-          targetSelector='[data-onboarding="ai-insights-btn"]'
-          placement="bottom"
-          text="Generate insights using AI"
-        />
-      ) : null}
       <div className={`reader-toolbar ${chromeVisible ? 'is-visible' : ''} ${activeControlPanel ? 'settings-open' : ''}`}>
         <button type="button" onClick={handleDeskNavigation} className="back-btn">
           <ChevronLeft size={18} /> The Desk
@@ -856,14 +845,10 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
           <button
             type="button"
             onClick={() => {
-              if (!onboardingCompleted && onboardingStep === 3) {
-                nextOnboardingStep();
-              }
               navigate(`/quiz/${encodeURIComponent(String(resolvedBookId))}`);
             }}
-            className={`settings-btn${!onboardingCompleted && onboardingStep === 3 ? ' onboarding-target-glow' : ''}`}
+            className="settings-btn"
             title="AI insights"
-            data-onboarding="ai-insights-btn"
           >
             <Sparkles size={17} />
           </button>
