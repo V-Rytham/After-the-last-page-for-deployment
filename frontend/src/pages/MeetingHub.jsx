@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, Clock3, LogOut } from 'lucide-react';
+import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, Waves, LogOut } from 'lucide-react';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import { getOrCreateIdentity } from '../utils/identity';
@@ -489,7 +489,7 @@ const MeetingHub = () => {
       setSearchSeconds((prev) => prev + 1);
     }, 1000);
 
-    setSearchHint(`Calling for readers who finished this book (${prefType}).`);
+    setSearchHint('Looking for someone who just finished this book.');
     const nudgeTimeoutId = window.setTimeout(() => setSearchHint('Scanning for someone in the same chapter-afterglow.'), 12000);
     const delayTimeoutId = window.setTimeout(() => setSearchHint('This is taking longer than usual. Hang tight.'), 32000);
     const bookFriendTimeoutId = window.setTimeout(() => {
@@ -641,12 +641,6 @@ const MeetingHub = () => {
     return 'starting';
   })();
 
-  const formattedPrefType = prefType === 'voice'
-    ? 'Voice'
-    : prefType === 'video'
-      ? 'Video'
-      : 'Text';
-
   const getMessageTimeLabel = (timestamp) => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());
     if (Number.isNaN(date.getTime())) return '';
@@ -737,31 +731,33 @@ const MeetingHub = () => {
 
             <div className="searching-header">
               <h2 className="font-serif searching-title">
-                {searchStage === 'starting' && 'Finding a reader'}
-                {searchStage === 'searching' && 'Matching you'}
-                {searchStage === 'lingering' && 'Almost there'}
-                {searchStage === 'delayed' && 'Taking longer than usual'}
-                <span className="searching-dots" aria-hidden="true">{searchingDots}</span>
+                Finding a reader<span className="searching-dots" aria-hidden="true">{searchingDots}</span>
               </h2>
               <p className="text-muted searching-subtitle">
                 {searchHint}
               </p>
+              <p className="searching-helper text-muted">This usually takes a few seconds</p>
+            </div>
+
+            <div className="searching-progress" role="status" aria-live="polite">
+              <span>Still searching… ({Math.max(0, searchSeconds)}s)</span>
+              <div className="searching-progress-line" aria-hidden="true">
+                <span className="searching-progress-line-fill" />
+              </div>
             </div>
 
             <div className="searching-meta" aria-label="Live activity">
-              <span className="searching-pill">
-                <Clock3 size={14} aria-hidden="true" /> {Math.max(0, searchSeconds)}s
+              <span className="searching-status">
+                ⏱ Searching for {Math.max(0, searchSeconds)}s
               </span>
-              <span className="searching-pill">
-                {formattedPrefType} matchmaking
-              </span>
-              <span className="searching-pill">
-                {matchStats?.online != null
-                  ? `${matchStats.online} online`
-                  : (socketReady ? 'Live online' : 'Offline')}
+              <span className="searching-status">📖 Matching readers</span>
+              <span className="searching-status">
+                🟢 {matchStats?.online != null
+                  ? `${matchStats.online} users online`
+                  : (socketReady ? 'Users online' : 'Offline')}
               </span>
               {matchStats?.searching != null && (
-                <span className="searching-pill">{matchStats.searching} searching</span>
+                <span className="searching-status">🔎 {matchStats.searching} searching now</span>
               )}
             </div>
 
@@ -772,11 +768,11 @@ const MeetingHub = () => {
                 </button>
               )}
               {searchStage === 'delayed' ? (
-                <button className="btn-secondary sm" onClick={handleCancelSearch}>
+                <button className="btn-secondary sm searching-back-btn" onClick={handleCancelSearch}>
                   Try again
                 </button>
               ) : (
-                <button className="btn-secondary sm" onClick={handleCancelSearch}>
+                <button className="btn-secondary sm searching-back-btn" onClick={handleCancelSearch}>
                   Back
                 </button>
               )}

@@ -15,7 +15,7 @@
 
 .meeting-hub.meeting-hub--searching {
   align-items: center;
-  padding-top: clamp(0.9rem, 2.5vw, 1.4rem);
+  padding-top: clamp(0.25rem, 1.5vw, 0.75rem);
 }
 
 .text-accent {
@@ -237,22 +237,25 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 .searching-container {
   display: grid;
   justify-items: center;
-  gap: 0.75rem;
+  gap: 0.55rem;
   text-align: center;
 }
 
 .searching-card {
   width: min(100%, 32rem);
-  padding: 1.35rem 1.35rem 1.15rem;
+  padding: 1.2rem 1.2rem 1rem;
   border-radius: var(--radius-lg);
   display: grid;
-  gap: 0.65rem;
+  gap: 0.55rem;
   justify-items: center;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 84%, var(--page-bg-alt));
+  box-shadow: 0 10px 30px rgba(10, 14, 25, 0.12), inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
 }
 
 .searching-header {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.2rem;
   text-align: center;
 }
 
@@ -264,9 +267,16 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 
 .searching-subtitle {
   margin: 0;
-  max-width: 46ch;
-  line-height: 1.55;
-  opacity: 0.78;
+  max-width: 42ch;
+  line-height: 1.5;
+  opacity: 0.74;
+  font-size: 0.95rem;
+}
+
+.searching-helper {
+  margin: 0.15rem 0 0;
+  font-size: 0.77rem;
+  opacity: 0.66;
 }
 
 .searching-dots {
@@ -290,44 +300,73 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 }
 
 .searching-meta {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 27rem);
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.35rem 0.45rem;
   margin-top: 0.1rem;
 }
 
-.searching-pill {
-  display: inline-flex;
+.searching-status {
+  display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.26rem 0.55rem;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.26rem 0.45rem;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface-1) 55%, transparent);
-  border: 1px solid var(--border-soft);
-  font-size: 0.76rem;
+  background: color-mix(in srgb, var(--surface-muted) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 50%, transparent);
+  font-size: 0.73rem;
   color: var(--text-muted);
-  animation: searchingPillIn 340ms ease both;
-  position: relative;
-  overflow: hidden;
+  font-weight: 500;
 }
 
-.searching-pill::after {
-  content: '';
+.searching-progress {
+  width: min(100%, 27rem);
+  display: grid;
+  gap: 0.32rem;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+}
+
+.searching-progress-line {
+  position: relative;
+  width: 100%;
+  height: 0.22rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
+}
+
+.searching-progress-line-fill {
   position: absolute;
-  inset: 0;
-  transform: translateX(-120%);
-  background: linear-gradient(110deg, transparent 0%, color-mix(in srgb, var(--accent-soft) 25%, transparent) 46%, transparent 100%);
-  animation: searchingShimmer 2.6s ease-in-out infinite;
-  pointer-events: none;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 55%, transparent), color-mix(in srgb, var(--accent-border) 72%, transparent));
+  animation: searchingLineTravel 1.5s ease-in-out infinite;
 }
 
 .searching-actions {
-  margin-top: 0.75rem;
+  margin-top: 0.65rem;
   display: flex;
   justify-content: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.searching-back-btn {
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  border-color: color-mix(in srgb, var(--border-soft) 85%, transparent) !important;
+  box-shadow: none !important;
+}
+
+.searching-back-btn:hover {
+  background: color-mix(in srgb, var(--surface-muted) 68%, transparent) !important;
+  color: var(--text-secondary) !important;
 }
 
 .radar-animation {
@@ -384,6 +423,18 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes searchingLineTravel {
+  0% {
+    transform: translateX(-115%);
+  }
+  55% {
+    transform: translateX(210%);
+  }
+  100% {
+    transform: translateX(210%);
   }
 }
 
