@@ -7,8 +7,8 @@ import { getStoredUser, saveAuthSession } from './utils/auth';
 import { getOrCreateIdentity } from './utils/identity';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
 import { applyThemeTokens } from './styles/theme';
-import FirstChapterExperience from './components/onboarding/FirstChapterExperience';
 import './index.css';
+import OnboardingModal from './components/OnboardingModal';
 
 const VALID_THEMES = UI_THEMES.map((theme) => theme.id);
 
@@ -54,7 +54,7 @@ const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
-        <FirstChapterExperience />
+        <OnboardingModal />
       </main>
     </div>
   );
