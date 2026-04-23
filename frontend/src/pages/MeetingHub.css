@@ -6,6 +6,13 @@
   padding: clamp(1.25rem, 3.5vw, 2.25rem) var(--page-gutter) var(--section-space);
 }
 
+.meeting-hub--connected,
+.meeting-hub--bookfriend {
+  height: calc(100dvh - var(--navbar-height, 0px));
+  min-height: calc(100dvh - var(--navbar-height, 0px));
+  overflow: hidden;
+}
+
 .meeting-hub.meeting-hub--searching {
   align-items: center;
   padding-top: clamp(0.9rem, 2.5vw, 1.4rem);
@@ -403,12 +410,14 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 
 .room-container {
   width: min(100%, 64rem);
-  min-height: 78vh;
+  height: 100%;
+  min-height: 0;
   display: grid;
   gap: 0;
 }
 
 .room-header {
+  flex-shrink: 0;
   padding: 1rem 1.2rem 0.95rem;
   display: flex;
   justify-content: space-between;
@@ -472,7 +481,8 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 }
 
 .room-main {
-  min-height: min(82vh, 46rem);
+  height: 100%;
+  min-height: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: flex;
@@ -506,12 +516,15 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .chat-messages {
   flex: 1;
+  min-height: 0;
   padding: 1.15rem 1.1rem 1.2rem;
   overflow-y: auto;
+  overflow-x: hidden;
   display: grid;
   align-content: start;
   gap: 0.24rem;
@@ -522,6 +535,7 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   display: flex;
   align-items: flex-end;
   gap: 0.5rem;
+  min-width: 0;
   opacity: 0;
   transform: translateY(4px);
   animation: messageIn 180ms ease-out forwards;
@@ -546,6 +560,8 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 .message-content {
   display: grid;
   gap: 0.22rem;
+  max-width: min(75%, 34rem);
+  min-width: 0;
 }
 
 .message.sent .message-content {
@@ -565,10 +581,13 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 }
 
 .msg-bubble {
-  max-width: min(72%, 34rem);
+  max-width: 100%;
   padding: 0.72rem 0.96rem;
   border-radius: 1.05rem;
   line-height: 1.55;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
   background: color-mix(in srgb, #212b3e 64%, var(--surface-1));
   border: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
   color: color-mix(in srgb, var(--text-primary) 96%, white);
@@ -602,15 +621,13 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
 }
 
 .chat-input-area {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
   padding: 0.85rem 1rem 1rem;
   border-top: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
   background: color-mix(in srgb, var(--surface-1) 92%, var(--page-bg-alt));
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
   box-shadow: 0 -10px 24px rgba(8, 10, 20, 0.2);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -637,17 +654,23 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   min-width: 2.95rem;
   height: 2.95rem;
   padding: 0;
+  border: none;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-secondary);
   border-radius: 999px;
-  transition: transform 160ms ease, box-shadow 200ms ease, filter 160ms ease;
+  transition: transform 160ms ease, background-color 160ms ease, color 160ms ease, opacity 160ms ease;
 }
 
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  filter: brightness(1.06);
+  background: color-mix(in srgb, var(--surface-muted) 78%, transparent) !important;
+  color: var(--text-primary);
 }
 
 .send-btn:active:not(:disabled) {
   transform: translateY(0);
+  background: color-mix(in srgb, var(--surface-muted) 92%, transparent) !important;
 }
 
 .send-btn:disabled {
@@ -791,7 +814,7 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   }
 
   .room-main {
-    min-height: 24rem;
+    min-height: 0;
   }
 }
 
@@ -806,7 +829,7 @@ html[data-theme='dark'] .meeting-hub .btn-leave {
   }
 
   .room-main {
-    min-height: 22rem;
+    min-height: 0;
   }
 }
 

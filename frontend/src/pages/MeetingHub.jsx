@@ -57,6 +57,8 @@ const MeetingHub = () => {
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
   const [leavePromptBody, setLeavePromptBody] = useState('You will disconnect from this reader.');
   const pendingLeaveActionRef = useRef(null);
+  const messageListRef = useRef(null);
+  const shouldAutoScrollRef = useRef(true);
   const socketRef = useRef(socket);
   const searchIntervalRef = useRef(null);
   const cleanupInFlightRef = useRef(false);
@@ -83,6 +85,19 @@ const MeetingHub = () => {
   useEffect(() => {
     socketRef.current = socket;
   }, [socket]);
+
+  useEffect(() => {
+    const listEl = messageListRef.current;
+    if (!listEl || !shouldAutoScrollRef.current) return;
+    listEl.scrollTop = listEl.scrollHeight;
+  }, [messages]);
+
+  const handleMessageListScroll = useCallback(() => {
+    const listEl = messageListRef.current;
+    if (!listEl) return;
+    const distanceFromBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom <= 24;
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -639,7 +654,12 @@ const MeetingHub = () => {
   };
 
   const renderMessageList = () => (
-    <div className="chat-messages" aria-label="Chat messages">
+    <div
+      ref={messageListRef}
+      className="chat-messages"
+      aria-label="Chat messages"
+      onScroll={handleMessageListScroll}
+    >
       {messages.length === 0 && (
         <div className="chat-empty-state" role="status" aria-live="polite">
           <MessageSquare size={20} />
@@ -654,7 +674,7 @@ const MeetingHub = () => {
         const isLastInGroup = !next || next.sender !== m.sender;
         return (
           <div
-            key={`${m.sender}-${i}`}
+            key={m?.id || `${m?.sender || 'user'}-${m?.timestamp || i}-${i}`}
             className={`message ${isMine ? 'sent' : 'received'} ${isFirstInGroup ? 'group-start' : 'group-mid'} ${isLastInGroup ? 'group-end' : ''}`}
           >
             {!isMine && isFirstInGroup && <div className="message-avatar" aria-hidden="true"><User size={14} /></div>}
