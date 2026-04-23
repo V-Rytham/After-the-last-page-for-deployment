@@ -11,6 +11,10 @@ const canonicalizeThreadKey = (value) => {
   return raw.replace(/\s+/g, ' ').slice(0, 120);
 };
 
+const normalizeBookKey = (title, author) => (
+  `${canonicalizeThreadKey(title)}::${canonicalizeThreadKey(author)}`
+);
+
 const getArchiveBadge = (book) => {
   const source = String(book?.source || '').trim().toLowerCase();
   const isArchive = source === 'archive' || source === 'internetarchive';
@@ -23,15 +27,36 @@ export default function ThreadAccessHub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [featuredBooks, setFeaturedBooks] = useState([]);
   const { books, loading, error, query } = useGlobalSearch(searchTerm);
-  const visibleSearch = useMemo(() => (Array.isArray(books) ? books : []), [books]);
+  const worldBooksByKey = useMemo(() => {
+    const map = new Map();
+    for (const book of Array.isArray(featuredBooks) ? featuredBooks : []) {
+      const key = normalizeBookKey(book?.title, book?.author);
+      if (!key || map.has(key)) continue;
+      map.set(key, book);
+    }
+    return map;
+  }, [featuredBooks]);
+  const visibleSearch = useMemo(() => {
+    const deduped = [];
+    const seen = new Set();
+
+    for (const result of Array.isArray(books) ? books : []) {
+      const key = normalizeBookKey(result?.title, result?.author);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+
+      const worldBook = worldBooksByKey.get(key);
+      if (!worldBook) continue;
+      deduped.push(worldBook);
+    }
+    return deduped;
+  }, [books, worldBooksByKey]);
 
   const typedQuery = String(searchTerm || '').trim();
   const hasInput = Boolean(typedQuery);
   const hasQuery = Boolean(query);
   const visible = hasInput ? visibleSearch : featuredBooks;
   const hasResults = visible.length > 0;
-  const manualKey = canonicalizeThreadKey(typedQuery);
-  const manualCompositeId = manualKey ? `custom:${manualKey}` : '';
 
   useEffect(() => {
     let cancelled = false;
@@ -95,25 +120,8 @@ export default function ThreadAccessHub() {
 
         {hasQuery && !loading && !error && !hasResults && (
           <div className="thread-access-loading glass-panel">
-            <p>No matches found. You can still open a thread for “{typedQuery || query}”.</p>
+            <p>No matching books are available in the library yet.</p>
           </div>
-        )}
-
-        {hasInput && manualCompositeId && (
-          <article key={manualCompositeId} className="thread-access-card glass-panel">
-            <div className="thread-access-card-body">
-              <h3 className="thread-access-title font-serif">{typedQuery}</h3>
-              <p className="thread-access-author">Open the book thread</p>
-            </div>
-            <div className="thread-access-actions">
-              <button
-                className="btn-primary sm thread-access-button"
-                onClick={() => navigate(`/thread/${encodeURIComponent(manualCompositeId)}`, { state: { customTitle: typedQuery } })}
-              >
-                Open thread <ArrowRight size={14} />
-              </button>
-            </div>
-          </article>
         )}
 
         {!loading && !error && hasResults && visible.map((book) => {
