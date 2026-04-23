@@ -27,10 +27,11 @@
   }
 }
 
-.home2-hero-inner {
+.home2-hero-inner,
+.hero-container {
   width: min(44rem, 100%);
   display: grid;
-  gap: 0.85rem;
+  gap: 1.5rem;
   margin-inline: auto;
 }
 
@@ -50,10 +51,14 @@
 }
 
 .hero-text {
-  font-size: 3rem;
+  font-size: clamp(3.5rem, 6vw, 5.5rem);
+  line-height: 1.1;
   font-weight: 500;
   color: var(--text-base);
   position: relative;
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .hero-text::after {
@@ -87,9 +92,12 @@
     background-position: 100% 0;
   }
 }
-.home2-hero-subtitle {
+.home2-hero-subtitle,
+.hero-subtext {
   max-width: 52ch;
   margin: 0 auto;
+  font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 
