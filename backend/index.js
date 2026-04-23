@@ -157,6 +157,7 @@ const corsOptions = {
     'Authorization',
     'X-Requested-With',
     'x-user-id',
+    'x-display-name',
   ],
 
   credentials: true,
