@@ -200,6 +200,10 @@ app.get('/api/health', (req, res) => {
   }
 });
 
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
+});
+
 app.use(notFound);
 app.use(errorHandler);
 
