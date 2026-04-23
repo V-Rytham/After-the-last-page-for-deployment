@@ -218,13 +218,11 @@ export default function BookThread() {
   const navigate = useNavigate();
   const parsedSourceRoute = useMemo(() => {
     if (!bookId) return null;
-    const decoded = decodeURIComponent(String(bookId));
-    const separator = decoded.indexOf(':');
-    if (separator <= 0) return null;
-    const source = decoded.slice(0, separator).trim().toLowerCase();
-    const sourceId = decoded.slice(separator + 1).trim();
+    const decodedId = decodeURIComponent(String(bookId));
+    const [source, bookSourceId] = decodedId.split(':');
+    const sourceId = String(bookSourceId || '').trim();
     if (!source || !sourceId) return null;
-    return { source, sourceId, composite: decoded };
+    return { source: source.trim().toLowerCase(), sourceId, composite: decodedId };
   }, [bookId]);
   const isCustomThread = useMemo(() => parsedSourceRoute?.source === 'custom', [parsedSourceRoute]);
   const customThreadTitle = useMemo(() => {
@@ -338,12 +336,37 @@ export default function BookThread() {
         if (!isCustomThread) {
           const payload = bookResult.value?.data?.data || bookResult.value?.data;
           if (payload && typeof payload === 'object') {
-            setBook((prev) => ({
-              ...(prev || {}),
+            const prevBook = (location?.state?.book && typeof location.state.book === 'object') ? location.state.book : null;
+            const sourceBook = payload?.book && typeof payload.book === 'object' ? payload.book : payload;
+            const title = sourceBook?.title || payload?.title || prevBook?.title || 'Untitled';
+            const author = sourceBook?.creators?.[0]?.name
+              || sourceBook?.authors?.[0]?.name
+              || sourceBook?.author
+              || payload?.author
+              || prevBook?.author
+              || 'Unknown author';
+            const cover = sourceBook?.formats?.['image/jpeg']
+              || sourceBook?.formats?.['image/png']
+              || sourceBook?.coverImage
+              || payload?.coverImage
+              || prevBook?.coverImage
+              || null;
+            const bookContentAvailable = Boolean(sourceBook?.formats?.['text/html'] || sourceBook?.formats?.['text/plain']);
+            const parsedBook = {
+              ...(prevBook || {}),
               ...payload,
-              title: String(payload?.title || prev?.title || '').trim() || 'Untitled',
-              author: String(payload?.author || prev?.author || '').trim() || 'Author unavailable',
-            }));
+              ...sourceBook,
+              title: String(title).trim() || 'Untitled',
+              author: String(author).trim() || 'Unknown author',
+              coverImage: cover,
+              source: payload?.source || parsedSourceRoute?.source || prevBook?.source,
+              sourceId: payload?.sourceId || parsedSourceRoute?.sourceId || prevBook?.sourceId,
+              bookContentAvailable,
+              previewMessage: bookContentAvailable ? null : 'No readable content available',
+            };
+            // eslint-disable-next-line no-console
+            console.log('Parsed book:', parsedBook);
+            setBook(parsedBook);
           }
         }
       } else {
@@ -806,6 +829,9 @@ export default function BookThread() {
                 <div className="salon-copy">
                   <div className="salon-kicker-row">
                     <span className="salon-room-label">{book.author}</span>
+                    {!book?.bookContentAvailable && book?.previewMessage ? (
+                      <span className="salon-room-label">{book.previewMessage}</span>
+                    ) : null}
                   </div>
                   <div className="nexus-toolbar" role="toolbar" aria-label="Thread controls">
                     <h1 className="thread-title font-serif">{book.title}</h1>
